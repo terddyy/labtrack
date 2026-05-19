@@ -1,0 +1,15 @@
+node_modules
+.next
+.expo
+dist
+build
+coverage
+.env
+.env.*
+!.env.example
+*.local
+*.log
+*.tsbuildinfo
+android
+ios
+web-build

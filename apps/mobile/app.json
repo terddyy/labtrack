@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "LABTRACK",
+    "slug": "labtrack",
+    "scheme": "labtrack",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "android": {
+      "package": "edu.psu.ccs.labtrack",
+      "versionCode": 1,
+      "permissions": ["CAMERA", "POST_NOTIFICATIONS"],
+      "adaptiveIcon": {
+        "backgroundColor": "#F4F7F8"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow LABTRACK to scan equipment QR codes.",
+          "barcodeScannerEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#236A91"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "replace-with-eas-project-id"
+      }
+    }
+  }
+}
