@@ -1,4 +1,4 @@
-import AsyncStorage from "expo-secure-store";
+import * as SecureStore from "expo-secure-store";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -8,9 +8,9 @@ export const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey, {
       auth: {
         storage: {
-          getItem: (key) => AsyncStorage.getItemAsync(key),
-          setItem: (key, value) => AsyncStorage.setItemAsync(key, value),
-          removeItem: (key) => AsyncStorage.deleteItemAsync(key)
+          getItem: (key) => SecureStore.getItemAsync(key),
+          setItem: (key, value) => SecureStore.setItemAsync(key, value),
+          removeItem: (key) => SecureStore.deleteItemAsync(key)
         },
         autoRefreshToken: true,
         detectSessionInUrl: false,

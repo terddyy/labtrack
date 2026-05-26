@@ -12,9 +12,22 @@
     "build:shared": "npm run build -w @labtrack/shared",
     "dev:web": "npm run dev -w @labtrack/web",
     "dev:mobile": "npm run start -w @labtrack/mobile",
+    "test": "npm run test -w @labtrack/shared",
     "typecheck": "npm run typecheck -w @labtrack/shared && npm run typecheck -w @labtrack/web && npm run typecheck -w @labtrack/mobile"
   },
   "engines": {
     "node": ">=20.9.0"
+  },
+  "devDependencies": {
+    "expo-font": "55.0.8",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6"
+  },
+  "overrides": {
+    "expo-font": "55.0.8",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6"
   }
 }

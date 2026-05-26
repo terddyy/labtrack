@@ -17,15 +17,33 @@ export function createQrPayload(code: string): string {
 }
 
 export function parseQrPayload(payload: string): LabtrackQrPayload | null {
-  const [prefix, version, encodedCode] = payload.trim().split(":");
+  const segments = payload.trim().split(":");
+
+  if (segments.length !== 3) {
+    return null;
+  }
+
+  const [prefix, version, encodedCode] = segments;
 
   if (prefix !== QR_PREFIX || version !== QR_VERSION || !encodedCode) {
     return null;
   }
 
+  let code: string;
+
+  try {
+    code = decodeURIComponent(encodedCode);
+  } catch {
+    return null;
+  }
+
+  if (!code.trim()) {
+    return null;
+  }
+
   return {
     version,
-    code: decodeURIComponent(encodedCode)
+    code
   };
 }
 

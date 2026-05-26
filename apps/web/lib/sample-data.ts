@@ -3,7 +3,7 @@ import { createQrPayload, type Asset, type Booking, type DefectReport, type Prof
 export const profiles: Profile[] = [
   {
     id: "6b98b1a1-9028-4305-828c-286d4afaa001",
-    email: "superadmin@psu.edu.ph",
+    email: "superadmin@gmail.com",
     fullName: "CCS Super Admin",
     role: "super_admin",
     department: "College of Computing Studies",
@@ -11,7 +11,7 @@ export const profiles: Profile[] = [
   },
   {
     id: "6b98b1a1-9028-4305-828c-286d4afaa002",
-    email: "admin.lab@psu.edu.ph",
+    email: "admin@gmail.com",
     fullName: "Laboratory Administrator",
     role: "admin",
     department: "College of Computing Studies",

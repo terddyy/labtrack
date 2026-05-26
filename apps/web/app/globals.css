@@ -42,6 +42,30 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.access-shell {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.access-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 20px;
+  max-width: 460px;
+  padding: 24px;
+  width: 100%;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -160,6 +184,47 @@ h3 {
   color: var(--foreground);
 }
 
+.profile-strip,
+.notice {
+  align-items: center;
+  border-radius: var(--radius);
+  display: flex;
+  gap: 10px;
+}
+
+.profile-strip {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+}
+
+.notice {
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+  padding: 12px;
+}
+
+.notice.neutral {
+  background: var(--panel-muted);
+}
+
+.notice.success {
+  background: oklch(0.93 0.045 155);
+  color: oklch(0.34 0.09 155);
+}
+
+.notice.warning {
+  background: oklch(0.94 0.045 78);
+  color: oklch(0.41 0.08 78);
+}
+
+.notice.danger {
+  background: oklch(0.94 0.045 28);
+  color: oklch(0.43 0.11 28);
+}
+
 .metrics {
   display: grid;
   gap: 14px;
@@ -192,6 +257,14 @@ h3 {
 
 .panel {
   overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.selected-row {
+  background: var(--primary-quiet);
 }
 
 .panel-header {
@@ -278,6 +351,24 @@ h3 {
   gap: 12px;
 }
 
+.quick-login-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quick-login-grid .button {
+  justify-content: center;
+}
+
+.asset-form {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 16px;
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -300,6 +391,28 @@ h3 {
   padding: 10px 12px;
 }
 
+.field-error {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.span-2,
+.form-actions {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.empty-state {
+  color: var(--muted);
+  padding: 16px;
+  text-align: center;
+}
+
 .timeline {
   display: grid;
   gap: 12px;
@@ -309,6 +422,10 @@ h3 {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 12px;
+}
+
+.compact {
+  margin-bottom: 8px;
 }
 
 @media (max-width: 980px) {
@@ -322,6 +439,10 @@ h3 {
 
   .metrics,
   .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .asset-form {
     grid-template-columns: 1fr;
   }
 }

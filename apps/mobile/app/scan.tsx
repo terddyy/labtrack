@@ -1,61 +1,154 @@
 import { parseQrPayload } from "@labtrack/shared";
-import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
-import { router } from "expo-router";
-import { useState } from "react";
-import { Text, View } from "react-native";
-import { Button, Card, SectionTitle } from "@/components/ui";
-import { colors, spacing } from "@/constants/theme";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult, type BarcodeSettings } from "expo-camera";
+import { router, useFocusEffect } from "expo-router";
+import { memo, useCallback, useRef, useState } from "react";
+import { Linking, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { RequireActiveProfile } from "@/components/auth-gate";
+import { Button, Card, ScreenScrollView, SectionTitle } from "@/components/ui";
+import { colors } from "@/constants/theme";
+
+const QR_SCANNER_SETTINGS: BarcodeSettings = { barcodeTypes: ["qr"] };
+const INVALID_QR_MESSAGE = "This QR code is not a valid LABTRACK asset code.";
+const INVALID_SCAN_FEEDBACK_MS = 1200;
+
+const ScannerCamera = memo(function ScannerCamera({ onScan }: { onScan: (result: BarcodeScanningResult) => void }) {
+  return (
+    <CameraView
+      active
+      barcodeScannerSettings={QR_SCANNER_SETTINGS}
+      facing="back"
+      onBarcodeScanned={onScan}
+      style={styles.camera}
+    />
+  );
+});
+
+const ScannerOverlay = memo(function ScannerOverlay({ bottomInset, error, isLocked }: { bottomInset: number; error: string | null; isLocked: boolean }) {
+  const caption = isLocked ? "Opening asset..." : error ?? "Only LABTRACK asset QR codes will open asset actions.";
+
+  return (
+    <View pointerEvents="none" style={[styles.overlay, { bottom: Math.max(bottomInset + 18, 24) }]}>
+      <Card style={styles.overlayCard}>
+        <Text style={styles.title}>Align the equipment QR code inside the camera view.</Text>
+        <Text style={[styles.caption, error && !isLocked ? styles.errorText : null]}>{caption}</Text>
+      </Card>
+    </View>
+  );
+});
 
 export default function ScanScreen() {
+  return (
+    <RequireActiveProfile>
+      <ScanContent />
+    </RequireActiveProfile>
+  );
+}
+
+function ScanContent() {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
+  const [isScreenFocused, setIsScreenFocused] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scanLockedRef = useRef(false);
+  const lastInvalidScanAtRef = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      scanLockedRef.current = false;
+      lastInvalidScanAtRef.current = 0;
+      setError(null);
+      setIsLocked(false);
+      setIsScreenFocused(true);
+
+      return () => {
+        scanLockedRef.current = true;
+        setIsScreenFocused(false);
+      };
+    }, [])
+  );
+
+  const handleScan = useCallback((result: BarcodeScanningResult) => {
+    if (scanLockedRef.current) {
+      return;
+    }
+
+    if (!parseQrPayload(result.data)) {
+      const now = Date.now();
+
+      if (now - lastInvalidScanAtRef.current > INVALID_SCAN_FEEDBACK_MS) {
+        lastInvalidScanAtRef.current = now;
+        setError(INVALID_QR_MESSAGE);
+      }
+
+      return;
+    }
+
+    scanLockedRef.current = true;
+    setError(null);
+    setIsLocked(true);
+    router.replace({ pathname: "/asset/[payload]", params: { payload: encodeURIComponent(result.data) } });
+  }, []);
 
   if (!permission) {
-    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+    return <View style={styles.screen} />;
   }
 
   if (!permission.granted) {
+    const canAskAgain = permission.canAskAgain;
+
     return (
-      <View style={{ flex: 1, justifyContent: "center", padding: spacing.page }}>
+      <ScreenScrollView contentContainerStyle={styles.permissionContent}>
         <Card>
           <SectionTitle title="Camera permission required" caption="LABTRACK needs camera access to scan equipment QR labels." />
-          <Button onPress={requestPermission}>Grant Permission</Button>
+          <Button onPress={canAskAgain ? requestPermission : () => void Linking.openSettings()}>
+            {canAskAgain ? "Grant permission" : "Open settings"}
+          </Button>
         </Card>
-      </View>
+      </ScreenScrollView>
     );
   }
 
-  function handleScan(result: BarcodeScanningResult) {
-    if (isLocked) {
-      return;
-    }
-
-    const payload = parseQrPayload(result.data);
-
-    if (!payload) {
-      setError("This QR code is not a valid LABTRACK asset code.");
-      return;
-    }
-
-    setIsLocked(true);
-    router.replace({ pathname: "/asset/[payload]", params: { payload: encodeURIComponent(result.data) } });
-  }
+  const isCameraActive = isScreenFocused && !isLocked;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <CameraView
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        facing="back"
-        onBarcodeScanned={handleScan}
-        style={{ flex: 1 }}
-      />
-      <View style={{ bottom: 24, left: 20, position: "absolute", right: 20 }}>
-        <Card style={{ backgroundColor: colors.surface }}>
-          <Text selectable style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Align the equipment QR code inside the camera view.</Text>
-          <Text selectable style={{ color: error ? colors.danger : colors.muted }}>{error ?? "Only LABTRACK asset QR codes will open asset actions."}</Text>
-        </Card>
-      </View>
+    <View style={styles.screen}>
+      {isCameraActive ? <ScannerCamera onScan={handleScan} /> : <View style={styles.camera} />}
+      <ScannerOverlay bottomInset={insets.bottom} error={error} isLocked={isLocked} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  camera: {
+    flex: 1
+  },
+  caption: {
+    color: colors.muted
+  },
+  errorText: {
+    color: colors.danger
+  },
+  overlay: {
+    left: 20,
+    position: "absolute",
+    right: 20
+  },
+  overlayCard: {
+    backgroundColor: colors.surface
+  },
+  permissionContent: {
+    flexGrow: 1,
+    justifyContent: "center"
+  },
+  screen: {
+    backgroundColor: colors.background,
+    flex: 1
+  },
+  title: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "800"
+  }
+});
