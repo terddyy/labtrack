@@ -44,6 +44,7 @@ import { EmptyState, Metric, Notice, StatusBadge } from "@/components/admin/ui";
 import {
   cancelBookingAction,
   checkoutBookingAction,
+  createAllowedEmailDomainAction,
   createAssetAction,
   createCategoryAction,
   createLocationAction,
@@ -59,7 +60,9 @@ import {
   returnBookingAction,
   sendTicketMessageAction,
   triageDefectReportAction,
-  updateProfileAccessAction
+  updateAllowedEmailDomainAction,
+  updateProfileAccessAction,
+  updateRegistrationPolicyAction
 } from "@/lib/admin/actions";
 import type {
   AdminAccessState,
@@ -71,10 +74,12 @@ import type {
   CategoryRow,
   DashboardData,
   DefectRow,
+  EmailDomainRule,
   FormErrors,
   LocationRow,
   PrintableReportRow,
   ProfileRow,
+  RegistrationPolicy,
   UsageAnalyticsRow,
   TicketMessageRow,
   TicketThreadRow,
@@ -99,6 +104,10 @@ const emptyDashboardData: DashboardData = {
   bookings: [],
   defects: [],
   profiles: [],
+  registrationPolicy: {
+    restrictSignupToAllowedDomains: true,
+    allowedDomains: []
+  },
   ticketThreads: [],
   counters: getDashboardCounters({ assets: [], bookings: [], defects: [] })
 };
@@ -164,6 +173,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   const [dashboardMessage, setDashboardMessage] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [locationName, setLocationName] = useState("");
+  const [domainForm, setDomainForm] = useState({ domain: "", notes: "" });
   const [monitorFilters, setMonitorFilters] = useState<MonitorFilterState>(() => createDefaultMonitorFilters());
   const [monitorRows, setMonitorRows] = useState<BorrowingMonitorRow[]>([]);
   const [monitorMessage, setMonitorMessage] = useState<string | null>(null);
@@ -561,6 +571,66 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     setIsMutatingWorkflow(false);
   }
 
+  async function handleRegistrationPolicyUpdate(enabled: boolean) {
+    if (authorizedProfile?.role !== "super_admin") {
+      return;
+    }
+
+    setIsMutatingWorkflow(true);
+    const { error } = await updateRegistrationPolicyAction(enabled);
+
+    if (error) {
+      setDashboardMessage(error);
+      setIsMutatingWorkflow(false);
+      return;
+    }
+
+    await loadDashboardData();
+    setDashboardMessage("Registration policy updated.");
+    setIsMutatingWorkflow(false);
+  }
+
+  async function handleCreateAllowedEmailDomain(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (authorizedProfile?.role !== "super_admin" || !domainForm.domain.trim()) {
+      return;
+    }
+
+    setIsMutatingWorkflow(true);
+    const { error } = await createAllowedEmailDomainAction(domainForm.domain, domainForm.notes);
+
+    if (error) {
+      setDashboardMessage(error);
+      setIsMutatingWorkflow(false);
+      return;
+    }
+
+    setDomainForm({ domain: "", notes: "" });
+    await loadDashboardData();
+    setDashboardMessage("Allowed email domain added.");
+    setIsMutatingWorkflow(false);
+  }
+
+  async function handleAllowedEmailDomainUpdate(domainRule: EmailDomainRule, updates: Partial<Pick<EmailDomainRule, "domain" | "is_allowed" | "notes">>) {
+    if (authorizedProfile?.role !== "super_admin") {
+      return;
+    }
+
+    setIsMutatingWorkflow(true);
+    const { error } = await updateAllowedEmailDomainAction(domainRule.id, updates);
+
+    if (error) {
+      setDashboardMessage(error);
+      setIsMutatingWorkflow(false);
+      return;
+    }
+
+    await loadDashboardData();
+    setDashboardMessage("Allowed email domain updated.");
+    setIsMutatingWorkflow(false);
+  }
+
   async function handleCreateCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -856,8 +926,14 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           <AccessManagementPanel
             currentProfile={access.profile}
             disabled={isMutatingWorkflow}
+            domainForm={domainForm}
+            onCreateDomain={handleCreateAllowedEmailDomain}
+            onDomainFormChange={setDomainForm}
+            onDomainUpdate={handleAllowedEmailDomainUpdate}
+            onRegistrationPolicyUpdate={(enabled) => void handleRegistrationPolicyUpdate(enabled)}
             onUpdate={handleProfileUpdate}
             profiles={data.profiles}
+            registrationPolicy={data.registrationPolicy}
           />
         ) : null}
 
@@ -1591,13 +1667,25 @@ function TicketAdminPanel({
 function AccessManagementPanel({
   currentProfile,
   disabled,
+  domainForm,
+  onCreateDomain,
+  onDomainFormChange,
+  onDomainUpdate,
+  onRegistrationPolicyUpdate,
   onUpdate,
-  profiles
+  profiles,
+  registrationPolicy
 }: {
   currentProfile: Profile;
   disabled: boolean;
+  domainForm: { domain: string; notes: string };
+  onCreateDomain: (event: FormEvent<HTMLFormElement>) => void;
+  onDomainFormChange: (form: { domain: string; notes: string }) => void;
+  onDomainUpdate: (domainRule: EmailDomainRule, updates: Partial<Pick<EmailDomainRule, "domain" | "is_allowed" | "notes">>) => void;
+  onRegistrationPolicyUpdate: (enabled: boolean) => void;
   onUpdate: (profile: ProfileRow, updates: Partial<Pick<ProfileRow, "role" | "is_active">>) => void;
   profiles: ProfileRow[];
+  registrationPolicy: RegistrationPolicy;
 }) {
   if (currentProfile.role !== "super_admin") {
     return (
@@ -1610,49 +1698,132 @@ function AccessManagementPanel({
   }
 
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <div>
-          <h2>Access management</h2>
-          <p className="muted">Assign Custodian, Faculty, Student, and Super Admin access.</p>
+    <section className="grid">
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Registration policy</h2>
+            <p className="muted">Control who can create a new LABTRACK mobile account.</p>
+          </div>
+        </div>
+        <div className="panel-body registration-policy">
+          <label className="switch-row">
+            <input
+              checked={registrationPolicy.restrictSignupToAllowedDomains}
+              disabled={disabled}
+              onChange={(event) => onRegistrationPolicyUpdate(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              <strong>Restrict new registration to allowed school domains</strong>
+              <span className="muted">
+                {registrationPolicy.restrictSignupToAllowedDomains
+                  ? "Only emails from active domains can register."
+                  : "Any valid email domain can register."}
+              </span>
+            </span>
+          </label>
+
+          <form className="domain-form" onSubmit={onCreateDomain}>
+            <div className="field">
+              <label htmlFor="allowed-domain">Allowed domain</label>
+              <input
+                id="allowed-domain"
+                onChange={(event) => onDomainFormChange({ ...domainForm, domain: event.target.value })}
+                placeholder="pampangastateu.edu.ph"
+                value={domainForm.domain}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="allowed-domain-notes">Notes</label>
+              <input
+                id="allowed-domain-notes"
+                onChange={(event) => onDomainFormChange({ ...domainForm, notes: event.target.value })}
+                placeholder="Main university domain"
+                value={domainForm.notes}
+              />
+            </div>
+            <button className="button primary" disabled={disabled || !domainForm.domain.trim()} type="submit">
+              Add domain
+            </button>
+          </form>
+        </div>
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Notes</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registrationPolicy.allowedDomains.map((domainRule) => (
+                <tr key={domainRule.id}>
+                  <td>{domainRule.domain}</td>
+                  <td>{domainRule.notes ?? "No notes"}</td>
+                  <td>
+                    <button
+                      className="button secondary"
+                      disabled={disabled}
+                      onClick={() => onDomainUpdate(domainRule, { is_allowed: !domainRule.is_allowed })}
+                      type="button"
+                    >
+                      {domainRule.is_allowed ? "Disable" : "Enable"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!registrationPolicy.allowedDomains.length ? <EmptyState label="No allowed domains configured." /> : null}
         </div>
       </div>
-      <div className="table-scroll">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profiles.map((profile) => (
-              <tr key={profile.id}>
-                <td>{profile.full_name}</td>
-                <td>{profile.email}</td>
-                <td>
-                  <select disabled={disabled} onChange={(event) => onUpdate(profile, { role: event.target.value as UserRole })} value={profile.role}>
-                    <option value="faculty">Faculty</option>
-                    <option value="student">Student</option>
-                    <option value="custodian">Custodian</option>
-                    <option value="super_admin">Super Admin</option>
-                    <option value="instructor">Faculty</option>
-                    <option value="admin">Custodian</option>
-                  </select>
-                </td>
-                <td>
-                  <button className="button secondary" disabled={disabled} onClick={() => onUpdate(profile, { is_active: !profile.is_active })} type="button">
-                    {profile.is_active ? "Deactivate" : "Activate"}
-                  </button>
-                </td>
+
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Access management</h2>
+            <p className="muted">Assign Custodian, Faculty, Student, and Super Admin access.</p>
+          </div>
+        </div>
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {profiles.map((profile) => (
+                <tr key={profile.id}>
+                  <td>{profile.full_name}</td>
+                  <td>{profile.email}</td>
+                  <td>
+                    <select disabled={disabled} onChange={(event) => onUpdate(profile, { role: event.target.value as UserRole })} value={profile.role}>
+                      <option value="faculty">Faculty</option>
+                      <option value="student">Student</option>
+                      <option value="custodian">Custodian</option>
+                      <option value="super_admin">Super Admin</option>
+                      <option value="instructor">Faculty</option>
+                      <option value="admin">Custodian</option>
+                    </select>
+                  </td>
+                  <td>
+                    <button className="button secondary" disabled={disabled} onClick={() => onUpdate(profile, { is_active: !profile.is_active })} type="button">
+                      {profile.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { BookingSchedulePicker } from "@/components/booking-schedule-picker";
 import { Badge, Button, Card, Field, InlineMeta, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
-import { colors } from "@/constants/theme";
+import { colors, shadows, spacing } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 import { checkoutBorrowing, formatApiError, getBorrowingMonitor, returnBorrowing, type MobileBorrowing } from "@/lib/labtrack-api";
 import { useAssetWorkflow } from "@/lib/use-asset-workflow";
@@ -109,11 +109,24 @@ export default function AssetDetailsScreen() {
   return (
     <ScreenScrollView>
       <Card style={styles.assetHero}>
-        <Badge label={asset.status} tone={isAvailable ? "success" : "warning"} />
+        <View style={styles.heroTopRow}>
+          <View style={styles.assetIcon}>
+            <Text style={styles.assetIconText}>LT</Text>
+          </View>
+          <Badge label={asset.status} tone={isAvailable ? "success" : "warning"} />
+        </View>
         <Text style={styles.assetName}>{asset.name}</Text>
-        <Text style={styles.assetMeta}>
-          {asset.categoryName} | {asset.locationName}
-        </Text>
+        <Text style={styles.assetMeta}>{asset.categoryName} | {asset.locationName}</Text>
+        <View style={styles.assetQuickStats}>
+          <View style={styles.assetQuickStat}>
+            <Text style={styles.assetQuickLabel}>Property</Text>
+            <Text numberOfLines={1} style={styles.assetQuickValue}>{asset.propertyNumber}</Text>
+          </View>
+          <View style={styles.assetQuickStat}>
+            <Text style={styles.assetQuickLabel}>Condition</Text>
+            <Text numberOfLines={1} style={styles.assetQuickValue}>{asset.condition.replaceAll("_", " ")}</Text>
+          </View>
+        </View>
       </Card>
 
       <Card>
@@ -213,19 +226,64 @@ export default function AssetDetailsScreen() {
 
 const styles = StyleSheet.create({
   assetHero: {
-    backgroundColor: colors.primaryMuted,
-    borderColor: colors.secondaryMuted
+    backgroundColor: colors.mintSoft,
+    borderColor: "rgba(255,255,255,0.84)",
+    gap: 14,
+    padding: 22
+  },
+  assetIcon: {
+    alignItems: "center",
+    backgroundColor: "#2C3A78",
+    borderColor: colors.surface,
+    borderRadius: 20,
+    borderWidth: 3,
+    height: 54,
+    justifyContent: "center",
+    width: 54,
+    ...shadows.soft
+  },
+  assetIconText: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: "900"
   },
   assetMeta: {
     color: colors.muted,
     fontSize: 14,
+    fontWeight: "600",
     lineHeight: 20
   },
   assetName: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 27,
     fontWeight: "900",
-    lineHeight: 29
+    lineHeight: 33
+  },
+  assetQuickLabel: {
+    color: colors.subtle,
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  assetQuickStat: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  assetQuickStats: {
+    flexDirection: "row",
+    gap: 10,
+    paddingTop: 4
+  },
+  assetQuickValue: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "900",
+    textTransform: "capitalize"
   },
   cardHeader: {
     alignItems: "flex-start",
@@ -241,9 +299,9 @@ const styles = StyleSheet.create({
   },
   handoffRow: {
     alignItems: "flex-start",
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surfaceRaised,
     borderColor: colors.border,
-    borderRadius: 8,
+    borderRadius: spacing.controlRadius,
     borderWidth: 1,
     gap: 12,
     padding: 12
@@ -251,6 +309,11 @@ const styles = StyleSheet.create({
   handoffTitle: {
     color: colors.text,
     fontSize: 16,
-    fontWeight: "800"
+    fontWeight: "900"
+  },
+  heroTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between"
   }
 });

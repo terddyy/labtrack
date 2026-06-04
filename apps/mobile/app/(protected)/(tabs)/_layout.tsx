@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { Platform, StyleSheet, View, type ColorValue } from "react-native";
-import { colors } from "@/constants/theme";
+import { colors, shadows, spacing } from "@/constants/theme";
 
 type TabIconName = "home" | "borrow" | "scan" | "notifications" | "profile";
 
@@ -8,11 +8,12 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors.primary },
-        headerTintColor: colors.surface,
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.text,
         headerTitleAlign: "center",
-        headerTitleStyle: { color: colors.surface, fontSize: 17, fontWeight: "900" },
+        headerTitleStyle: { color: colors.text, fontSize: 17, fontWeight: "900" },
         tabBarActiveTintColor: colors.primary,
         tabBarHideOnKeyboard: true,
         tabBarInactiveTintColor: colors.iconMuted,
@@ -40,7 +41,6 @@ export default function TabLayout() {
       <Tabs.Screen
         name="scan"
         options={{
-          headerShown: false,
           title: "Scan",
           tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name="scan" />
         }}
@@ -69,7 +69,7 @@ function TabIcon({ color, focused, name }: { color: ColorValue; focused: boolean
   const isScan = name === "scan";
 
   return (
-    <View style={[styles.iconShell, isScan ? styles.scanShell : null, focused ? styles.iconShellActive : null]}>
+    <View style={[styles.iconShell, isScan ? styles.scanShell : null, isScan && focused ? styles.scanShellActive : null, focused ? styles.iconShellActive : null]}>
       {name === "home" ? <HomeGlyph color={color} /> : null}
       {name === "borrow" ? <BorrowGlyph color={color} /> : null}
       {name === "scan" ? <ScanGlyph color={focused ? colors.surface : colors.primary} /> : null}
@@ -195,9 +195,9 @@ const styles = StyleSheet.create({
   },
   iconShell: {
     alignItems: "center",
-    height: 32,
+    height: 34,
     justifyContent: "center",
-    width: 42
+    width: 44
   },
   iconShellActive: {
     opacity: 1
@@ -248,13 +248,17 @@ const styles = StyleSheet.create({
     width: 5
   },
   scanShell: {
-    backgroundColor: colors.surface,
-    borderColor: colors.primary,
+    backgroundColor: colors.primaryMuted,
+    borderColor: colors.surface,
     borderRadius: 999,
-    borderWidth: 2,
-    height: 48,
-    marginTop: -22,
-    width: 48
+    borderWidth: 4,
+    height: 58,
+    marginTop: -34,
+    width: 58,
+    ...shadows.accent
+  },
+  scanShellActive: {
+    backgroundColor: colors.primary
   },
   scanTopLeft: {
     borderBottomWidth: 0,
@@ -270,11 +274,19 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     backgroundColor: colors.surface,
-    borderTopColor: colors.border,
-    height: Platform.select({ android: 70, default: 82 }),
-    paddingBottom: Platform.select({ android: 10, default: 20 }),
-    paddingHorizontal: 8,
-    paddingTop: 8
+    borderColor: "rgba(255, 255, 255, 0.82)",
+    borderRadius: spacing.navRadius,
+    borderWidth: 1,
+    bottom: Platform.select({ android: 18, default: 22 }),
+    height: Platform.select({ android: 74, default: 82 }),
+    left: 18,
+    paddingBottom: Platform.select({ android: 10, default: 18 }),
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    position: "absolute",
+    right: 18,
+    ...shadows.floating,
+    ...Platform.select({ ios: { borderCurve: "continuous" } })
   },
   tabItem: {
     minWidth: 58
@@ -282,6 +294,6 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 11,
     fontWeight: "800",
-    marginTop: 2
+    marginTop: 3
   }
 });

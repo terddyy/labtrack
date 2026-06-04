@@ -16,15 +16,17 @@ import {
   type ViewStyle
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, spacing } from "@/constants/theme";
+import { colors, shadows, spacing } from "@/constants/theme";
 
-type Tone = "neutral" | "success" | "warning" | "danger";
+export type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "secondary";
 
 const toneStyles: Record<Tone, { background: string; border: string; text: string }> = {
   neutral: { background: colors.surfaceMuted, border: colors.border, text: colors.muted },
   success: { background: colors.successMuted, border: colors.success, text: colors.success },
   warning: { background: colors.warningMuted, border: colors.warning, text: colors.warning },
-  danger: { background: colors.dangerMuted, border: colors.danger, text: colors.danger }
+  danger: { background: colors.dangerMuted, border: colors.danger, text: colors.danger },
+  info: { background: colors.blueMuted, border: colors.blue, text: colors.blue },
+  secondary: { background: colors.purpleMuted, border: colors.purple, text: colors.purple }
 };
 
 export function ScreenScrollView({
@@ -45,7 +47,7 @@ export function ScreenScrollView({
       contentContainerStyle={[
         styles.screenViewport,
         includeTopInset ? { paddingTop: Math.max(insets.top + 16, 28) } : null,
-        { paddingBottom: Math.max(insets.bottom + 24, 32) },
+        { paddingBottom: Math.max(insets.bottom + 112, 128) },
         contentContainerStyle
       ]}
     >
@@ -166,7 +168,7 @@ export function Field({
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         accessibilityLabel={props.accessibilityLabel ?? label}
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={colors.subtle}
         style={[styles.input, props.multiline ? styles.inputMultiline : null, inputStyle]}
         {...props}
       />
@@ -190,12 +192,14 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     borderRadius: 999,
     maxWidth: "100%",
-    paddingHorizontal: 9,
-    paddingVertical: 5
+    minHeight: 30,
+    paddingHorizontal: 12,
+    paddingVertical: 7
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
+    lineHeight: 15,
     textTransform: "capitalize"
   },
   button: {
@@ -205,9 +209,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     justifyContent: "center",
-    minHeight: 46,
-    paddingHorizontal: 14,
-    paddingVertical: 10
+    minHeight: 52,
+    paddingHorizontal: 18,
+    paddingVertical: 13
   },
   buttonAuto: {
     alignSelf: "flex-start"
@@ -217,11 +221,13 @@ const styles = StyleSheet.create({
   },
   buttonPrimary: {
     backgroundColor: colors.primary,
-    borderColor: colors.primary
+    borderColor: colors.primary,
+    ...shadows.accent
   },
   buttonSecondary: {
     backgroundColor: colors.surface,
-    borderColor: colors.border
+    borderColor: colors.border,
+    ...shadows.soft
   },
   buttonSubtle: {
     backgroundColor: colors.primaryMuted,
@@ -240,23 +246,20 @@ const styles = StyleSheet.create({
     color: colors.surface
   },
   buttonTextSecondary: {
-    color: colors.text
+    color: colors.primaryDark
   },
   buttonTextSubtle: {
     color: colors.primaryDark
   },
   card: {
     backgroundColor: colors.surface,
-    borderColor: colors.border,
+    borderColor: "rgba(255, 255, 255, 0.78)",
     borderRadius: spacing.radius,
     borderWidth: 1,
-    gap: 12,
-    padding: 16,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    ...Platform.select({ android: { elevation: 1 } })
+    gap: 14,
+    padding: 18,
+    ...shadows.card,
+    ...Platform.select({ ios: { borderCurve: "continuous" } })
   },
   disabled: {
     opacity: 0.58
@@ -267,15 +270,18 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   emptyState: {
-    gap: 8
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 22
   },
   emptyTitle: {
     color: colors.text,
-    fontSize: 17,
-    fontWeight: "800"
+    fontSize: 18,
+    fontWeight: "800",
+    lineHeight: 23
   },
   field: {
-    gap: 7
+    gap: 8
   },
   fieldLabel: {
     color: colors.text,
@@ -283,10 +289,10 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
   inlineMeta: {
-    borderTopColor: colors.border,
+    borderTopColor: colors.surfaceMuted,
     borderTopWidth: 1,
-    gap: 3,
-    paddingTop: 10
+    gap: 5,
+    paddingTop: 12
   },
   inlineMetaLabel: {
     color: colors.muted,
@@ -297,35 +303,38 @@ const styles = StyleSheet.create({
   inlineMetaValue: {
     color: colors.text,
     fontSize: 15,
-    lineHeight: 20
+    fontWeight: "700",
+    lineHeight: 21
   },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceRaised,
     borderColor: colors.border,
     borderRadius: spacing.controlRadius,
     borderWidth: 1,
     color: colors.text,
     fontSize: 16,
-    minHeight: 48,
-    paddingHorizontal: 12,
-    paddingVertical: 10
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12
   },
   inputMultiline: {
     minHeight: 92,
     textAlignVertical: "top"
   },
   notice: {
-    borderRadius: spacing.radius,
+    borderRadius: 20,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 11
+    paddingHorizontal: 14,
+    paddingVertical: 13
   },
   noticeText: {
+    fontWeight: "700",
     fontSize: 14,
     lineHeight: 20
   },
   pressed: {
-    opacity: 0.82
+    opacity: 0.86,
+    transform: [{ scale: 0.985 }]
   },
   screen: {
     backgroundColor: colors.background,
@@ -336,7 +345,7 @@ const styles = StyleSheet.create({
     gap: spacing.gap,
     maxWidth: 390,
     paddingHorizontal: spacing.page,
-    paddingTop: spacing.page,
+    paddingTop: 18,
     width: "100%"
   },
   screenViewport: {
@@ -346,15 +355,16 @@ const styles = StyleSheet.create({
   sectionCaption: {
     color: colors.muted,
     fontSize: 14,
+    fontWeight: "600",
     lineHeight: 20
   },
   sectionTitle: {
-    gap: 4
+    gap: 5
   },
   sectionTitleText: {
     color: colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    lineHeight: 25
+    fontSize: 21,
+    fontWeight: "900",
+    lineHeight: 26
   }
 });

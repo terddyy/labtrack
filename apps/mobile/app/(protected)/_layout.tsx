@@ -7,11 +7,11 @@ export default function ProtectedLayout() {
       screenOptions={{
         contentStyle: { backgroundColor: colors.background },
         headerBackTitle: "Back",
-        headerTintColor: colors.surface,
+        headerTintColor: colors.primaryDark,
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors.primary },
+        headerStyle: { backgroundColor: colors.background },
         headerTitleAlign: "center",
-        headerTitleStyle: { color: colors.surface, fontSize: 17, fontWeight: "900" }
+        headerTitleStyle: { color: colors.text, fontSize: 17, fontWeight: "900" }
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "LABTRACK" }} />

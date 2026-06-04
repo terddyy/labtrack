@@ -1,7 +1,7 @@
 import { getRoleDisplayLabel } from "@labtrack/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { Badge, Button, Card, InlineMeta, ScreenScrollView, SectionTitle } from "@/components/ui";
-import { colors } from "@/constants/theme";
+import { colors, shadows } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 
 export default function ProfileScreen() {
@@ -27,7 +27,18 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
-      <Card>
+      <View style={styles.metricGrid}>
+        <Card style={styles.profileMetric}>
+          <Text style={styles.metricValue}>Active</Text>
+          <Text style={styles.metricLabel}>Account status</Text>
+        </Card>
+        <Card style={styles.profileMetric}>
+          <Text numberOfLines={1} style={styles.metricValue}>{auth.profile.department ?? "Lab"}</Text>
+          <Text style={styles.metricLabel}>Department</Text>
+        </Card>
+      </View>
+
+      <Card style={styles.detailCard}>
         <SectionTitle title="Account details" caption="Profile information used by LABTRACK workflows." />
         <InlineMeta label="Department" value={auth.profile.department ?? "Not assigned"} />
         <InlineMeta label="Status" value={auth.profile.isActive ? "Active" : "Inactive"} />
@@ -48,26 +59,36 @@ function getInitials(name: string) {
 const styles = StyleSheet.create({
   avatar: {
     alignItems: "center",
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    height: 64,
+    backgroundColor: "#2C3A78",
+    borderColor: colors.surface,
+    borderRadius: 28,
+    borderWidth: 4,
+    height: 76,
     justifyContent: "center",
-    width: 64
+    width: 76,
+    ...shadows.soft
   },
   avatarText: {
     color: colors.surface,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900"
+  },
+  detailCard: {
+    gap: 16
   },
   email: {
     color: colors.muted,
     fontSize: 14,
+    fontWeight: "600",
     lineHeight: 20
   },
   heroCard: {
     alignItems: "center",
+    backgroundColor: colors.mintSoft,
+    borderColor: "rgba(255,255,255,0.84)",
     flexDirection: "row",
-    gap: 14
+    gap: 16,
+    padding: 22
   },
   heroCopy: {
     flex: 1,
@@ -76,8 +97,30 @@ const styles = StyleSheet.create({
   },
   name: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "900",
-    lineHeight: 27
+    lineHeight: 29
+  },
+  metricGrid: {
+    flexDirection: "row",
+    gap: 12
+  },
+  metricLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 16
+  },
+  metricValue: {
+    color: colors.primaryDark,
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 23
+  },
+  profileMetric: {
+    flex: 1,
+    gap: 5,
+    minHeight: 86,
+    padding: 16
   }
 });

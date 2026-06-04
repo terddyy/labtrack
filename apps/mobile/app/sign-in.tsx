@@ -1,11 +1,14 @@
-import { buildQuickLoginAccounts, isUniversityEmailAllowed, type QuickLoginAccount } from "@labtrack/shared";
+import { buildQuickLoginAccounts, type QuickLoginAccount } from "@labtrack/shared";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { Button, Card, Field, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
-import { colors } from "@/constants/theme";
+import { colors, shadows, spacing } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
-import { formatApiError, hasSupabaseConfig, signInWithPassword } from "@/lib/labtrack-api";
+import { formatApiError, hasSupabaseConfig, signInWithPassword, signUpWithPassword } from "@/lib/labtrack-api";
+
+type AuthMode = "sign-in" | "sign-up";
+type AuthMessage = { tone: "danger" | "success"; text: string };
 
 const isQuickLoginEnabled = process.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN !== "false";
 const quickLoginAccounts = isQuickLoginEnabled
@@ -30,36 +33,40 @@ const quickLoginAccounts = isQuickLoginEnabled
     }
   )
   : [];
-const allowedUniversityEmailDomains = (process.env.EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS ?? "pampangastateu.edu.ph")
-  .split(",")
-  .map((domain: string) => domain.trim())
-  .filter(Boolean);
 
 export default function SignInScreen() {
   const auth = useCurrentProfile();
+  const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<AuthMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingQuickRole, setPendingQuickRole] = useState<string | null>(null);
   const isConfigured = hasSupabaseConfig();
-  const isManualSignInDisabled = isSubmitting || !isConfigured || !email.trim() || !password;
+  const isSignUp = authMode === "sign-up";
+  const isManualAuthDisabled = isSubmitting || !isConfigured || !email.trim() || !password || (isSignUp && !fullName.trim());
 
-  async function handleSignIn() {
-    if (!isUniversityEmailAllowed(email, allowedUniversityEmailDomains)) {
-      setMessage(`Use a university email account (${allowedUniversityEmailDomains.join(", ")}).`);
-      return;
-    }
-
+  async function handleManualAuth() {
     setIsSubmitting(true);
     setMessage(null);
 
     try {
-      await signInWithPassword(email.trim(), password);
+      if (isSignUp) {
+        const result = await signUpWithPassword(email.trim(), password, fullName);
+
+        if (!result.signedIn) {
+          setMessage({ tone: "success", text: "Registration submitted. Check your email to confirm the account before signing in." });
+          return;
+        }
+      } else {
+        await signInWithPassword(email.trim(), password);
+      }
+
       await auth.refresh();
       router.replace("/");
     } catch (error) {
-      setMessage(formatApiError(error));
+      setMessage({ tone: "danger", text: formatApiError(error) });
     } finally {
       setIsSubmitting(false);
     }
@@ -77,7 +84,7 @@ export default function SignInScreen() {
       await auth.refresh();
       router.replace("/");
     } catch (error) {
-      setMessage(formatApiError(error));
+      setMessage({ tone: "danger", text: formatApiError(error) });
     } finally {
       setIsSubmitting(false);
       setPendingQuickRole(null);
@@ -87,7 +94,7 @@ export default function SignInScreen() {
   return (
     <ScreenScrollView contentContainerStyle={styles.screenContent} includeTopInset>
       <View style={styles.heroPanel}>
-          <View style={styles.brandRow}>
+        <View style={styles.brandRow}>
           <View style={styles.brandMark}>
             <Image
               accessibilityIgnoresInvertColors
@@ -100,14 +107,36 @@ export default function SignInScreen() {
             <Text style={styles.brandCaption}>Mobile asset access</Text>
           </View>
         </View>
-        <Text style={styles.heroTitle}>Sign in to borrow, scan, and report lab equipment.</Text>
+        <Text style={styles.heroTitle}>Soft, fast lab operations in one secure mobile workspace.</Text>
+        <Text style={styles.heroCaption}>Scan assets, submit borrowing requests, and report defects with your LABTRACK account.</Text>
       </View>
 
       {!isConfigured ? <Notice tone="warning">Supabase mobile configuration is missing.</Notice> : null}
-      {message ? <Notice tone="danger">{message}</Notice> : null}
+      {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
 
       <Card style={styles.formPanel}>
-        <SectionTitle title="Sign in" caption="Use your LABTRACK account to open the mobile workflow." />
+        <SectionTitle
+          title={isSignUp ? "Create account" : "Sign in"}
+          caption={isSignUp ? "Register with your LABTRACK borrowing account details." : "Use your LABTRACK account to open the mobile workflow."}
+        />
+        <View style={styles.authModeRow}>
+          <Button disabled={isSubmitting} fullWidth={false} onPress={() => setAuthMode("sign-in")} style={styles.authModeButton} variant={isSignUp ? "secondary" : "primary"}>
+            Sign in
+          </Button>
+          <Button disabled={isSubmitting} fullWidth={false} onPress={() => setAuthMode("sign-up")} style={styles.authModeButton} variant={isSignUp ? "primary" : "secondary"}>
+            Register
+          </Button>
+        </View>
+        {isSignUp ? (
+          <Field
+            autoCapitalize="words"
+            label="Full name"
+            onChangeText={setFullName}
+            placeholder="Juan Dela Cruz"
+            textContentType="name"
+            value={fullName}
+          />
+        ) : null}
         <Field
           autoCapitalize="none"
           autoComplete="email"
@@ -127,8 +156,8 @@ export default function SignInScreen() {
           textContentType="password"
           value={password}
         />
-        <Button disabled={isManualSignInDisabled} loading={isSubmitting && !pendingQuickRole} onPress={handleSignIn}>
-          Open dashboard
+        <Button disabled={isManualAuthDisabled} loading={isSubmitting && !pendingQuickRole} onPress={handleManualAuth}>
+          {isSignUp ? "Create account" : "Open dashboard"}
         </Button>
       </Card>
 
@@ -155,8 +184,15 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
+  authModeButton: {
+    flex: 1
+  },
+  authModeRow: {
+    flexDirection: "row",
+    gap: 10
+  },
   brandCaption: {
-    color: "#C8D8EF",
+    color: colors.muted,
     fontSize: 13,
     fontWeight: "700"
   },
@@ -167,19 +203,22 @@ const styles = StyleSheet.create({
   brandMark: {
     alignItems: "center",
     backgroundColor: "#F4F7F8",
-    borderRadius: 8,
-    height: 44,
+    borderColor: colors.surface,
+    borderRadius: 22,
+    borderWidth: 3,
+    height: 58,
     justifyContent: "center",
     overflow: "hidden",
-    width: 44
+    width: 58,
+    ...shadows.soft
   },
   brandMarkImage: {
-    height: 44,
-    width: 44
+    height: 58,
+    width: 58
   },
   brandName: {
-    color: colors.surface,
-    fontSize: 18,
+    color: colors.text,
+    fontSize: 25,
     fontWeight: "900",
     letterSpacing: 0
   },
@@ -189,19 +228,28 @@ const styles = StyleSheet.create({
     gap: 12
   },
   formPanel: {
-    gap: 14
+    gap: 16
+  },
+  heroCaption: {
+    color: colors.muted,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 22
   },
   heroPanel: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    gap: 28,
-    padding: 20
+    backgroundColor: colors.mintSoft,
+    borderColor: "rgba(255,255,255,0.86)",
+    borderRadius: spacing.radiusLarge,
+    borderWidth: 1,
+    gap: 20,
+    padding: 24,
+    ...shadows.card
   },
   heroTitle: {
-    color: colors.surface,
-    fontSize: 28,
+    color: colors.text,
+    fontSize: 31,
     fontWeight: "900",
-    lineHeight: 34
+    lineHeight: 37
   },
   quickGrid: {
     gap: 10

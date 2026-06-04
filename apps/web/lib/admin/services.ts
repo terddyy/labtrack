@@ -4,6 +4,7 @@ import {
   callRpc,
   getDashboardCounters,
   isCustodianRole,
+  normalizeEmailDomain,
   type AdminAssetRowDto,
   type BookingStatus,
   type Profile
@@ -20,17 +21,22 @@ import type {
   CategoryRow,
   DashboardData,
   DefectRow,
+  EmailDomainRule,
   LocationRow,
   PrintableReportFilters,
   PrintableReportRow,
   ProfileAccessUpdates,
   ProfileRow,
+  RegistrationPolicy,
   ReportFilters,
   TicketMessageRow,
   UsageAnalyticsRow
 } from "./types";
 
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof getSupabaseServerClient>>>;
+type RegistrationSettingsRow = {
+  restrict_signup_to_allowed_domains: boolean;
+};
 
 const emptyDashboardData: DashboardData = {
   categories: [],
@@ -39,6 +45,10 @@ const emptyDashboardData: DashboardData = {
   bookings: [],
   defects: [],
   profiles: [],
+  registrationPolicy: {
+    restrictSignupToAllowedDomains: true,
+    allowedDomains: []
+  },
   ticketThreads: [],
   counters: getDashboardCounters({ assets: [], bookings: [], defects: [] })
 };
@@ -129,6 +139,8 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     bookingsResult,
     defectsResult,
     profilesResult,
+    registrationSettingsResult,
+    emailDomainsResult,
     threadsResult,
     assetCountResult,
     activeQrCountResult,
@@ -153,6 +165,15 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
       .select("id,email,full_name,role,department,is_active")
       .order("full_name"),
     supabase
+      .from("registration_settings")
+      .select("restrict_signup_to_allowed_domains")
+      .eq("id", true)
+      .maybeSingle(),
+    supabase
+      .from("university_email_domains")
+      .select("id,domain,is_allowed,notes,created_at")
+      .order("domain"),
+    supabase
       .from("ticket_threads")
       .select("id,subject_type,booking_id,defect_report_id,created_at")
       .order("created_at", { ascending: false })
@@ -169,6 +190,8 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     bookingsResult.error,
     defectsResult.error,
     profilesResult.error,
+    registrationSettingsResult.error,
+    emailDomainsResult.error,
     threadsResult.error,
     assetCountResult.error,
     activeQrCountResult.error,
@@ -192,6 +215,10 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     bookings,
     defects,
     profiles: (profilesResult.data ?? []) as ProfileRow[],
+    registrationPolicy: toRegistrationPolicy(
+      registrationSettingsResult.data as RegistrationSettingsRow | null,
+      (emailDomainsResult.data ?? []) as EmailDomainRule[]
+    ),
     ticketThreads: (threadsResult.data ?? []) as DashboardData["ticketThreads"],
     counters: {
       ...fallbackCounters,
@@ -413,6 +440,77 @@ export async function updateProfileAccess(profileId: string, updates: ProfileAcc
   }
 }
 
+export async function updateRegistrationPolicy(restrictSignupToAllowedDomains: boolean) {
+  const supabase = await requireAuthorizedAdminClient();
+  const currentProfile = await requireAuthorizedAdminProfile();
+
+  if (currentProfile.role !== "super_admin") {
+    throw new Error("Only Super Admin accounts can manage registration policy.");
+  }
+
+  const { error } = await supabase.from("registration_settings").upsert({
+    id: true,
+    restrict_signup_to_allowed_domains: restrictSignupToAllowedDomains
+  }, { onConflict: "id" });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function createAllowedEmailDomain(domain: string, notes?: string | null) {
+  const supabase = await requireAuthorizedAdminClient();
+  const currentProfile = await requireAuthorizedAdminProfile();
+  const normalizedDomain = parseEmailDomain(domain);
+  const trimmedNotes = notes?.trim() || null;
+
+  if (currentProfile.role !== "super_admin") {
+    throw new Error("Only Super Admin accounts can manage registration policy.");
+  }
+
+  const { error } = await supabase.from("university_email_domains").insert({
+    domain: normalizedDomain,
+    is_allowed: true,
+    notes: trimmedNotes
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function updateAllowedEmailDomain(domainRuleId: string, updates: Partial<Pick<EmailDomainRule, "domain" | "is_allowed" | "notes">>) {
+  const supabase = await requireAuthorizedAdminClient();
+  const currentProfile = await requireAuthorizedAdminProfile();
+  const allowedUpdates: Partial<Pick<EmailDomainRule, "domain" | "is_allowed" | "notes">> = {};
+
+  if (currentProfile.role !== "super_admin") {
+    throw new Error("Only Super Admin accounts can manage registration policy.");
+  }
+
+  if (updates.domain !== undefined) {
+    allowedUpdates.domain = parseEmailDomain(updates.domain);
+  }
+
+  if (updates.is_allowed !== undefined) {
+    allowedUpdates.is_allowed = updates.is_allowed;
+  }
+
+  if (updates.notes !== undefined) {
+    allowedUpdates.notes = updates.notes?.trim() || null;
+  }
+
+  if (Object.keys(allowedUpdates).length === 0) {
+    throw new Error("At least one email domain update is required.");
+  }
+
+  const { error } = await supabase.from("university_email_domains").update(allowedUpdates).eq("id", domainRuleId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function createCategory(name: string) {
   const supabase = await requireAuthorizedAdminClient();
   const trimmedName = name.trim();
@@ -478,6 +576,23 @@ function toProfile(row: ProfileRow): Profile {
     department: row.department,
     isActive: row.is_active
   };
+}
+
+function toRegistrationPolicy(settingsRow: RegistrationSettingsRow | null, allowedDomains: EmailDomainRule[]): RegistrationPolicy {
+  return {
+    restrictSignupToAllowedDomains: settingsRow?.restrict_signup_to_allowed_domains ?? true,
+    allowedDomains
+  };
+}
+
+function parseEmailDomain(domain: string) {
+  const normalizedDomain = normalizeEmailDomain(domain);
+
+  if (!normalizedDomain || normalizedDomain.includes("@") || /\s/.test(normalizedDomain)) {
+    throw new Error("Email domain is invalid.");
+  }
+
+  return normalizedDomain;
 }
 
 function normalizeStatuses(statuses: BorrowingMonitorFilters["statuses"]): BookingStatus[] | null {

@@ -1,7 +1,8 @@
 # LABTRACK Supabase Setup
 
 This directory contains the database schema and security model for LABTRACK.
-
+Start the server 
+npm run dev:mobile:dev-client
 ## Apply locally
 
 ```bash
@@ -25,13 +26,15 @@ Each run inserts one private audit row into `app_private.supabase_keepalive_even
 
 ## First Super Admin
 
-Create the first user in Supabase Auth. New email-based Auth users are automatically bootstrapped into `public.profiles` with the default `instructor` role, so promote the first administrator after signup:
+Create the first user in Supabase Auth. New email-based Auth users are automatically bootstrapped into `public.profiles` with the default `instructor` role, so promote the first administrator after signup.
+
+Registration is restricted to active rows in `public.university_email_domains` by default, so use an allowed school domain for self-signup or create the first user with Supabase admin tooling before the auth hook is enabled:
 
 ```sql
 insert into public.profiles (id, email, full_name, role, department)
 values (
   '<auth-user-id>',
-  'superadmin@gmail.com',
+  'superadmin@pampangastateu.edu.ph',
   'CCS Super Admin',
   'super_admin',
   'College of Computing Studies'

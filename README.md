@@ -121,9 +121,9 @@ For a hosted Supabase project, apply the migrations in `supabase/migrations` in 
 
 The web and mobile sign-in screens expose one-click demo buttons for:
 
-- `superadmin@gmail.com`
-- `admin@gmail.com`
-- `instructor@gmail.com`
+- `superadmin@pampangastateu.edu.ph`
+- `custodian@pampangastateu.edu.ph`
+- `faculty@pampangastateu.edu.ph`
 
 The default password is:
 
@@ -132,6 +132,7 @@ demo123
 ```
 
 Create these users in Supabase Auth and make sure their `public.profiles` rows have matching active roles.
+New mobile registration is restricted to active school email domains by default. A Super Admin can turn that restriction off or manage allowed domains from the web Access section.
 
 ## Useful commands
 

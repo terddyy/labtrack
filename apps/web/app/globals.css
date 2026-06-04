@@ -398,6 +398,40 @@ h3 {
   font-weight: 700;
 }
 
+.registration-policy {
+  display: grid;
+  gap: 16px;
+}
+
+.switch-row {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 12px;
+}
+
+.switch-row input {
+  accent-color: var(--primary);
+  height: 20px;
+  width: 20px;
+}
+
+.switch-row span {
+  display: grid;
+  gap: 4px;
+}
+
+.domain-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) auto;
+}
+
 .span-2,
 .form-actions {
   grid-column: 1 / -1;
@@ -468,6 +502,11 @@ h3 {
   }
 
   .filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .domain-form {
+    align-items: stretch;
     grid-template-columns: 1fr;
   }
 }

@@ -10,7 +10,7 @@ import {
 import { useMemo, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Notice } from "@/components/ui";
-import { colors, spacing } from "@/constants/theme";
+import { colors, shadows, spacing } from "@/constants/theme";
 
 type PickerMode = "date" | "time";
 
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: spacing.controlRadius,
+    borderRadius: 999,
     borderWidth: 1,
     minHeight: 42,
     minWidth: 86,
@@ -262,7 +262,8 @@ const styles = StyleSheet.create({
   },
   durationChipSelected: {
     backgroundColor: colors.primaryMuted,
-    borderColor: colors.primary
+    borderColor: colors.primary,
+    ...shadows.soft
   },
   durationChipText: {
     color: colors.text,
@@ -289,7 +290,7 @@ const styles = StyleSheet.create({
   },
   pickerRow: {
     alignItems: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceRaised,
     borderColor: colors.border,
     borderRadius: spacing.controlRadius,
     borderWidth: 1,
@@ -304,7 +305,8 @@ const styles = StyleSheet.create({
     gap: 8
   },
   pressed: {
-    opacity: 0.82
+    opacity: 0.86,
+    transform: [{ scale: 0.985 }]
   },
   rowLabel: {
     color: colors.muted,
@@ -321,7 +323,7 @@ const styles = StyleSheet.create({
     textAlign: "right"
   },
   summary: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surfaceRaised,
     borderColor: colors.border,
     borderRadius: spacing.radius,
     borderWidth: 1,

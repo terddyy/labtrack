@@ -7,7 +7,7 @@ type NotificationsApi = typeof import("expo-notifications");
 let notificationsPromise: Promise<NotificationsApi | null> | null = null;
 
 function canUseRemotePushInCurrentRuntime() {
-  return !(Platform.OS === "android" && Constants.appOwnership === "expo");
+  return Platform.OS !== "web" && !(Platform.OS === "android" && Constants.appOwnership === "expo");
 }
 
 async function getNotifications() {
@@ -61,7 +61,14 @@ export async function registerForPushNotifications() {
     return null;
   }
 
-  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  const token = await Notifications.getExpoPushTokenAsync({ projectId })
+    .then((response) => response.data)
+    .catch(() => null);
+
+  if (!token) {
+    return null;
+  }
+
   await upsertPushToken(token);
   return token;
 }

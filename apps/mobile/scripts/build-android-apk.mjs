@@ -25,7 +25,6 @@ const shouldSyncEasEnv = !process.argv.includes("--no-sync-eas-env");
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
 const envDefaults = {
-  EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS: "pampangastateu.edu.ph",
   EXPO_PUBLIC_ENABLE_QUICK_LOGIN: "true",
   EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL: "superadmin@pampangastateu.edu.ph",
   EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD: "demo123",
@@ -38,7 +37,6 @@ const envDefaults = {
 const easEnvKeys = [
   "EXPO_PUBLIC_SUPABASE_URL",
   "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-  "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS",
   "EXPO_PUBLIC_ENABLE_QUICK_LOGIN",
   "EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL",
   "EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD",

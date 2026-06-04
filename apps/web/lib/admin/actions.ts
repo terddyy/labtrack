@@ -13,6 +13,7 @@ import {
   cancelBooking,
   checkoutBooking,
   createAsset,
+  createAllowedEmailDomain,
   createCategory,
   createLocation,
   decideBooking,
@@ -27,7 +28,9 @@ import {
   returnBooking,
   sendTicketMessage,
   triageDefectReport,
-  updateProfileAccess
+  updateAllowedEmailDomain,
+  updateProfileAccess,
+  updateRegistrationPolicy
 } from "./services";
 import type {
   ActivityLogFilters,
@@ -36,6 +39,7 @@ import type {
   BorrowingMonitorFilters,
   BorrowingMonitorRow,
   DashboardData,
+  EmailDomainRule,
   PrintableReportFilters,
   PrintableReportRow,
   ProfileAccessUpdates,
@@ -139,6 +143,31 @@ export async function triageDefectReportAction(defectReportId: string, status: E
 export async function updateProfileAccessAction(profile: ProfileRow, updates: ProfileAccessUpdates) {
   return toActionResult(async () => {
     await updateProfileAccess(parseId(profile.id), parseProfileAccessUpdates(updates));
+    return null;
+  });
+}
+
+export async function updateRegistrationPolicyAction(enabled: boolean) {
+  return toActionResult(async () => {
+    if (typeof enabled !== "boolean") {
+      throw new Error("Registration policy state is invalid.");
+    }
+
+    await updateRegistrationPolicy(enabled);
+    return null;
+  });
+}
+
+export async function createAllowedEmailDomainAction(domain: string, notes?: string | null) {
+  return toActionResult(async () => {
+    await createAllowedEmailDomain(parseEmailDomainInput(domain), parseOptionalNotes(notes));
+    return null;
+  });
+}
+
+export async function updateAllowedEmailDomainAction(domainRuleId: string, updates: Partial<Pick<EmailDomainRule, "domain" | "is_allowed" | "notes">>) {
+  return toActionResult(async () => {
+    await updateAllowedEmailDomain(parseId(domainRuleId), parseEmailDomainUpdates(updates));
     return null;
   });
 }
@@ -320,6 +349,56 @@ function parseProfileAccessUpdates(value: ProfileAccessUpdates): ProfileAccessUp
 
   if (Object.keys(updates).length === 0) {
     throw new Error("At least one access update is required.");
+  }
+
+  return updates;
+}
+
+function parseEmailDomainInput(value: string) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue || trimmedValue.length > 255) {
+    throw new Error("Email domain is invalid.");
+  }
+
+  return trimmedValue;
+}
+
+function parseOptionalNotes(value: string | null | undefined) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length > 500) {
+    throw new Error("Email domain notes are too long.");
+  }
+
+  return trimmedValue || null;
+}
+
+function parseEmailDomainUpdates(value: Partial<Pick<EmailDomainRule, "domain" | "is_allowed" | "notes">>) {
+  const updates: Partial<Pick<EmailDomainRule, "domain" | "is_allowed" | "notes">> = {};
+
+  if (value.domain !== undefined) {
+    updates.domain = parseEmailDomainInput(value.domain);
+  }
+
+  if (value.is_allowed !== undefined) {
+    if (typeof value.is_allowed !== "boolean") {
+      throw new Error("Email domain active state is invalid.");
+    }
+
+    updates.is_allowed = value.is_allowed;
+  }
+
+  if (value.notes !== undefined) {
+    updates.notes = parseOptionalNotes(value.notes);
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new Error("At least one email domain update is required.");
   }
 
   return updates;

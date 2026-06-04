@@ -8,11 +8,13 @@ const workflowMigrationPath = fileURLToPath(new URL("../../../supabase/migration
 const adminReadModelsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605280001_admin_read_models.sql", import.meta.url));
 const bookingHardeningMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605310001_booking_contract_hardening.sql", import.meta.url));
 const borrowingMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606040001_borrowing_availability_roles_reports.sql", import.meta.url));
+const registrationPolicyMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606040002_registration_policy_toggle.sql", import.meta.url));
 const workflowMigration = readFileSync(workflowMigrationPath, "utf8");
 const adminReadModelsMigration = readFileSync(adminReadModelsMigrationPath, "utf8");
 const bookingHardeningMigration = readFileSync(bookingHardeningMigrationPath, "utf8");
 const borrowingMigration = readFileSync(borrowingMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}`;
+const registrationPolicyMigration = readFileSync(registrationPolicyMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -109,4 +111,15 @@ test("borrowing availability migration exposes room-aware read models", () => {
   assert.match(borrowingMigration, /p_resource_type public\.borrowing_resource_type/i);
   assert.match(borrowingMigration, /Borrowing duration must be between 90 and 180 minutes/i);
   assert.match(borrowingMigration, /status = 'pending'::public\.booking_status then 'tentative'/i);
+});
+
+test("registration policy migration gates signup through the auth hook", () => {
+  assert.match(registrationPolicyMigration, /create table if not exists public\.registration_settings/i);
+  assert.match(registrationPolicyMigration, /restrict_signup_to_allowed_domains boolean not null default true/i);
+  assert.match(registrationPolicyMigration, /insert into public\.registration_settings \(id, restrict_signup_to_allowed_domains\)\s*values \(true, true\)/i);
+  assert.match(registrationPolicyMigration, /create unique index if not exists university_email_domains_domain_lower_key/i);
+  assert.match(registrationPolicyMigration, /create policy "Super admins manage registration settings"/i);
+  assert.match(registrationPolicyMigration, /if not app_private\.is_signup_domain_restriction_enabled\(\) then\s*return '\{\}'::jsonb;/i);
+  assert.match(registrationPolicyMigration, /grant execute on function public\.hook_restrict_signup_by_email_domain\(jsonb\) to supabase_auth_admin/i);
+  assert.match(registrationPolicyMigration, /revoke execute on function public\.hook_restrict_signup_by_email_domain\(jsonb\) from authenticated, anon, public/i);
 });

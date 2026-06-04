@@ -119,15 +119,20 @@ export function isBorrowerRole(role: UserRole) {
   return role === "instructor" || role === "faculty" || role === "student";
 }
 
+export function normalizeEmailDomain(domain: string) {
+  return domain.trim().toLowerCase().replace(/^@+/, "");
+}
+
 export function isUniversityEmailAllowed(email: string, allowedDomains: readonly string[]) {
   const normalizedEmail = email.trim().toLowerCase();
-  const domain = normalizedEmail.split("@")[1];
+  const emailParts = normalizedEmail.split("@");
+  const domain = emailParts.length === 2 ? normalizeEmailDomain(emailParts[1]) : "";
 
   if (!domain || !allowedDomains.length) {
     return false;
   }
 
-  return allowedDomains.some((allowedDomain) => domain === allowedDomain.trim().toLowerCase());
+  return allowedDomains.some((allowedDomain) => domain === normalizeEmailDomain(allowedDomain));
 }
 
 export function getAvailabilityState(input: {

@@ -9,7 +9,6 @@
         "distribution": "internal",
         "credentialsSource": "local",
         "env": {
-          "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS": "pampangastateu.edu.ph",
           "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
         },
         "android": {
@@ -20,7 +19,6 @@
         "distribution": "internal",
         "credentialsSource": "local",
         "env": {
-          "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS": "pampangastateu.edu.ph",
           "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
         },
         "android": {
@@ -29,7 +27,6 @@
       },
       "production": {
         "env": {
-          "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS": "pampangastateu.edu.ph",
           "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
         },
         "android": {

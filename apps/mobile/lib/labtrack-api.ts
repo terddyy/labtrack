@@ -1,5 +1,4 @@
 import {
-  activeBookingStatuses,
   bookingRequestSchema,
   callRpc,
   defectReportSchema,
@@ -86,10 +85,15 @@ export type MobileListOptions = {
 };
 
 export type MobileDashboardSummary = {
+  availableAssets: number;
   bookings: number;
+  checkedOutAssets: number;
+  labCount: number;
   openDefects: number;
   pendingBookings: number;
+  repairAssets: number;
   threads: number;
+  totalAssets: number;
   unreadNotifications: number;
 };
 
@@ -255,6 +259,7 @@ export function createLabtrackMobileApi(client: LabtrackMobileClient) {
     resolveAssetByQrCode: (code: string) => resolveAssetByQrCode(code, client),
     sendTicketMessage: (threadId: string, body: string) => sendTicketMessage(threadId, body, client),
     signInWithPassword: (email: string, password: string) => signInWithPassword(email, password, client),
+    signUpWithPassword: (email: string, password: string, fullName: string) => signUpWithPassword(email, password, fullName, client),
     signOut: () => signOut(client),
     uploadDefectPhoto: (reportId: string, uri: string) => uploadDefectPhoto(reportId, uri, client),
     upsertPushToken: (token: string) => upsertPushToken(token, client)
@@ -331,6 +336,30 @@ export async function signInWithPassword(email: string, password: string, client
   if (error) {
     throw error;
   }
+}
+
+export async function signUpWithPassword(email: string, password: string, fullName: string, client = requireClient()) {
+  const trimmedFullName = fullName.trim();
+
+  if (!trimmedFullName) {
+    throw new Error("Full name is required.");
+  }
+
+  const { data, error } = await client.auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      data: {
+        full_name: trimmedFullName
+      }
+    }
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return { signedIn: Boolean(data.session) };
 }
 
 export async function signOut(client = requireClient()) {
@@ -418,19 +447,40 @@ export async function returnBorrowing(id: string, notes: string | null = null, c
 }
 
 export async function getDashboardSummary(client = requireClient()): Promise<MobileDashboardSummary> {
-  const [bookingsCount, activeBookingsCount, openDefectsCount, threadsCount, unreadNotificationsCount] = await Promise.all([
+  const [
+    bookingsCount,
+    pendingBookingsCount,
+    openDefectsCount,
+    threadsCount,
+    unreadNotificationsCount,
+    totalAssetsCount,
+    availableAssetsCount,
+    checkedOutAssetsCount,
+    repairAssetsCount,
+    labCount
+  ] = await Promise.all([
     countRows(client.from("bookings").select("id", { count: "exact", head: true })),
-    countRows(client.from("bookings").select("id", { count: "exact", head: true }).in("status", activeBookingStatuses)),
+    countRows(client.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending")),
     countRows(client.from("defect_reports").select("id", { count: "exact", head: true }).not("status", "in", "(resolved,rejected)")),
     countRows(client.from("ticket_threads").select("id", { count: "exact", head: true })),
-    countRows(client.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null))
+    countRows(client.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null)),
+    countRows(client.from("assets").select("id", { count: "exact", head: true }).neq("status", "retired")),
+    countRows(client.from("assets").select("id", { count: "exact", head: true }).eq("status", "available")),
+    countRows(client.from("assets").select("id", { count: "exact", head: true }).eq("status", "checked_out")),
+    countRows(client.from("assets").select("id", { count: "exact", head: true }).or("status.eq.for_repair,condition.in.(defective,for_repair)")),
+    safeCountRows(client.from("locations").select("id", { count: "exact", head: true }))
   ]);
 
   return {
+    availableAssets: availableAssetsCount,
     bookings: bookingsCount,
+    checkedOutAssets: checkedOutAssetsCount,
+    labCount,
     openDefects: openDefectsCount,
-    pendingBookings: activeBookingsCount,
+    pendingBookings: pendingBookingsCount,
+    repairAssets: repairAssetsCount,
     threads: threadsCount,
+    totalAssets: totalAssetsCount,
     unreadNotifications: unreadNotificationsCount
   };
 }
@@ -630,6 +680,14 @@ async function countRows(query: PromiseLike<{ count: number | null; error: { mes
   }
 
   return count ?? 0;
+}
+
+async function safeCountRows(query: PromiseLike<{ count: number | null; error: { message: string } | null }>) {
+  try {
+    return await countRows(query);
+  } catch {
+    return 0;
+  }
 }
 
 function normalizeListOptions(options: MobileListOptions) {

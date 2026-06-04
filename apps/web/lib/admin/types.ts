@@ -31,6 +31,19 @@ export type ProfileRow = {
   is_active: boolean;
 };
 
+export type EmailDomainRule = {
+  id: string;
+  domain: string;
+  is_allowed: boolean;
+  notes: string | null;
+  created_at: string;
+};
+
+export type RegistrationPolicy = {
+  restrictSignupToAllowedDomains: boolean;
+  allowedDomains: EmailDomainRule[];
+};
+
 export type CategoryRow = {
   id: string;
   name: string;
@@ -110,6 +123,7 @@ export type DashboardData = {
   bookings: BookingRow[];
   defects: DefectRow[];
   profiles: ProfileRow[];
+  registrationPolicy: RegistrationPolicy;
   ticketThreads: TicketThreadRow[];
   counters: ReturnType<typeof getDashboardCounters>;
 };

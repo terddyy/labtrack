@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
-import { Button, Card, EmptyState, Field, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
+import { Button, Card, EmptyState, Field, Notice, ScreenScrollView } from "@/components/ui";
 import { colors } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 import { useTicketThread } from "@/lib/use-ticket-thread";
@@ -12,12 +12,18 @@ export default function TicketThreadScreen() {
 
   return (
     <ScreenScrollView>
-      <View style={styles.headerRow}>
-        <SectionTitle title="Ticket chat" caption="Messages are shared with LABTRACK custodians." />
+      <Card style={styles.heroCard}>
+        <View style={styles.headerRow}>
+          <View style={styles.heroCopy}>
+            <Text style={styles.heroKicker}>Thread</Text>
+            <Text style={styles.heroTitle}>Shared support conversation.</Text>
+            <Text style={styles.heroCaption}>Messages are visible to LABTRACK custodians attached to this workflow.</Text>
+          </View>
+        </View>
         <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
           Refresh
         </Button>
-      </View>
+      </Card>
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {!messages.length && !isLoading ? (
         <EmptyState body="Use the reply field below to start the conversation on this thread." title="No messages yet" />
@@ -58,13 +64,44 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 12
   },
+  heroCaption: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20
+  },
+  heroCard: {
+    backgroundColor: colors.purpleMuted,
+    borderColor: "rgba(255,255,255,0.84)",
+    gap: 16,
+    padding: 22
+  },
+  heroCopy: {
+    gap: 7
+  },
+  heroKicker: {
+    color: colors.purple,
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase"
+  },
+  heroTitle: {
+    color: colors.text,
+    fontSize: 25,
+    fontWeight: "900",
+    lineHeight: 30
+  },
   messageBody: {
     color: colors.text,
     fontSize: 15,
+    fontWeight: "600",
     lineHeight: 21
   },
   messageCard: {
-    gap: 7
+    alignSelf: "flex-start",
+    borderBottomLeftRadius: 10,
+    gap: 7,
+    maxWidth: "90%"
   },
   messageMetaRow: {
     alignItems: "center",
@@ -80,14 +117,18 @@ const styles = StyleSheet.create({
     textAlign: "right"
   },
   messageList: {
-    gap: 10
+    gap: 12
   },
   myMessageCard: {
+    alignSelf: "flex-end",
     backgroundColor: colors.primaryMuted,
-    borderColor: colors.secondaryMuted
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 10,
+    borderColor: "rgba(255,255,255,0.84)"
   },
   replyCard: {
-    gap: 14
+    gap: 14,
+    padding: 18
   },
   senderText: {
     color: colors.text,

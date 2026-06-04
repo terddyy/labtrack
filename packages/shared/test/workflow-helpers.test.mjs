@@ -13,6 +13,7 @@ import {
   isActiveBookingStatus,
   isBorrowerRole,
   isCustodianRole,
+  normalizeEmailDomain,
   isUniversityEmailAllowed,
   isOpenDefectStatus,
   isTerminalBookingStatus,
@@ -42,7 +43,11 @@ test("role labels and university email checks are centralized", () => {
   assert.equal(isCustodianRole("faculty"), false);
   assert.equal(isBorrowerRole("student"), true);
 
+  assert.equal(normalizeEmailDomain("  @PampangaStateU.edu.ph  "), "pampangastateu.edu.ph");
   assert.equal(isUniversityEmailAllowed("teacher@pampangastateu.edu.ph", ["pampangastateu.edu.ph"]), true);
+  assert.equal(isUniversityEmailAllowed("teacher@pampangastateu.edu.ph", ["@PampangaStateU.edu.ph"]), true);
+  assert.equal(isUniversityEmailAllowed("teacher@sub.pampangastateu.edu.ph", ["pampangastateu.edu.ph"]), false);
+  assert.equal(isUniversityEmailAllowed("teacher@pampangastateu.edu.ph@example.com", ["example.com"]), false);
   assert.equal(isUniversityEmailAllowed("teacher@gmail.com", ["pampangastateu.edu.ph"]), false);
 });
 

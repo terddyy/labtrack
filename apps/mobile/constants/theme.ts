@@ -1,31 +1,57 @@
 export const colors = {
-  background: "#F5F7FA",
+  background: "#F5F6F7",
   surface: "#FFFFFF",
-  surfaceMuted: "#E9EDF2",
-  border: "#D7DCE3",
-  text: "#111827",
-  muted: "#667085",
-  iconMuted: "#6B7280",
-  primary: "#003B82",
-  primaryDark: "#00295B",
-  primaryMuted: "#E6EEF8",
-  secondary: "#0057B8",
-  secondaryMuted: "#E6F0FB",
-  coral: "#C62828",
-  coralMuted: "#FBEAEA",
-  pink: "#5A4FCF",
-  pinkMuted: "#EDEBFF",
-  success: "#0F9D58",
-  successMuted: "#E5F6ED",
-  warning: "#D97706",
-  warningMuted: "#FFF4DE",
-  danger: "#C62828",
-  dangerMuted: "#FBEAEA"
+  surfaceRaised: "#FBFCFC",
+  surfaceMuted: "#EEF2F1",
+  border: "#E5EAE8",
+  borderStrong: "#D7DEDB",
+  text: "#172033",
+  muted: "#6B7585",
+  subtle: "#98A2AE",
+  iconMuted: "#748092",
+  primary: "#0FA37F",
+  primaryDark: "#08725F",
+  primaryMuted: "#E5F7F1",
+  mint: "#CFF6E7",
+  mintSoft: "#F0FBF6",
+  secondary: "#2F80ED",
+  secondaryMuted: "#EAF3FF",
+  purple: "#7566D9",
+  purpleMuted: "#F0EEFF",
+  coral: "#E05252",
+  coralMuted: "#FDECEC",
+  pink: "#7566D9",
+  pinkMuted: "#F0EEFF",
+  success: "#21A56F",
+  successMuted: "#E9F8F1",
+  warning: "#D99217",
+  warningMuted: "#FFF5DD",
+  danger: "#D94B4B",
+  dangerMuted: "#FDECEC",
+  blue: "#2F80ED",
+  blueMuted: "#EAF3FF"
 };
 
 export const spacing = {
   page: 20,
-  gap: 14,
-  radius: 8,
-  controlRadius: 8
+  gap: 16,
+  radius: 24,
+  radiusLarge: 28,
+  controlRadius: 20,
+  navRadius: 32
+};
+
+export const shadows = {
+  card: {
+    boxShadow: "0 14px 34px rgba(23, 32, 51, 0.07)"
+  },
+  soft: {
+    boxShadow: "0 8px 22px rgba(23, 32, 51, 0.055)"
+  },
+  floating: {
+    boxShadow: "0 18px 42px rgba(23, 32, 51, 0.12)"
+  },
+  accent: {
+    boxShadow: "0 14px 30px rgba(15, 163, 127, 0.18)"
+  }
 };
