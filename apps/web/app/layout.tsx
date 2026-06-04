@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LABTRACK Admin",
-  description: "Hardware asset management dashboard for CCS asset administrators."
+  title: "LABTRACK Custodian",
+  description: "Hardware asset management dashboard for CCS custodians."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -1,10 +1,10 @@
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import {
-  bookingDurationHours,
+  borrowingDurationMinutes,
   createBookingRange,
   formatBookingDateTime,
   isFutureBookingRange,
-  type BookingDurationHours,
+  type BorrowingDurationMinutes,
   type BookingRange
 } from "@labtrack/shared";
 import { useMemo, useState } from "react";
@@ -55,15 +55,15 @@ export function BookingSchedulePicker({ disabled = false, now, onRangeChange, ra
     }
 
     const nextStartAt = mode === "date" ? mergeSelectedDate(range.startAt, selectedDate) : mergeSelectedTime(range.startAt, selectedDate);
-    onRangeChange(createBookingRange(nextStartAt, range.durationHours));
+    onRangeChange(createBookingRange(nextStartAt, range.durationMinutes));
   }
 
-  function handleDurationChange(durationHours: BookingDurationHours) {
-    if (disabled || durationHours === range.durationHours) {
+  function handleDurationChange(durationMinutes: BorrowingDurationMinutes) {
+    if (disabled || durationMinutes === range.durationMinutes) {
       return;
     }
 
-    onRangeChange(createBookingRange(range.startAt, durationHours));
+    onRangeChange(createBookingRange(range.startAt, durationMinutes));
   }
 
   return (
@@ -98,8 +98,8 @@ export function BookingSchedulePicker({ disabled = false, now, onRangeChange, ra
       <View style={styles.durationGroup}>
         <Text style={styles.groupLabel}>Duration</Text>
         <View style={styles.chipRow}>
-          {bookingDurationHours.map((durationHours) => {
-            const selected = durationHours === range.durationHours;
+          {borrowingDurationMinutes.map((durationMinutes) => {
+            const selected = durationMinutes === range.durationMinutes;
 
             return (
               <Pressable
@@ -107,8 +107,8 @@ export function BookingSchedulePicker({ disabled = false, now, onRangeChange, ra
                 accessibilityState={{ disabled, selected }}
                 disabled={disabled}
                 hitSlop={8}
-                key={durationHours}
-                onPress={() => handleDurationChange(durationHours)}
+                key={durationMinutes}
+                onPress={() => handleDurationChange(durationMinutes)}
                 style={({ pressed }) => [
                   styles.durationChip,
                   selected ? styles.durationChipSelected : null,
@@ -116,7 +116,7 @@ export function BookingSchedulePicker({ disabled = false, now, onRangeChange, ra
                 ]}
               >
                 <Text style={[styles.durationChipText, selected ? styles.durationChipTextSelected : null]}>
-                  {durationHours} {durationHours === 1 ? "hour" : "hours"}
+                  {formatDuration(durationMinutes)}
                 </Text>
               </Pressable>
             );
@@ -127,7 +127,7 @@ export function BookingSchedulePicker({ disabled = false, now, onRangeChange, ra
       <View style={styles.summary}>
         <SummaryLine label="Start" value={formatBookingDateTime(range.startAt)} />
         <SummaryLine label="End" value={formatBookingDateTime(range.endAt)} />
-        <SummaryLine label="Duration" value={`${range.durationHours} ${range.durationHours === 1 ? "hour" : "hours"}`} />
+        <SummaryLine label="Duration" value={formatDuration(range.durationMinutes)} />
         <SummaryLine label="Timezone" value={timezoneSource} />
       </View>
 
@@ -214,6 +214,18 @@ function formatPickerTime(date: Date) {
     hour: "numeric",
     minute: "2-digit"
   });
+}
+
+function formatDuration(durationMinutes: number) {
+  if (durationMinutes === 90) {
+    return "1 hour 30 minutes";
+  }
+
+  if (durationMinutes === 150) {
+    return "2 hours 30 minutes";
+  }
+
+  return `${durationMinutes / 60} hours`;
 }
 
 function resolveTimezoneSource() {

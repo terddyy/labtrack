@@ -8,7 +8,12 @@ import {
   getDefectStatusTone,
   getDefectTransitions,
   getDefectWorkflowActions,
+  getAvailabilityState,
+  getRoleDisplayLabel,
   isActiveBookingStatus,
+  isBorrowerRole,
+  isCustodianRole,
+  isUniversityEmailAllowed,
   isOpenDefectStatus,
   isTerminalBookingStatus,
   isTerminalDefectStatus
@@ -25,6 +30,28 @@ test("booking lifecycle helpers expose allowed admin actions", () => {
   assert.equal(isActiveBookingStatus("checked_out"), true);
   assert.equal(isActiveBookingStatus("returned"), false);
   assert.equal(isTerminalBookingStatus("returned"), true);
+});
+
+test("role labels and university email checks are centralized", () => {
+  assert.equal(getRoleDisplayLabel("admin"), "Custodian");
+  assert.equal(getRoleDisplayLabel("custodian"), "Custodian");
+  assert.equal(getRoleDisplayLabel("instructor"), "Faculty");
+  assert.equal(getRoleDisplayLabel("faculty"), "Faculty");
+  assert.equal(getRoleDisplayLabel("student"), "Student");
+  assert.equal(isCustodianRole("super_admin"), true);
+  assert.equal(isCustodianRole("faculty"), false);
+  assert.equal(isBorrowerRole("student"), true);
+
+  assert.equal(isUniversityEmailAllowed("teacher@pampangastateu.edu.ph", ["pampangastateu.edu.ph"]), true);
+  assert.equal(isUniversityEmailAllowed("teacher@gmail.com", ["pampangastateu.edu.ph"]), false);
+});
+
+test("availability classification treats pending as tentative", () => {
+  assert.equal(getAvailabilityState({}), "available");
+  assert.equal(getAvailabilityState({ hasTentativeConflict: true }), "tentative");
+  assert.equal(getAvailabilityState({ hasHardConflict: true, hasTentativeConflict: true }), "busy");
+  assert.equal(getAvailabilityState({ isResourceActive: false }), "unavailable");
+  assert.equal(getAvailabilityState({ isResourceArchived: true }), "unavailable");
 });
 
 test("defect lifecycle helpers mirror backend transition rules", () => {

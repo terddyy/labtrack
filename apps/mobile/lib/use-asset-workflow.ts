@@ -78,7 +78,7 @@ export function useAssetWorkflow(payload?: string) {
     }
 
     if (asset.status !== "available") {
-      setBookingMessage("This asset is not currently available for borrow requests.");
+      setBookingMessage("This asset is not currently available for borrowing requests.");
       return;
     }
 
@@ -107,12 +107,17 @@ export function useAssetWorkflow(payload?: string) {
     setBookingMessage(null);
 
     try {
-      await createBooking(validation.data);
+      await createBooking({
+        assetId: asset.id,
+        purpose: validation.data.purpose,
+        requestedEndAt: validation.data.requestedEndAt,
+        requestedStartAt: validation.data.requestedStartAt
+      });
       const nextNow = new Date();
       setBookingPurpose("");
       setBookingRange(createDefaultBookingRange(nextNow));
       setBookingValidationNow(nextNow);
-      setBookingMessage("Borrow request submitted.");
+      setBookingMessage("Borrowing request submitted.");
     } catch (submitError) {
       setBookingMessage(formatApiError(submitError));
     } finally {

@@ -9,7 +9,7 @@ export default function ReportsScreen() {
   return (
     <ScreenScrollView>
       <View style={styles.headerRow}>
-        <SectionTitle title="Defect reports" caption="Follow up on equipment issues and administrator triage." />
+        <SectionTitle title="Defect reports" caption="Follow up on equipment issues and custodian triage." />
         <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
           Refresh
         </Button>

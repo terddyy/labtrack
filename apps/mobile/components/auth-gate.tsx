@@ -28,7 +28,7 @@ export function RequireActiveProfile({ children }: { children: ReactNode }) {
     return (
       <GateScreen>
         <Card>
-          <SectionTitle title="Account inactive" caption="This LABTRACK profile has been deactivated. Contact an administrator before using equipment workflows." />
+          <SectionTitle title="Account inactive" caption="This LABTRACK profile has been deactivated. Contact a custodian before using equipment workflows." />
           <Button onPress={() => void auth.signOut()} variant="secondary">Sign out</Button>
         </Card>
       </GateScreen>

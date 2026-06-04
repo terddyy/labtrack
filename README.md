@@ -93,10 +93,22 @@ For a development client:
 npm run dev:mobile:dev-client
 ```
 
-To create an Android development build with EAS:
+To create an installable Android development-client APK with EAS:
 
 ```bash
 npm run build:mobile:android:development
+```
+
+This saves the downloaded APK in `apps/mobile/builds`. Install that APK once on a device, then start Metro for fast JavaScript and UI changes:
+
+```bash
+npm run dev:mobile:dev-client
+```
+
+Rebuild the development-client APK only when native dependencies, Expo plugins, app config, Android permissions, or other native build inputs change. For a standalone internal APK that does not connect to Metro, use:
+
+```bash
+npm run build:mobile:android:preview
 ```
 
 ## Supabase setup

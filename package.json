@@ -14,6 +14,8 @@
     "dev:mobile": "npm run start -w @labtrack/mobile",
     "dev:mobile:dev-client": "npm run start:dev-client -w @labtrack/mobile",
     "build:mobile:android:development": "npm run build:android:development -w @labtrack/mobile",
+    "build:mobile:android:dev-client": "npm run build:android:dev-client -w @labtrack/mobile",
+    "build:mobile:android:preview": "npm run build:android:preview -w @labtrack/mobile",
     "test": "npm run test -w @labtrack/shared",
     "typecheck": "npm run typecheck -w @labtrack/shared && npm run typecheck -w @labtrack/web && npm run typecheck -w @labtrack/mobile"
   },

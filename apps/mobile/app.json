@@ -5,7 +5,13 @@
     "scheme": "labtrack",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/brand/labtrack-icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/brand/labtrack-splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F7F8"
+    },
     "android": {
       "package": "edu.psu.ccs.labtrack",
       "versionCode": 1,
@@ -16,6 +22,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/labtrack-adaptive-foreground.png",
         "backgroundColor": "#F4F7F8"
       }
     },

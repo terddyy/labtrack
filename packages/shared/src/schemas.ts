@@ -19,6 +19,15 @@ const lifecycleNotesSchema = optionalNotesSchema(2000);
 const decisionNotesSchema = optionalNotesSchema(1000);
 const idSchema = z.uuid();
 const timestampSchema = z.string().min(1);
+export const resourceTypes = ["asset", "room"] as const;
+export const availabilityStates = ["available", "tentative", "busy", "unavailable"] as const;
+export const reportTypes = [
+  "asset_management_summary",
+  "borrowing_transactions",
+  "defect_reports",
+  "inventory",
+  "equipment_utilization"
+] as const;
 
 export const profileSchema = z.object({
   id: idSchema,
@@ -40,13 +49,18 @@ export const assetSchema = z.object({
 });
 
 export const bookingRequestSchema = z.object({
-  assetId: idSchema,
+  assetId: idSchema.optional(),
+  roomId: idSchema.optional(),
+  resourceType: z.enum(resourceTypes).default("asset"),
   requestedStartAt: z.iso.datetime(),
   requestedEndAt: z.iso.datetime(),
   purpose: z.string().min(5).max(500)
 }).refine((value) => new Date(value.requestedEndAt) > new Date(value.requestedStartAt), {
   message: "Borrow end time must be after the start time.",
   path: ["requestedEndAt"]
+}).refine((value) => value.resourceType === "room" ? Boolean(value.roomId) && !value.assetId : Boolean(value.assetId) && !value.roomId, {
+  message: "Borrowing requests must target exactly one asset or room.",
+  path: ["resourceType"]
 });
 
 export const bookingStatusSchema = z.enum(bookingStatuses);
@@ -91,11 +105,120 @@ export const createBookingInputSchema = z.object({
   path: ["p_requested_start_at"]
 });
 
-export const cancelBookingInputSchema = z.object({
-  p_booking_id: idSchema
+export const dateRangeInputSchema = z.object({
+  p_from: z.iso.datetime(),
+  p_to: z.iso.datetime()
+}).refine((value) => new Date(value.p_to) > new Date(value.p_from), {
+  message: "End date must be after start date.",
+  path: ["p_to"]
+});
+
+export const listBorrowableResourcesInputSchema = z.object({
+  p_start_at: z.iso.datetime(),
+  p_end_at: z.iso.datetime(),
+  p_resource_type: z.enum(resourceTypes).nullable().optional(),
+  p_location_id: idSchema.nullable().optional(),
+  p_query: z.string().trim().max(120).nullable().optional()
+}).refine((value) => new Date(value.p_end_at) > new Date(value.p_start_at), {
+  message: "Borrow end time must be after the start time.",
+  path: ["p_end_at"]
+}).refine((value) => {
+  const minutes = (new Date(value.p_end_at).getTime() - new Date(value.p_start_at).getTime()) / 60000;
+  return minutes >= 90 && minutes <= 180;
+}, {
+  message: "Borrowing duration must be between 90 and 180 minutes.",
+  path: ["p_end_at"]
+});
+
+export const listResourceScheduleInputSchema = z.object({
+  p_resource_type: z.enum(resourceTypes),
+  p_resource_id: idSchema,
+  p_from: z.iso.datetime(),
+  p_to: z.iso.datetime()
+}).refine((value) => new Date(value.p_to) > new Date(value.p_from), {
+  message: "End date must be after start date.",
+  path: ["p_to"]
+});
+
+export const createBorrowingInputSchema = z.object({
+  p_resource_type: z.enum(resourceTypes),
+  p_resource_id: idSchema,
+  p_requested_start_at: z.iso.datetime(),
+  p_requested_end_at: z.iso.datetime(),
+  p_purpose: z.string().trim().min(5).max(500)
+}).refine((value) => new Date(value.p_requested_end_at) > new Date(value.p_requested_start_at), {
+  message: "Borrow end time must be after the start time.",
+  path: ["p_requested_end_at"]
+}).refine((value) => new Date(value.p_requested_start_at).getTime() > Date.now(), {
+  message: "Borrow start time must be later than now.",
+  path: ["p_requested_start_at"]
+}).refine((value) => {
+  const minutes = (new Date(value.p_requested_end_at).getTime() - new Date(value.p_requested_start_at).getTime()) / 60000;
+  return minutes >= 90 && minutes <= 180;
+}, {
+  message: "Borrowing duration must be between 90 and 180 minutes.",
+  path: ["p_requested_end_at"]
 });
 
 export const bookingDecisionStatusSchema = z.enum(["approved", "rejected"]);
+
+export const borrowingIdInputSchema = z.object({
+  p_borrowing_id: idSchema
+});
+
+export const decideBorrowingInputSchema = z.object({
+  p_borrowing_id: idSchema,
+  p_status: bookingDecisionStatusSchema,
+  p_notes: decisionNotesSchema
+});
+
+export const borrowingLifecycleInputSchema = z.object({
+  p_borrowing_id: idSchema,
+  p_notes: lifecycleNotesSchema
+});
+
+export const borrowingMonitorInputSchema = z.object({
+  p_from: z.iso.datetime(),
+  p_to: z.iso.datetime(),
+  p_location_id: idSchema.nullable().optional(),
+  p_resource_id: idSchema.nullable().optional(),
+  p_statuses: z.array(z.enum(bookingStatuses)).nullable().optional()
+}).refine((value) => new Date(value.p_to) > new Date(value.p_from), {
+  message: "End date must be after start date.",
+  path: ["p_to"]
+});
+
+export const usageAnalyticsInputSchema = z.object({
+  p_from: z.iso.datetime(),
+  p_to: z.iso.datetime(),
+  p_location_id: idSchema.nullable().optional(),
+  p_asset_id: idSchema.nullable().optional()
+}).refine((value) => new Date(value.p_to) > new Date(value.p_from), {
+  message: "End date must be after start date.",
+  path: ["p_to"]
+});
+
+export const listActivityLogsInputSchema = z.object({
+  p_from: z.iso.datetime().nullable().optional(),
+  p_to: z.iso.datetime().nullable().optional(),
+  p_limit: z.number().int().min(1).max(500).optional(),
+  p_offset: z.number().int().min(0).optional()
+});
+
+export const printableReportInputSchema = z.object({
+  p_report_type: z.enum(reportTypes),
+  p_from: z.iso.datetime(),
+  p_to: z.iso.datetime(),
+  p_location_id: idSchema.nullable().optional(),
+  p_asset_id: idSchema.nullable().optional()
+}).refine((value) => new Date(value.p_to) > new Date(value.p_from), {
+  message: "End date must be after start date.",
+  path: ["p_to"]
+});
+
+export const cancelBookingInputSchema = z.object({
+  p_booking_id: idSchema
+});
 
 export const decideBookingInputSchema = z.object({
   p_booking_id: idSchema,
@@ -291,6 +414,78 @@ export const notificationRowDtoSchema = z.object({
   created_at: timestampSchema
 });
 
+export const borrowingResourceRowDtoSchema = z.object({
+  id: idSchema,
+  resource_type: z.enum(resourceTypes),
+  name: z.string(),
+  category_name: z.string().nullable(),
+  location_id: idSchema.nullable(),
+  location_name: z.string().nullable(),
+  status: z.enum(assetStatuses).nullable(),
+  condition: z.enum(assetConditions).nullable(),
+  availability: z.enum(availabilityStates),
+  next_available_at: timestampSchema.nullable(),
+  primary_image_url: z.string().nullable(),
+  is_active: z.boolean(),
+  is_archived: z.boolean()
+});
+
+export const resourceScheduleEntryRowDtoSchema = z.object({
+  id: idSchema,
+  resource_type: z.enum(resourceTypes),
+  resource_id: idSchema,
+  borrower_id: idSchema,
+  borrower_name: z.string().nullable(),
+  borrower_email: z.email().nullable(),
+  requested_start_at: timestampSchema,
+  requested_end_at: timestampSchema,
+  status: z.enum(bookingStatuses),
+  purpose: z.string(),
+  availability: z.enum(["tentative", "busy", "unavailable"])
+});
+
+export const borrowingRowDtoSchema = z.object({
+  id: idSchema,
+  resource_type: z.enum(resourceTypes),
+  asset_id: idSchema.nullable(),
+  room_id: idSchema.nullable(),
+  borrower_id: idSchema,
+  borrower_name: z.string().nullable(),
+  borrower_email: z.email().nullable(),
+  requested_start_at: timestampSchema,
+  requested_end_at: timestampSchema,
+  purpose: z.string(),
+  status: z.enum(bookingStatuses),
+  created_at: timestampSchema,
+  updated_at: timestampSchema
+});
+
+export const usageAnalyticsRowDtoSchema = z.object({
+  report_type: z.enum(reportTypes),
+  metric: z.string(),
+  label: z.string(),
+  value: z.number(),
+  unit: z.string()
+});
+
+export const activityLogRowDtoSchema = z.object({
+  id: idSchema,
+  actor_id: idSchema.nullable(),
+  actor_name: z.string().nullable(),
+  actor_email: z.email().nullable(),
+  action: z.string(),
+  entity_table: z.string(),
+  entity_id: idSchema.nullable(),
+  metadata: z.record(z.string(), z.unknown()),
+  created_at: timestampSchema
+});
+
+export const printableReportRowDtoSchema = z.object({
+  report_type: z.enum(reportTypes),
+  section: z.string(),
+  payload: z.record(z.string(), z.unknown())
+});
+
 export const profileAccessUpdatesSchema = z.object({
   role: z.enum(userRoles).optional(),
   is_active: z.boolean().optional()
@@ -302,6 +497,16 @@ export type ResolveAssetByQrCodeInput = z.infer<typeof resolveAssetByQrCodeInput
 export type ListAdminAssetsInput = z.infer<typeof listAdminAssetsInputSchema>;
 export type RegenerateAssetQrInput = z.infer<typeof regenerateAssetQrInputSchema>;
 export type CreateBookingInput = z.infer<typeof createBookingInputSchema>;
+export type ListBorrowableResourcesInput = z.infer<typeof listBorrowableResourcesInputSchema>;
+export type ListResourceScheduleInput = z.infer<typeof listResourceScheduleInputSchema>;
+export type CreateBorrowingInput = z.infer<typeof createBorrowingInputSchema>;
+export type BorrowingIdInput = z.infer<typeof borrowingIdInputSchema>;
+export type DecideBorrowingInput = z.infer<typeof decideBorrowingInputSchema>;
+export type BorrowingLifecycleInput = z.infer<typeof borrowingLifecycleInputSchema>;
+export type BorrowingMonitorInput = z.infer<typeof borrowingMonitorInputSchema>;
+export type UsageAnalyticsInput = z.infer<typeof usageAnalyticsInputSchema>;
+export type ListActivityLogsInput = z.infer<typeof listActivityLogsInputSchema>;
+export type PrintableReportInput = z.infer<typeof printableReportInputSchema>;
 export type CancelBookingInput = z.infer<typeof cancelBookingInputSchema>;
 export type DecideBookingInput = z.infer<typeof decideBookingInputSchema>;
 export type CheckoutBookingInput = z.infer<typeof checkoutBookingInputSchema>;
@@ -322,4 +527,10 @@ export type DefectReportRpcResultDtoInput = z.infer<typeof defectReportRpcResult
 export type TicketThreadRowDtoInput = z.infer<typeof ticketThreadRowDtoSchema>;
 export type TicketMessageRowDtoInput = z.infer<typeof ticketMessageRowDtoSchema>;
 export type NotificationRowDtoInput = z.infer<typeof notificationRowDtoSchema>;
+export type BorrowingResourceRowDtoInput = z.infer<typeof borrowingResourceRowDtoSchema>;
+export type ResourceScheduleEntryRowDtoInput = z.infer<typeof resourceScheduleEntryRowDtoSchema>;
+export type BorrowingRowDtoInput = z.infer<typeof borrowingRowDtoSchema>;
+export type UsageAnalyticsRowDtoInput = z.infer<typeof usageAnalyticsRowDtoSchema>;
+export type ActivityLogRowDtoInput = z.infer<typeof activityLogRowDtoSchema>;
+export type PrintableReportRowDtoInput = z.infer<typeof printableReportRowDtoSchema>;
 export type ProfileAccessUpdatesInput = z.infer<typeof profileAccessUpdatesSchema>;

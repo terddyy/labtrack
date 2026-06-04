@@ -1,6 +1,14 @@
 "use server";
 
-import type { DefectStatus, UserRole } from "@labtrack/shared";
+import {
+  bookingStatuses,
+  reportTypes,
+  userRoles as sharedUserRoles,
+  type BookingStatus,
+  type DefectStatus,
+  type ReportType,
+  type UserRole
+} from "@labtrack/shared";
 import {
   cancelBooking,
   checkoutBooking,
@@ -11,18 +19,38 @@ import {
   generateAssetQr,
   getAdminAccess,
   getAdminDashboardData,
+  getBorrowingMonitor,
+  getPrintableReportData,
   getTicketMessages,
+  getUsageAnalytics,
+  listActivityLogs,
   returnBooking,
   sendTicketMessage,
   triageDefectReport,
   updateProfileAccess
 } from "./services";
-import type { AssetFormState, DashboardData, ProfileAccessUpdates, ProfileRow, TicketMessageRow } from "./types";
+import type {
+  ActivityLogFilters,
+  ActivityLogRow,
+  AssetFormState,
+  BorrowingMonitorFilters,
+  BorrowingMonitorRow,
+  DashboardData,
+  PrintableReportFilters,
+  PrintableReportRow,
+  ProfileAccessUpdates,
+  ProfileRow,
+  ReportFilters,
+  TicketMessageRow,
+  UsageAnalyticsRow
+} from "./types";
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string };
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const defectTriageStatuses = new Set(["under_review", "sent_for_repair", "resolved", "rejected"]);
-const userRoles = new Set(["instructor", "admin", "super_admin"]);
+const validBookingStatuses = new Set<string>(bookingStatuses);
+const validReportTypes = new Set<string>(reportTypes);
+const userRoles = new Set<string>(sharedUserRoles);
 
 export async function getAdminAccessAction() {
   return getAdminAccess();
@@ -34,6 +62,25 @@ export async function getAdminDashboardDataAction(): Promise<ActionResult<Dashbo
 
 export async function getTicketMessagesAction(threadId: string | null): Promise<ActionResult<TicketMessageRow[]>> {
   return toActionResult(() => getTicketMessages(threadId ? parseId(threadId) : null));
+}
+
+export async function getBorrowingMonitorAction(input: BorrowingMonitorFilters): Promise<ActionResult<BorrowingMonitorRow[]>> {
+  return toActionResult(() => getBorrowingMonitor(parseBorrowingMonitorFilters(input)));
+}
+
+export async function getUsageAnalyticsAction(input: ReportFilters): Promise<ActionResult<UsageAnalyticsRow[]>> {
+  return toActionResult(() => getUsageAnalytics(parseReportFilters(input)));
+}
+
+export async function listActivityLogsAction(input: ActivityLogFilters): Promise<ActionResult<ActivityLogRow[]>> {
+  return toActionResult(() => listActivityLogs(parseActivityLogFilters(input)));
+}
+
+export async function getPrintableReportDataAction(input: PrintableReportFilters): Promise<ActionResult<PrintableReportRow[]>> {
+  return toActionResult(() => getPrintableReportData({
+    ...parseReportFilters(input),
+    reportType: parseReportType(input.reportType)
+  }));
 }
 
 export async function createAssetAction(input: AssetFormState) {
@@ -52,7 +99,7 @@ export async function decideBookingAction(bookingId: string, status: "approved" 
     const parsedStatus = status === "approved" || status === "rejected" ? status : null;
 
     if (!parsedStatus) {
-      throw new Error("Booking decision status is invalid.");
+      throw new Error("Borrowing decision status is invalid.");
     }
 
     await decideBooking(parseId(bookingId), parsedStatus);
@@ -134,6 +181,111 @@ async function toActionResult<T>(action: () => Promise<T>): Promise<ActionResult
 function parseId(value: string) {
   if (!idPattern.test(value)) {
     throw new Error("Identifier is invalid.");
+  }
+
+  return value;
+}
+
+function parseOptionalId(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return parseId(value);
+}
+
+function parseIsoDate(value: string, label: string) {
+  const date = new Date(value);
+
+  if (!value || Number.isNaN(date.getTime())) {
+    throw new Error(`${label} is invalid.`);
+  }
+
+  return date.toISOString();
+}
+
+function parseDateRange(value: { from: string; to: string }) {
+  const from = parseIsoDate(value.from, "Start date");
+  const to = parseIsoDate(value.to, "End date");
+
+  if (new Date(to).getTime() <= new Date(from).getTime()) {
+    throw new Error("End date must be after start date.");
+  }
+
+  return { from, to };
+}
+
+function parseBorrowingMonitorFilters(value: BorrowingMonitorFilters): BorrowingMonitorFilters {
+  const range = parseDateRange(value);
+
+  return {
+    ...range,
+    locationId: parseOptionalId(value.locationId),
+    resourceId: parseOptionalId(value.resourceId),
+    statuses: parseBookingStatusList(value.statuses)
+  };
+}
+
+function parseReportFilters(value: ReportFilters): ReportFilters {
+  const range = parseDateRange(value);
+
+  return {
+    ...range,
+    locationId: parseOptionalId(value.locationId),
+    assetId: parseOptionalId(value.assetId)
+  };
+}
+
+function parseActivityLogFilters(value: ActivityLogFilters): ActivityLogFilters {
+  return {
+    from: value.from ? parseIsoDate(value.from, "Start date") : null,
+    to: value.to ? parseIsoDate(value.to, "End date") : null,
+    limit: parseLimit(value.limit),
+    offset: parseOffset(value.offset)
+  };
+}
+
+function parseBookingStatusList(value: BookingStatus[] | null | undefined): BookingStatus[] | null {
+  if (!value?.length) {
+    return null;
+  }
+
+  return value.map((status) => {
+    if (!validBookingStatuses.has(status)) {
+      throw new Error("Borrowing status filter is invalid.");
+    }
+
+    return status;
+  });
+}
+
+function parseReportType(value: ReportType): ReportType {
+  if (!validReportTypes.has(value)) {
+    throw new Error("Report type is invalid.");
+  }
+
+  return value;
+}
+
+function parseLimit(value: number | undefined) {
+  if (value === undefined) {
+    return 100;
+  }
+
+  if (!Number.isInteger(value) || value < 1 || value > 500) {
+    throw new Error("Activity log limit is invalid.");
+  }
+
+  return value;
+}
+
+function parseOffset(value: number | undefined) {
+  if (value === undefined) {
+    return 0;
+  }
+
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error("Activity log offset is invalid.");
   }
 
   return value;

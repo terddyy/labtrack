@@ -7,11 +7,16 @@ import {
   ticketMessageSchema,
   type AssetCondition,
   type AssetStatus,
+  type AvailabilityState,
+  type BorrowingResourceRowDto,
+  type BorrowingRowDto,
   type BookingStatus,
   type DefectStatus,
   type InstructorAssetLookupDto,
   type NotificationType,
-  type Profile
+  type Profile,
+  type ResourceScheduleEntryRowDto,
+  type ResourceType
 } from "@labtrack/shared";
 import { Platform } from "react-native";
 import { supabase } from "@/lib/supabase";
@@ -27,7 +32,9 @@ type ProfileRow = {
 
 type BookingRow = {
   id: string;
-  asset_id: string;
+  resource_type: ResourceType | null;
+  asset_id: string | null;
+  location_id: string | null;
   instructor_id: string;
   requested_start_at: string;
   requested_end_at: string;
@@ -100,11 +107,59 @@ export type MobileAsset = {
   status: AssetStatus;
   activeQrCode: string;
   qrGeneratedAt: string;
+  };
+
+export type MobileBorrowingResource = {
+  id: string;
+  resourceType: ResourceType;
+  name: string;
+  categoryName: string | null;
+  locationId: string | null;
+  locationName: string | null;
+  condition: AssetCondition | null;
+  status: AssetStatus | null;
+  availability: AvailabilityState;
+  nextAvailableAt: string | null;
+  primaryImageUrl: string | null;
+  isActive: boolean;
+  isArchived: boolean;
+};
+
+export type MobileResourceScheduleEntry = {
+  id: string;
+  resourceType: ResourceType;
+  resourceId: string;
+  borrowerId: string;
+  borrowerName: string | null;
+  borrowerEmail: string | null;
+  requestedStartAt: string;
+  requestedEndAt: string;
+  status: BookingStatus;
+  purpose: string;
+  availability: Exclude<AvailabilityState, "available">;
+};
+
+export type MobileBorrowing = {
+  id: string;
+  resourceType: ResourceType;
+  assetId: string | null;
+  roomId: string | null;
+  borrowerId: string;
+  borrowerName: string | null;
+  borrowerEmail: string | null;
+  requestedStartAt: string;
+  requestedEndAt: string;
+  purpose: string;
+  status: BookingStatus;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type MobileBooking = {
   id: string;
-  assetId: string;
+  resourceType: ResourceType;
+  assetId: string | null;
+  roomId: string | null;
   instructorId: string;
   requestedStartAt: string;
   requestedEndAt: string;
@@ -184,6 +239,12 @@ export function createLabtrackMobileApi(client: LabtrackMobileClient) {
     getCurrentProfile: () => getCurrentProfile(client),
     getCurrentUserId: () => getCurrentUserId(client),
     getDashboardSummary: () => getDashboardSummary(client),
+    listBorrowableResources: (input: ListBorrowableResourcesOptions) => listBorrowableResources(input, client),
+    listResourceSchedule: (input: ListResourceScheduleOptions) => listResourceSchedule(input, client),
+    createBorrowing: (input: CreateBorrowingOptions) => createBorrowing(input, client),
+    checkoutBorrowing: (id: string, notes?: string | null) => checkoutBorrowing(id, notes, client),
+    getBorrowingMonitor: (input: BorrowingMonitorOptions) => getBorrowingMonitor(input, client),
+    returnBorrowing: (id: string, notes?: string | null) => returnBorrowing(id, notes, client),
     listMyBookings: (options?: MobileListOptions) => listMyBookings(options, client),
     listMyDefectReports: (options?: MobileListOptions) => listMyDefectReports(options, client),
     listNotifications: (options?: MobileListOptions) => listNotifications(options, client),
@@ -199,6 +260,37 @@ export function createLabtrackMobileApi(client: LabtrackMobileClient) {
     upsertPushToken: (token: string) => upsertPushToken(token, client)
   };
 }
+
+export type ListBorrowableResourcesOptions = {
+  startAt: string;
+  endAt: string;
+  resourceType?: ResourceType | null;
+  locationId?: string | null;
+  query?: string | null;
+};
+
+export type ListResourceScheduleOptions = {
+  resourceType: ResourceType;
+  resourceId: string;
+  from: string;
+  to: string;
+};
+
+export type CreateBorrowingOptions = {
+  resourceType: ResourceType;
+  resourceId: string;
+  requestedStartAt: string;
+  requestedEndAt: string;
+  purpose: string;
+};
+
+export type BorrowingMonitorOptions = {
+  from: string;
+  to: string;
+  locationId?: string | null;
+  resourceId?: string | null;
+  statuses?: BookingStatus[] | null;
+};
 
 export async function getCurrentUserId(client = requireClient()) {
   const {
@@ -270,6 +362,61 @@ export async function resolveAssetByQrCode(code: string, client = requireClient(
   return toAsset(row);
 }
 
+export async function listBorrowableResources(input: ListBorrowableResourcesOptions, client = requireClient()) {
+  const data = await callRpc(client, "listBorrowableResources", {
+    p_start_at: input.startAt,
+    p_end_at: input.endAt,
+    p_resource_type: input.resourceType ?? null,
+    p_location_id: input.locationId ?? null,
+    p_query: input.query?.trim() || null
+  });
+
+  return data.map(toBorrowingResource);
+}
+
+export async function listResourceSchedule(input: ListResourceScheduleOptions, client = requireClient()) {
+  const data = await callRpc(client, "listResourceSchedule", {
+    p_resource_type: input.resourceType,
+    p_resource_id: input.resourceId,
+    p_from: input.from,
+    p_to: input.to
+  });
+
+  return data.map(toScheduleEntry);
+}
+
+export async function createBorrowing(input: CreateBorrowingOptions, client = requireClient()) {
+  const data = await callRpc(client, "createBorrowing", {
+    p_resource_type: input.resourceType,
+    p_resource_id: input.resourceId,
+    p_requested_start_at: input.requestedStartAt,
+    p_requested_end_at: input.requestedEndAt,
+    p_purpose: input.purpose
+  });
+
+  return data.map(toBorrowing);
+}
+
+export async function checkoutBorrowing(id: string, notes: string | null = null, client = requireClient()) {
+  return toBorrowing(firstBorrowingRow(await callRpc(client, "checkoutBorrowing", { p_borrowing_id: id, p_notes: notes })));
+}
+
+export async function getBorrowingMonitor(input: BorrowingMonitorOptions, client = requireClient()) {
+  const data = await callRpc(client, "getBorrowingMonitor", {
+    p_from: input.from,
+    p_to: input.to,
+    p_location_id: input.locationId ?? null,
+    p_resource_id: input.resourceId ?? null,
+    p_statuses: input.statuses ?? null
+  });
+
+  return data.map(toBorrowing);
+}
+
+export async function returnBorrowing(id: string, notes: string | null = null, client = requireClient()) {
+  return toBorrowing(firstBorrowingRow(await callRpc(client, "returnBorrowing", { p_borrowing_id: id, p_notes: notes })));
+}
+
 export async function getDashboardSummary(client = requireClient()): Promise<MobileDashboardSummary> {
   const [bookingsCount, activeBookingsCount, openDefectsCount, threadsCount, unreadNotificationsCount] = await Promise.all([
     countRows(client.from("bookings").select("id", { count: "exact", head: true })),
@@ -292,7 +439,7 @@ export async function listMyBookings(options: MobileListOptions = {}, client = r
   const { limit, offset } = normalizeListOptions(options);
   const { data, error } = await client
     .from("bookings")
-    .select("id,asset_id,instructor_id,requested_start_at,requested_end_at,purpose,status,decision_notes,created_at")
+    .select("id,resource_type,asset_id,location_id,instructor_id,requested_start_at,requested_end_at,purpose,status,decision_notes,created_at")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -310,6 +457,10 @@ export async function createBooking(input: { assetId: string; requestedStartAt: 
     throw new Error(validation.error.issues[0]?.message ?? "Borrow request is invalid.");
   }
 
+  if (!validation.data.assetId) {
+    throw new Error("Asset borrowing requires an asset id.");
+  }
+
   return callRpc(client, "createBooking", {
     p_asset_id: validation.data.assetId,
     p_requested_start_at: validation.data.requestedStartAt,
@@ -319,7 +470,7 @@ export async function createBooking(input: { assetId: string; requestedStartAt: 
 }
 
 export async function cancelBooking(id: string, client = requireClient()) {
-  await callRpc(client, "cancelBooking", { p_booking_id: id });
+  await callRpc(client, "cancelBorrowing", { p_borrowing_id: id });
 }
 
 export async function listMyDefectReports(options: MobileListOptions = {}, client = requireClient()) {
@@ -503,10 +654,74 @@ function toAsset(row: InstructorAssetLookupDto): MobileAsset {
   };
 }
 
+function toBorrowingResource(row: BorrowingResourceRowDto): MobileBorrowingResource {
+  return {
+    id: row.id,
+    resourceType: row.resource_type,
+    name: row.name,
+    categoryName: row.category_name,
+    locationId: row.location_id,
+    locationName: row.location_name,
+    condition: row.condition,
+    status: row.status,
+    availability: row.availability,
+    nextAvailableAt: row.next_available_at,
+    primaryImageUrl: row.primary_image_url,
+    isActive: row.is_active,
+    isArchived: row.is_archived
+  };
+}
+
+function toScheduleEntry(row: ResourceScheduleEntryRowDto): MobileResourceScheduleEntry {
+  return {
+    id: row.id,
+    resourceType: row.resource_type,
+    resourceId: row.resource_id,
+    borrowerId: row.borrower_id,
+    borrowerName: row.borrower_name,
+    borrowerEmail: row.borrower_email,
+    requestedStartAt: row.requested_start_at,
+    requestedEndAt: row.requested_end_at,
+    status: row.status,
+    purpose: row.purpose,
+    availability: row.availability
+  };
+}
+
+function firstBorrowingRow(rows: BorrowingRowDto[]): BorrowingRowDto {
+  const row = rows[0];
+
+  if (!row) {
+    throw new Error("Borrowing workflow did not return a borrowing row.");
+  }
+
+  return row;
+}
+
+function toBorrowing(row: BorrowingRowDto): MobileBorrowing {
+  return {
+    id: row.id,
+    resourceType: row.resource_type,
+    assetId: row.asset_id,
+    roomId: row.room_id,
+    borrowerId: row.borrower_id,
+    borrowerName: row.borrower_name,
+    borrowerEmail: row.borrower_email,
+    requestedStartAt: row.requested_start_at,
+    requestedEndAt: row.requested_end_at,
+    purpose: row.purpose,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function toBooking(row: BookingRow): MobileBooking {
   return {
     id: row.id,
+    resourceType: row.resource_type ?? "asset",
     assetId: row.asset_id,
+    roomId: row.location_id,
     instructorId: row.instructor_id,
     requestedStartAt: row.requested_start_at,
     requestedEndAt: row.requested_end_at,

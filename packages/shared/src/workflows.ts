@@ -1,8 +1,10 @@
+import type { AvailabilityState } from "./types.js";
 import type { BookingStatus, DefectStatus, UserRole } from "./statuses.js";
 
 export type StatusTone = "danger" | "neutral" | "success" | "warning";
 export type BookingWorkflowAction = "approve" | "reject" | "cancel" | "checkout" | "return";
 export type DefectWorkflowAction = "review" | "send_for_repair" | "resolve" | "reject";
+export type RoleDisplayLabel = "Super Admin" | "Custodian" | "Faculty" | "Student";
 
 const terminalBookingStatuses: readonly BookingStatus[] = ["rejected", "cancelled", "returned"];
 export const activeBookingStatuses: readonly BookingStatus[] = ["pending", "approved", "checked_out"];
@@ -90,7 +92,63 @@ export function getDefectStatusTone(status: DefectStatus): StatusTone {
 }
 
 export function getRoleTone(role: UserRole): StatusTone {
-  return role === "super_admin" ? "success" : role === "admin" ? "warning" : "neutral";
+  return role === "super_admin" ? "success" : isCustodianRole(role) ? "warning" : "neutral";
+}
+
+export function getRoleDisplayLabel(role: UserRole): RoleDisplayLabel {
+  if (role === "super_admin") {
+    return "Super Admin";
+  }
+
+  if (isCustodianRole(role)) {
+    return "Custodian";
+  }
+
+  if (role === "student") {
+    return "Student";
+  }
+
+  return "Faculty";
+}
+
+export function isCustodianRole(role: UserRole) {
+  return role === "admin" || role === "custodian" || role === "super_admin";
+}
+
+export function isBorrowerRole(role: UserRole) {
+  return role === "instructor" || role === "faculty" || role === "student";
+}
+
+export function isUniversityEmailAllowed(email: string, allowedDomains: readonly string[]) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const domain = normalizedEmail.split("@")[1];
+
+  if (!domain || !allowedDomains.length) {
+    return false;
+  }
+
+  return allowedDomains.some((allowedDomain) => domain === allowedDomain.trim().toLowerCase());
+}
+
+export function getAvailabilityState(input: {
+  hasHardConflict?: boolean;
+  hasTentativeConflict?: boolean;
+  isResourceActive?: boolean;
+  isResourceArchived?: boolean;
+}): AvailabilityState {
+  if (input.isResourceActive === false || input.isResourceArchived) {
+    return "unavailable";
+  }
+
+  if (input.hasHardConflict) {
+    return "busy";
+  }
+
+  if (input.hasTentativeConflict) {
+    return "tentative";
+  }
+
+  return "available";
 }
 
 export function getDashboardCounters(input: {

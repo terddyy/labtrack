@@ -10,20 +10,20 @@ export default function TicketScreen() {
   return (
     <ScreenScrollView>
       <View style={styles.headerRow}>
-        <SectionTitle title="Ticket chat" caption="Conversations stay attached to the related borrow request or defect report." />
+        <SectionTitle title="Ticket chat" caption="Conversations stay attached to the related borrowing request or defect report." />
         <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
           Refresh
         </Button>
       </View>
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {!threads.length && !isLoading ? (
-        <EmptyState body="Borrow and defect conversations will appear after a thread is created." title="No ticket threads yet" />
+        <EmptyState body="Borrowing and defect conversations will appear after a thread is created." title="No ticket threads yet" />
       ) : null}
       {threads.map((thread) => (
         <Card key={thread.id}>
-          <Text style={styles.cardTitle}>{thread.subjectType === "booking" ? "Borrow request" : "Defect report"}</Text>
+          <Text style={styles.cardTitle}>{thread.subjectType === "booking" ? "Borrowing request" : "Defect report"}</Text>
           <Text numberOfLines={1} style={styles.metaText}>
-            {thread.bookingId ? `Borrow ref: ${formatReference(thread.bookingId)}` : `Defect ref: ${formatReference(thread.defectReportId ?? "")}`}
+            {thread.bookingId ? `Borrowing ref: ${formatReference(thread.bookingId)}` : `Defect ref: ${formatReference(thread.defectReportId ?? "")}`}
           </Text>
           <Text style={styles.metaText}>{new Date(thread.createdAt).toLocaleString()}</Text>
           <Link href={{ pathname: "/ticket/[threadId]", params: { threadId: thread.id } }} asChild>

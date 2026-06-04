@@ -31,6 +31,61 @@ export type Booking = {
   status: BookingStatus;
 };
 
+export type ResourceType = "asset" | "room";
+export type AvailabilityState = "available" | "tentative" | "busy" | "unavailable";
+export type ReportType =
+  | "asset_management_summary"
+  | "borrowing_transactions"
+  | "defect_reports"
+  | "inventory"
+  | "equipment_utilization";
+
+export type BorrowingResource = {
+  id: string;
+  resourceType: ResourceType;
+  name: string;
+  categoryName: string | null;
+  locationId: string | null;
+  locationName: string | null;
+  status: AssetStatus | null;
+  condition: AssetCondition | null;
+  availability: AvailabilityState;
+  nextAvailableAt: string | null;
+  primaryImageUrl: string | null;
+  isActive: boolean;
+  isArchived: boolean;
+};
+
+export type ResourceScheduleEntry = {
+  id: string;
+  resourceType: ResourceType;
+  resourceId: string;
+  borrowerId: string;
+  borrowerName: string | null;
+  borrowerEmail: string | null;
+  requestedStartAt: string;
+  requestedEndAt: string;
+  status: BookingStatus;
+  purpose: string;
+  availability: Exclude<AvailabilityState, "available">;
+};
+
+export type BorrowingRow = {
+  id: string;
+  resourceType: ResourceType;
+  assetId: string | null;
+  roomId: string | null;
+  borrowerId: string;
+  borrowerName: string | null;
+  borrowerEmail: string | null;
+  requestedStartAt: string;
+  requestedEndAt: string;
+  purpose: string;
+  status: BookingStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DefectReport = {
   id: string;
   assetId: string;
@@ -186,4 +241,76 @@ export type NotificationRowDto = {
   body: string;
   read_at: string | null;
   created_at: string;
+};
+
+export type BorrowingResourceRowDto = {
+  id: string;
+  resource_type: ResourceType;
+  name: string;
+  category_name: string | null;
+  location_id: string | null;
+  location_name: string | null;
+  status: AssetStatus | null;
+  condition: AssetCondition | null;
+  availability: AvailabilityState;
+  next_available_at: string | null;
+  primary_image_url: string | null;
+  is_active: boolean;
+  is_archived: boolean;
+};
+
+export type ResourceScheduleEntryRowDto = {
+  id: string;
+  resource_type: ResourceType;
+  resource_id: string;
+  borrower_id: string;
+  borrower_name: string | null;
+  borrower_email: string | null;
+  requested_start_at: string;
+  requested_end_at: string;
+  status: BookingStatus;
+  purpose: string;
+  availability: Exclude<AvailabilityState, "available">;
+};
+
+export type BorrowingRowDto = {
+  id: string;
+  resource_type: ResourceType;
+  asset_id: string | null;
+  room_id: string | null;
+  borrower_id: string;
+  borrower_name: string | null;
+  borrower_email: string | null;
+  requested_start_at: string;
+  requested_end_at: string;
+  purpose: string;
+  status: BookingStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UsageAnalyticsRowDto = {
+  report_type: ReportType;
+  metric: string;
+  label: string;
+  value: number;
+  unit: string;
+};
+
+export type ActivityLogRowDto = {
+  id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_email: string | null;
+  action: string;
+  entity_table: string;
+  entity_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type PrintableReportRowDto = {
+  report_type: ReportType;
+  section: string;
+  payload: Record<string, unknown>;
 };

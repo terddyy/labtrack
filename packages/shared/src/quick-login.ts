@@ -18,23 +18,23 @@ export const quickLoginRoles = ["super_admin", "admin", "instructor"] as const s
 
 export const defaultQuickLoginCredentials = {
   super_admin: {
-    email: "superadmin@gmail.com",
+    email: "superadmin@pampangastateu.edu.ph",
     password: "demo123"
   },
   admin: {
-    email: "admin@gmail.com",
+    email: "custodian@pampangastateu.edu.ph",
     password: "demo123"
   },
   instructor: {
-    email: "instructor@gmail.com",
+    email: "faculty@pampangastateu.edu.ph",
     password: "demo123"
   }
 } as const satisfies Record<QuickLoginRole, { email: string; password: string }>;
 
 const quickLoginLabels = {
   super_admin: "Super admin login",
-  admin: "Admin login",
-  instructor: "Instructor login"
+  admin: "Custodian login",
+  instructor: "Faculty login"
 } as const satisfies Record<QuickLoginRole, string>;
 
 export function buildQuickLoginAccounts(

@@ -25,11 +25,12 @@ test("web App Router page loads admin access and dashboard data server-side", ()
   assert.match(source, /initialData/);
 });
 
-test("web quick login and QR actions avoid production credential and payload drift risks", () => {
+test("web quick login and QR actions keep explicit credential and payload controls", () => {
   const services = readFileSync(path.join(webRoot, "lib", "admin", "services.ts"), "utf8");
   const actions = readFileSync(path.join(webRoot, "lib", "admin", "actions.ts"), "utf8");
 
-  assert.match(services, /nodeEnv === "production"[\s\S]*return \[\]/);
+  assert.match(services, /demoLoginFlag === "false"[\s\S]*return \[\]/);
+  assert.match(services, /includeDefaults = nodeEnv !== "production" \|\| demoLoginFlag === "true"/);
   assert.match(services, /\.from\("assets"\)[\s\S]*\.select\("property_number"\)/);
   assert.doesNotMatch(actions, /propertyNumber/);
 });

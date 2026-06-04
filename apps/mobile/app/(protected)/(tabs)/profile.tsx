@@ -1,3 +1,4 @@
+import { getRoleDisplayLabel } from "@labtrack/shared";
 import { StyleSheet, Text, View } from "react-native";
 import { Badge, Button, Card, InlineMeta, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/theme";
@@ -10,7 +11,7 @@ export default function ProfileScreen() {
     return null;
   }
 
-  const roleLabel = auth.profile.role.replaceAll("_", " ");
+  const roleLabel = getRoleDisplayLabel(auth.profile.role);
   const initials = getInitials(auth.profile.fullName);
 
   return (

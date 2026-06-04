@@ -7,7 +7,10 @@
     "start": "expo start",
     "start:dev-client": "expo start --dev-client",
     "android": "expo run:android",
-    "build:android:development": "npx eas build -p android --profile development",
+    "assets:generate": "node ./scripts/generate-app-assets.mjs",
+    "build:android:development": "node ./scripts/build-android-apk.mjs --profile development",
+    "build:android:dev-client": "node ./scripts/build-android-apk.mjs --profile development",
+    "build:android:preview": "node ./scripts/build-android-apk.mjs --profile preview",
     "build:android": "npx eas build -p android",
     "eas-build-post-install": "cd ../.. && npm run build -w @labtrack/shared",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -8,22 +8,28 @@ import {
   getBookingWorkflowActions,
   getDashboardCounters,
   getDefectTransitions,
+  getRoleDisplayLabel,
   type AssetCondition,
   type AssetStatus,
+  type BookingStatus,
   type DefectStatus,
   type Profile,
   type QuickLoginAccount,
+  type ReportType,
   type UserRole
 } from "@labtrack/shared";
 import {
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
   Download,
+  FileText,
   LogIn,
   LogOut,
   MessageSquare,
   Package,
   Plus,
+  Printer,
   QrCode,
   RefreshCw,
   ScanLine,
@@ -45,7 +51,11 @@ import {
   generateAssetQrAction,
   getAdminAccessAction,
   getAdminDashboardDataAction,
+  getBorrowingMonitorAction,
+  getPrintableReportDataAction,
   getTicketMessagesAction,
+  getUsageAnalyticsAction,
+  listActivityLogsAction,
   returnBookingAction,
   sendTicketMessageAction,
   triageDefectReportAction,
@@ -55,13 +65,17 @@ import type {
   AdminAccessState,
   AssetFormState,
   AssetView,
+  ActivityLogRow,
   BookingRow,
+  BorrowingMonitorRow,
   CategoryRow,
   DashboardData,
   DefectRow,
   FormErrors,
   LocationRow,
+  PrintableReportRow,
   ProfileRow,
+  UsageAnalyticsRow,
   TicketMessageRow,
   TicketThreadRow,
   AdminDashboardProps
@@ -89,17 +103,43 @@ const emptyDashboardData: DashboardData = {
   counters: getDashboardCounters({ assets: [], bookings: [], defects: [] })
 };
 
-type AdminSection = "dashboard" | "assets" | "bookings" | "defects" | "tickets" | "access" | "catalog";
+type AdminSection = "dashboard" | "assets" | "bookings" | "monitor" | "defects" | "tickets" | "reports" | "access" | "catalog";
+type MonitorStatusFilter = "all" | BookingStatus;
+type MonitorFilterState = {
+  from: string;
+  to: string;
+  locationId: string;
+  resourceId: string;
+  status: MonitorStatusFilter;
+};
+type ReportFilterState = {
+  from: string;
+  to: string;
+  locationId: string;
+  assetId: string;
+};
 
 const navigation: Array<{ key: AdminSection; label: string; icon: typeof ClipboardCheck }> = [
   { key: "dashboard", label: "Dashboard", icon: ClipboardCheck },
   { key: "assets", label: "Assets & QR", icon: Package },
-  { key: "bookings", label: "Bookings", icon: CheckCircle2 },
+  { key: "bookings", label: "Borrowing", icon: CheckCircle2 },
+  { key: "monitor", label: "Calendar", icon: CalendarDays },
   { key: "defects", label: "Defects", icon: Wrench },
   { key: "tickets", label: "Tickets", icon: MessageSquare },
+  { key: "reports", label: "Reports", icon: FileText },
   { key: "access", label: "Access", icon: ShieldCheck },
   { key: "catalog", label: "Catalog", icon: Settings }
 ];
+
+const reportTypeLabels: Record<ReportType, string> = {
+  asset_management_summary: "Asset Management Summary",
+  borrowing_transactions: "Borrowing Transactions",
+  defect_reports: "Defect Reports",
+  inventory: "Inventory Reports",
+  equipment_utilization: "Equipment Utilization"
+};
+
+const monitorStatusOptions: MonitorStatusFilter[] = ["all", "pending", "approved", "checked_out", "returned", "cancelled", "rejected"];
 
 export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts }: AdminDashboardProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -124,6 +164,17 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   const [dashboardMessage, setDashboardMessage] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [locationName, setLocationName] = useState("");
+  const [monitorFilters, setMonitorFilters] = useState<MonitorFilterState>(() => createDefaultMonitorFilters());
+  const [monitorRows, setMonitorRows] = useState<BorrowingMonitorRow[]>([]);
+  const [monitorMessage, setMonitorMessage] = useState<string | null>(null);
+  const [isLoadingMonitor, setIsLoadingMonitor] = useState(false);
+  const [reportFilters, setReportFilters] = useState<ReportFilterState>(() => createDefaultReportFilters());
+  const [reportType, setReportType] = useState<ReportType>("asset_management_summary");
+  const [usageRows, setUsageRows] = useState<UsageAnalyticsRow[]>([]);
+  const [activityRows, setActivityRows] = useState<ActivityLogRow[]>([]);
+  const [printableRows, setPrintableRows] = useState<PrintableReportRow[]>([]);
+  const [reportsMessage, setReportsMessage] = useState<string | null>(null);
+  const [isLoadingReports, setIsLoadingReports] = useState(false);
 
   const selectedAsset = useMemo(() => {
     if (!data.assets.length) {
@@ -192,6 +243,67 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     setThreadMessages(result.data);
   }, []);
 
+  const loadBorrowingMonitor = useCallback(async () => {
+    setIsLoadingMonitor(true);
+    setMonitorMessage(null);
+
+    try {
+      const result = await getBorrowingMonitorAction({
+        from: toIsoFromDateTimeInput(monitorFilters.from),
+        to: toIsoFromDateTimeInput(monitorFilters.to),
+        locationId: monitorFilters.locationId || null,
+        resourceId: monitorFilters.resourceId || null,
+        statuses: monitorFilters.status === "all" ? null : [monitorFilters.status]
+      });
+
+      if (result.error || !result.data) {
+        setMonitorMessage(result.error ?? "Unable to load borrowing monitor.");
+        setIsLoadingMonitor(false);
+        return;
+      }
+
+      setMonitorRows(result.data);
+    } catch (error) {
+      setMonitorMessage(error instanceof Error ? error.message : "Unable to load borrowing monitor.");
+    }
+
+    setIsLoadingMonitor(false);
+  }, [monitorFilters]);
+
+  const loadReportsData = useCallback(async () => {
+    setIsLoadingReports(true);
+    setReportsMessage(null);
+
+    try {
+      const baseFilters = {
+        from: toIsoFromDateTimeInput(reportFilters.from),
+        to: toIsoFromDateTimeInput(reportFilters.to),
+        locationId: reportFilters.locationId || null,
+        assetId: reportFilters.assetId || null
+      };
+      const [analyticsResult, activityResult, printableResult] = await Promise.all([
+        getUsageAnalyticsAction(baseFilters),
+        listActivityLogsAction({ from: baseFilters.from, to: baseFilters.to, limit: 80, offset: 0 }),
+        getPrintableReportDataAction({ ...baseFilters, reportType })
+      ]);
+      const error = analyticsResult.error ?? activityResult.error ?? printableResult.error;
+
+      if (error || !analyticsResult.data || !activityResult.data || !printableResult.data) {
+        setReportsMessage(error ?? "Unable to load reports.");
+        setIsLoadingReports(false);
+        return;
+      }
+
+      setUsageRows(analyticsResult.data);
+      setActivityRows(activityResult.data);
+      setPrintableRows(printableResult.data);
+    } catch (error) {
+      setReportsMessage(error instanceof Error ? error.message : "Unable to load reports.");
+    }
+
+    setIsLoadingReports(false);
+  }, [reportFilters, reportType]);
+
   useEffect(() => {
     if (access.status === "authorized") {
       if (shouldSkipInitialDashboardLoad.current) {
@@ -206,6 +318,18 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   useEffect(() => {
     void loadThreadMessages(selectedThreadId);
   }, [loadThreadMessages, selectedThreadId]);
+
+  useEffect(() => {
+    if (access.status === "authorized" && activeSection === "monitor" && !monitorRows.length && !isLoadingMonitor) {
+      void loadBorrowingMonitor();
+    }
+  }, [access.status, activeSection, isLoadingMonitor, loadBorrowingMonitor, monitorRows.length]);
+
+  useEffect(() => {
+    if (access.status === "authorized" && activeSection === "reports" && !usageRows.length && !isLoadingReports) {
+      void loadReportsData();
+    }
+  }, [access.status, activeSection, isLoadingReports, loadReportsData, usageRows.length]);
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -348,6 +472,12 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     }
 
     await loadDashboardData();
+    if (activeSection === "monitor") {
+      await loadBorrowingMonitor();
+    }
+    if (activeSection === "reports") {
+      await loadReportsData();
+    }
     if (selectedThreadId) {
       await loadThreadMessages(selectedThreadId);
     }
@@ -358,28 +488,28 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   async function handleBookingDecision(booking: BookingRow, status: "approved" | "rejected") {
     await runWorkflowMutation(
       () => decideBookingAction(booking.id, status),
-      `Booking ${status}.`
+      `Borrowing ${status}.`
     );
   }
 
   async function handleBookingCheckout(booking: BookingRow) {
     await runWorkflowMutation(
       () => checkoutBookingAction(booking.id),
-      "Booking checked out."
+      "Borrowing checked out."
     );
   }
 
   async function handleBookingReturn(booking: BookingRow) {
     await runWorkflowMutation(
       () => returnBookingAction(booking.id),
-      "Booking returned."
+      "Borrowing returned."
     );
   }
 
   async function handleBookingCancel(booking: BookingRow) {
     await runWorkflowMutation(
       () => cancelBookingAction(booking.id),
-      "Booking cancelled."
+      "Borrowing cancelled."
     );
   }
 
@@ -499,7 +629,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           <strong>LABTRACK</strong>
           <span>CCS Asset Operations</span>
         </div>
-        <nav className="nav" aria-label="Admin sections">
+        <nav className="nav" aria-label="Custodian sections">
           {navigation.map((item) => {
             const Icon = item.icon;
             return (
@@ -517,7 +647,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           <div>
             <p className="eyebrow">Pampanga State University</p>
             <h1>Hardware asset command center</h1>
-            <p className="muted">Manage QR-tagged equipment, instructor bookings, defect reports, and ticket communication.</p>
+            <p className="muted">Manage QR-tagged equipment, faculty and student borrowing, defect reports, and ticket communication.</p>
           </div>
           <div className="actions">
             <button className="button secondary" disabled={isLoadingData} onClick={loadDashboardData} type="button">
@@ -536,7 +666,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
         </div>
 
         <div className="profile-strip">
-          <span>{access.profile.fullName}</span>
+          <span>{access.profile.fullName} · {getRoleDisplayLabel(access.profile.role)}</span>
           <StatusBadge status={access.profile.role} />
         </div>
 
@@ -544,16 +674,16 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
 
         <section className="metrics" aria-label="Operational summary">
           <Metric label="Registered assets" value={counters.registeredAssets.toString()} />
-          <Metric label="Pending bookings" value={counters.pendingBookings.toString()} />
+          <Metric label="Pending borrowing" value={counters.pendingBookings.toString()} />
           <Metric label="Open defects" value={counters.openDefects.toString()} />
           <Metric label="Active QR codes" value={counters.activeQrCodes.toString()} />
         </section>
 
         {activeSection === "dashboard" ? (
           <section className="grid" style={{ marginTop: 18 }}>
-            <WorkflowPanel title="Booking queue" items={data.bookings.slice(0, 8).map((booking) => ({
+            <WorkflowPanel title="Borrowing queue" items={data.bookings.slice(0, 8).map((booking) => ({
               id: booking.id,
-              title: data.assets.find((asset) => asset.id === booking.asset_id)?.name ?? "Unknown asset",
+              title: formatBookingResource(booking, data.assets, data.locations),
               detail: booking.purpose,
               status: booking.status
             }))} />
@@ -632,7 +762,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
             <div className="panel-header">
               <div>
                 <h2>QR code label</h2>
-                <p className="muted">Admin-generated code for instructor scanning.</p>
+                <p className="muted">Custodian-generated code for mobile scanning.</p>
               </div>
             </div>
             <div className="panel-body qr-card">
@@ -657,12 +787,26 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
             assets={data.assets}
             bookings={data.bookings}
             disabled={isMutatingWorkflow}
+            locations={data.locations}
             onApprove={(booking) => void handleBookingDecision(booking, "approved")}
             onCancel={(booking) => void handleBookingCancel(booking)}
             onCheckout={(booking) => void handleBookingCheckout(booking)}
             onReject={(booking) => void handleBookingDecision(booking, "rejected")}
             onReturn={(booking) => void handleBookingReturn(booking)}
             profiles={data.profiles}
+          />
+        ) : null}
+
+        {activeSection === "monitor" ? (
+          <BorrowingMonitorPanel
+            assets={data.assets}
+            disabled={isLoadingMonitor}
+            filters={monitorFilters}
+            locations={data.locations}
+            message={monitorMessage}
+            onChangeFilters={setMonitorFilters}
+            onRefresh={() => void loadBorrowingMonitor()}
+            rows={monitorRows}
           />
         ) : null}
 
@@ -687,6 +831,24 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
             selectedThreadId={selectedThreadId}
             ticketBody={ticketBody}
             threads={data.ticketThreads}
+          />
+        ) : null}
+
+        {activeSection === "reports" ? (
+          <ReportsPanel
+            activityRows={activityRows}
+            assets={data.assets}
+            disabled={isLoadingReports}
+            filters={reportFilters}
+            locations={data.locations}
+            message={reportsMessage}
+            onChangeFilters={setReportFilters}
+            onChangeReportType={setReportType}
+            onPrint={() => window.print()}
+            onRefresh={() => void loadReportsData()}
+            printableRows={printableRows}
+            reportType={reportType}
+            usageRows={usageRows}
           />
         ) : null}
 
@@ -768,7 +930,7 @@ function AccessShell({
         {access.status === "forbidden" ? (
           <>
             <Notice tone="danger">
-              {access.profile.fullName} does not have active admin access.
+              {access.profile.fullName} does not have active Custodian access.
             </Notice>
             <button className="button secondary" onClick={onSignOut} type="button">
               <LogOut size={16} />
@@ -780,8 +942,8 @@ function AccessShell({
         {access.status === "signed-out" ? (
           <form className="form-grid" onSubmit={onSignIn}>
             <div>
-              <h1>Admin sign in</h1>
-              <p className="muted">Use an active admin or super admin account.</p>
+              <h1>Custodian sign in</h1>
+              <p className="muted">Use an active Custodian or Super Admin account.</p>
             </div>
             {authMessage ? <Notice tone="danger">{authMessage}</Notice> : null}
             {quickLoginAccounts.length ? (
@@ -921,7 +1083,7 @@ function QrPreview({ asset }: { asset: AssetView | null }) {
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const activeCode = asset?.activeQr?.code ?? "";
   const payload = activeCode ? createQrPayload(activeCode) : "";
-  const instructorDeepLink = payload ? `labtrack://asset/${encodeURIComponent(payload)}` : "";
+  const mobileDeepLink = payload ? `labtrack://asset/${encodeURIComponent(payload)}` : "";
 
   return (
     <>
@@ -938,8 +1100,8 @@ function QrPreview({ asset }: { asset: AssetView | null }) {
           <input readOnly value={payload} />
         </div>
         <div className="field">
-          <label>Instructor deep link</label>
-          <input readOnly value={instructorDeepLink} />
+          <label>Mobile asset link</label>
+          <input readOnly value={mobileDeepLink} />
         </div>
       </div>
     </>
@@ -971,6 +1133,7 @@ function BookingAdminPanel({
   assets,
   bookings,
   disabled,
+  locations,
   onApprove,
   onCancel,
   onCheckout,
@@ -981,6 +1144,7 @@ function BookingAdminPanel({
   assets: AssetView[];
   bookings: BookingRow[];
   disabled: boolean;
+  locations: LocationRow[];
   onApprove: (booking: BookingRow) => void;
   onCancel: (booking: BookingRow) => void;
   onCheckout: (booking: BookingRow) => void;
@@ -992,21 +1156,20 @@ function BookingAdminPanel({
     <div className="panel">
       <div className="panel-header">
         <div>
-          <h2>Booking queue</h2>
-          <p className="muted">Approve, reject, check out, return, or cancel instructor requests.</p>
+          <h2>Borrowing queue</h2>
+          <p className="muted">Approve, reject, check out, return, or cancel faculty and student requests.</p>
         </div>
       </div>
       <div className="panel-body timeline">
         {bookings.length ? bookings.map((booking) => {
-          const asset = assets.find((item) => item.id === booking.asset_id);
-          const instructor = profiles.find((profile) => profile.id === booking.instructor_id);
+          const borrower = profiles.find((profile) => profile.id === booking.instructor_id);
           const actions = getBookingWorkflowActions(booking.status);
           return (
             <article className="timeline-item" key={booking.id}>
               <div className="topbar compact">
                 <div>
-                  <h3>{asset?.name ?? "Unknown asset"}</h3>
-                  <p className="muted">{instructor?.full_name ?? "Unknown instructor"}</p>
+                  <h3>{formatBookingResource(booking, assets, locations)}</h3>
+                  <p className="muted">{borrower?.full_name ?? "Unknown borrower"}</p>
                 </div>
                 <StatusBadge status={booking.status} />
               </div>
@@ -1022,9 +1185,283 @@ function BookingAdminPanel({
               </div>
             </article>
           );
-        }) : <EmptyState label="No bookings found." />}
+        }) : <EmptyState label="No borrowing requests found." />}
       </div>
     </div>
+  );
+}
+
+function BorrowingMonitorPanel({
+  assets,
+  disabled,
+  filters,
+  locations,
+  message,
+  onChangeFilters,
+  onRefresh,
+  rows
+}: {
+  assets: AssetView[];
+  disabled: boolean;
+  filters: MonitorFilterState;
+  locations: LocationRow[];
+  message: string | null;
+  onChangeFilters: (filters: MonitorFilterState) => void;
+  onRefresh: () => void;
+  rows: BorrowingMonitorRow[];
+}) {
+  return (
+    <section className="grid">
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Calendar-based borrowing monitor</h2>
+            <p className="muted">Filter room and equipment borrowing by date, resource, location, and status.</p>
+          </div>
+          <button className="button secondary" disabled={disabled} onClick={onRefresh} type="button">
+            <RefreshCw size={15} />
+            {disabled ? "Loading" : "Refresh"}
+          </button>
+        </div>
+        <div className="panel-body">
+          <div className="filter-grid">
+            <div className="field">
+              <label htmlFor="monitor-from">From</label>
+              <input id="monitor-from" onChange={(event) => onChangeFilters({ ...filters, from: event.target.value })} type="datetime-local" value={filters.from} />
+            </div>
+            <div className="field">
+              <label htmlFor="monitor-to">To</label>
+              <input id="monitor-to" onChange={(event) => onChangeFilters({ ...filters, to: event.target.value })} type="datetime-local" value={filters.to} />
+            </div>
+            <div className="field">
+              <label htmlFor="monitor-location">Room/Lab</label>
+              <select id="monitor-location" onChange={(event) => onChangeFilters({ ...filters, locationId: event.target.value })} value={filters.locationId}>
+                <option value="">All rooms and labs</option>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>{location.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="monitor-resource">Resource</label>
+              <select id="monitor-resource" onChange={(event) => onChangeFilters({ ...filters, resourceId: event.target.value })} value={filters.resourceId}>
+                <option value="">All resources</option>
+                {locations.map((location) => (
+                  <option key={`room-${location.id}`} value={location.id}>Room: {location.name}</option>
+                ))}
+                {assets.map((asset) => (
+                  <option key={`asset-${asset.id}`} value={asset.id}>Equipment: {asset.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="monitor-status">Status</label>
+              <select id="monitor-status" onChange={(event) => onChangeFilters({ ...filters, status: event.target.value as MonitorStatusFilter })} value={filters.status}>
+                {monitorStatusOptions.map((status) => (
+                  <option key={status} value={status}>{status === "all" ? "All statuses" : formatLabel(status)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {message ? <Notice tone="warning">{message}</Notice> : null}
+        </div>
+        <div className="panel-body timeline">
+          {rows.length ? rows.map((row) => (
+            <article className="timeline-item" key={row.id}>
+              <div className="topbar compact">
+                <div>
+                  <h3>{formatMonitorResource(row, assets, locations)}</h3>
+                  <p className="muted">{row.borrower_name ?? row.borrower_email ?? "Unknown borrower"}</p>
+                </div>
+                <div className="actions">
+                  <StatusBadge status={row.status} />
+                  <span className={`badge ${getConflictTone(row.status)}`}>{getConflictLabel(row.status)}</span>
+                </div>
+              </div>
+              <p className="muted">{formatDateTime(row.requested_start_at)} - {formatDateTime(row.requested_end_at)}</p>
+              <p className="muted">{row.purpose}</p>
+            </article>
+          )) : <EmptyState label={disabled ? "Loading borrowing schedules." : "No borrowing schedules found."} />}
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Availability rules</h2>
+            <p className="muted">Pending overlaps are tentative; approved and checked-out records block the resource.</p>
+          </div>
+        </div>
+        <div className="panel-body timeline">
+          <article className="timeline-item">
+            <div className="topbar compact">
+              <h3>Tentative</h3>
+              <span className="badge warning">Pending</span>
+            </div>
+            <p className="muted">Visible as busy for planning, but custodians can still approve another request when policy allows.</p>
+          </article>
+          <article className="timeline-item">
+            <div className="topbar compact">
+              <h3>Unavailable</h3>
+              <span className="badge danger">Conflict</span>
+            </div>
+            <p className="muted">Approved and checked-out borrowings are hard conflicts until returned or cancelled.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ReportsPanel({
+  activityRows,
+  assets,
+  disabled,
+  filters,
+  locations,
+  message,
+  onChangeFilters,
+  onChangeReportType,
+  onPrint,
+  onRefresh,
+  printableRows,
+  reportType,
+  usageRows
+}: {
+  activityRows: ActivityLogRow[];
+  assets: AssetView[];
+  disabled: boolean;
+  filters: ReportFilterState;
+  locations: LocationRow[];
+  message: string | null;
+  onChangeFilters: (filters: ReportFilterState) => void;
+  onChangeReportType: (reportType: ReportType) => void;
+  onPrint: () => void;
+  onRefresh: () => void;
+  printableRows: PrintableReportRow[];
+  reportType: ReportType;
+  usageRows: UsageAnalyticsRow[];
+}) {
+  return (
+    <section className="report-layout">
+      <div className="panel no-print">
+        <div className="panel-header">
+          <div>
+            <h2>Printable reports</h2>
+            <p className="muted">Generate summaries for borrowing, inventory, defects, and utilization.</p>
+          </div>
+          <div className="actions">
+            <button className="button secondary" disabled={disabled} onClick={onRefresh} type="button">
+              <RefreshCw size={15} />
+              {disabled ? "Loading" : "Refresh"}
+            </button>
+            <button className="button primary" disabled={!printableRows.length} onClick={onPrint} type="button">
+              <Printer size={15} />
+              Print
+            </button>
+          </div>
+        </div>
+        <div className="panel-body">
+          <div className="filter-grid">
+            <div className="field">
+              <label htmlFor="report-type">Report</label>
+              <select id="report-type" onChange={(event) => onChangeReportType(event.target.value as ReportType)} value={reportType}>
+                {(Object.keys(reportTypeLabels) as ReportType[]).map((type) => (
+                  <option key={type} value={type}>{reportTypeLabels[type]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="report-from">From</label>
+              <input id="report-from" onChange={(event) => onChangeFilters({ ...filters, from: event.target.value })} type="datetime-local" value={filters.from} />
+            </div>
+            <div className="field">
+              <label htmlFor="report-to">To</label>
+              <input id="report-to" onChange={(event) => onChangeFilters({ ...filters, to: event.target.value })} type="datetime-local" value={filters.to} />
+            </div>
+            <div className="field">
+              <label htmlFor="report-location">Room/Lab</label>
+              <select id="report-location" onChange={(event) => onChangeFilters({ ...filters, locationId: event.target.value })} value={filters.locationId}>
+                <option value="">All rooms and labs</option>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>{location.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="report-asset">Equipment</label>
+              <select id="report-asset" onChange={(event) => onChangeFilters({ ...filters, assetId: event.target.value })} value={filters.assetId}>
+                <option value="">All equipment</option>
+                {assets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>{asset.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {message ? <Notice tone="warning">{message}</Notice> : null}
+        </div>
+      </div>
+
+      <div className="metrics report-metrics no-print" aria-label="Report analytics">
+        {usageRows.length ? usageRows.map((row) => (
+          <Metric key={`${row.metric}-${row.label}`} label={row.label} value={formatMetricValue(row)} />
+        )) : (
+          <>
+            <Metric label="Borrowing transactions" value="0" />
+            <Metric label="Equipment utilization" value="0%" />
+            <Metric label="Reporting hours" value="08:00-17:00" />
+            <Metric label="Activity logs" value={activityRows.length.toString()} />
+          </>
+        )}
+      </div>
+
+      <div className="panel printable-report">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">LABTRACK Report</p>
+            <h2>{reportTypeLabels[reportType]}</h2>
+            <p className="muted">{formatDateTimeRange(filters.from, filters.to)}</p>
+          </div>
+        </div>
+        <div className="panel-body timeline">
+          {printableRows.length ? printableRows.map((row) => (
+            <article className="timeline-item report-section" key={`${row.report_type}-${row.section}`}>
+              <h3>{formatLabel(row.section)}</h3>
+              <pre>{formatReportPayload(row.payload)}</pre>
+            </article>
+          )) : <EmptyState label={disabled ? "Loading report data." : "No report data found."} />}
+        </div>
+      </div>
+
+      <div className="panel no-print">
+        <div className="panel-header">
+          <h2>User activity logs</h2>
+        </div>
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Entity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activityRows.map((row) => (
+                <tr key={row.id}>
+                  <td>{formatDateTime(row.created_at)}</td>
+                  <td>{row.actor_name ?? row.actor_email ?? "System"}</td>
+                  <td>{formatLabel(row.action)}</td>
+                  <td>{row.entity_table}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!activityRows.length ? <EmptyState label="No activity logs found." /> : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1052,14 +1489,14 @@ function DefectAdminPanel({
       <div className="panel-body timeline">
         {reports.length ? reports.map((report) => {
           const asset = assets.find((item) => item.id === report.asset_id);
-          const instructor = profiles.find((profile) => profile.id === report.instructor_id);
+          const reporter = profiles.find((profile) => profile.id === report.instructor_id);
           const transitions = getDefectTransitions(report.status);
           return (
             <article className="timeline-item" key={report.id}>
               <div className="topbar compact">
                 <div>
                   <h3>{report.title}</h3>
-                  <p className="muted">{asset?.name ?? "Unknown asset"} · {instructor?.full_name ?? "Unknown instructor"}</p>
+                  <p className="muted">{asset?.name ?? "Unknown asset"} · {reporter?.full_name ?? "Unknown reporter"}</p>
                 </div>
                 <StatusBadge status={report.status} />
               </div>
@@ -1117,7 +1554,7 @@ function TicketAdminPanel({
                 <h3>{formatLabel(thread.subject_type)}</h3>
                 <button className="button secondary" onClick={() => onSelectThread(thread.id)} type="button">Open</button>
               </div>
-              <p className="muted">{thread.booking_id ? `Booking ${thread.booking_id}` : `Defect ${thread.defect_report_id}`}</p>
+              <p className="muted">{thread.booking_id ? `Borrowing ${thread.booking_id}` : `Defect ${thread.defect_report_id}`}</p>
               <p className="muted">{formatDateTime(thread.created_at)}</p>
             </article>
           )) : <EmptyState label="No ticket threads found." />}
@@ -1166,7 +1603,7 @@ function AccessManagementPanel({
     return (
       <div className="panel">
         <div className="panel-body">
-          <Notice tone="warning">Only super admins can manage account access.</Notice>
+          <Notice tone="warning">Only Super Admin accounts can manage account access.</Notice>
         </div>
       </div>
     );
@@ -1177,7 +1614,7 @@ function AccessManagementPanel({
       <div className="panel-header">
         <div>
           <h2>Access management</h2>
-          <p className="muted">Promote admins and deactivate accounts.</p>
+          <p className="muted">Assign Custodian, Faculty, Student, and Super Admin access.</p>
         </div>
       </div>
       <div className="table-scroll">
@@ -1197,9 +1634,12 @@ function AccessManagementPanel({
                 <td>{profile.email}</td>
                 <td>
                   <select disabled={disabled} onChange={(event) => onUpdate(profile, { role: event.target.value as UserRole })} value={profile.role}>
-                    <option value="instructor">Instructor</option>
-                    <option value="admin">Admin</option>
-                    <option value="super_admin">Super admin</option>
+                    <option value="faculty">Faculty</option>
+                    <option value="student">Student</option>
+                    <option value="custodian">Custodian</option>
+                    <option value="super_admin">Super Admin</option>
+                    <option value="instructor">Faculty</option>
+                    <option value="admin">Custodian</option>
                   </select>
                 </td>
                 <td>
@@ -1285,6 +1725,36 @@ function CatalogPanel({
   );
 }
 
+function createDefaultMonitorFilters(): MonitorFilterState {
+  const from = new Date();
+  from.setMinutes(0, 0, 0);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 7);
+
+  return {
+    from: toDateTimeLocalInput(from),
+    to: toDateTimeLocalInput(to),
+    locationId: "",
+    resourceId: "",
+    status: "all"
+  };
+}
+
+function createDefaultReportFilters(): ReportFilterState {
+  const to = new Date();
+  to.setHours(17, 0, 0, 0);
+  const from = new Date(to);
+  from.setDate(from.getDate() - 30);
+  from.setHours(8, 0, 0, 0);
+
+  return {
+    from: toDateTimeLocalInput(from),
+    to: toDateTimeLocalInput(to),
+    locationId: "",
+    assetId: ""
+  };
+}
+
 function toFormErrors(issues: Array<{ path: PropertyKey[]; message: string }>): FormErrors {
   return issues.reduce<FormErrors>((errors, issue) => {
     const key = issue.path[0];
@@ -1303,6 +1773,91 @@ function formatLabel(value: string) {
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
+}
+
+function formatDateTimeRange(from: string, to: string) {
+  try {
+    return `${formatDateTime(toIsoFromDateTimeInput(from))} - ${formatDateTime(toIsoFromDateTimeInput(to))}`;
+  } catch {
+    return "Invalid date range";
+  }
+}
+
+function toDateTimeLocalInput(date: Date) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function toIsoFromDateTimeInput(value: string) {
+  const date = new Date(value);
+
+  if (!value || Number.isNaN(date.getTime())) {
+    throw new Error("Date filter is invalid.");
+  }
+
+  return date.toISOString();
+}
+
+function formatMonitorResource(row: BorrowingMonitorRow, assets: AssetView[], locations: LocationRow[]) {
+  if (row.resource_type === "room" && row.room_id) {
+    return locations.find((location) => location.id === row.room_id)?.name ?? "Unknown room";
+  }
+
+  if (row.asset_id) {
+    return assets.find((asset) => asset.id === row.asset_id)?.name ?? "Unknown equipment";
+  }
+
+  return "Unknown resource";
+}
+
+function formatBookingResource(booking: BookingRow, assets: AssetView[], locations: LocationRow[]) {
+  if (booking.resource_type === "room") {
+    return locations.find((location) => location.id === booking.location_id)?.name ?? "Unknown room";
+  }
+
+  return assets.find((asset) => asset.id === booking.asset_id)?.name ?? "Unknown equipment";
+}
+
+function getConflictLabel(status: BookingStatus) {
+  if (status === "pending") {
+    return "Tentative";
+  }
+
+  if (status === "approved" || status === "checked_out") {
+    return "Unavailable";
+  }
+
+  return "Closed";
+}
+
+function getConflictTone(status: BookingStatus) {
+  if (status === "pending") {
+    return "warning";
+  }
+
+  if (status === "approved" || status === "checked_out") {
+    return "danger";
+  }
+
+  return "success";
+}
+
+function formatMetricValue(row: UsageAnalyticsRow) {
+  const value = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(row.value);
+
+  if (row.unit === "percent") {
+    return `${value}%`;
+  }
+
+  if (row.unit === "count") {
+    return value;
+  }
+
+  return `${value} ${row.unit}`;
+}
+
+function formatReportPayload(payload: Record<string, unknown>) {
+  return JSON.stringify(payload, null, 2);
 }
 
 async function downloadQrLabel(asset: AssetView | null) {

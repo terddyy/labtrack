@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   bookingDurationHours,
+  borrowingDurationMinutes,
   bookingRequestSchema,
   createBookingRange,
   createDefaultBookingRange,
@@ -13,7 +14,8 @@ const assetId = "8f4a8f90-9231-4ef0-b621-2c97af733001";
 test("default booking start rounds to the next whole local hour", () => {
   const range = createDefaultBookingRange(new Date(2026, 4, 22, 9, 17, 42, 123));
 
-  assert.equal(range.durationHours, 1);
+  assert.equal(range.durationHours, 1.5);
+  assert.equal(range.durationMinutes, 90);
   assert.equal(range.startAt.getFullYear(), 2026);
   assert.equal(range.startAt.getMonth(), 4);
   assert.equal(range.startAt.getDate(), 22);
@@ -29,13 +31,15 @@ test("default booking start rounds to the next whole local hour", () => {
 test("supported booking durations compute the correct end times", () => {
   const startAt = new Date(2026, 4, 22, 9, 30, 0, 0);
 
-  assert.deepEqual(bookingDurationHours, [1, 2, 3]);
+  assert.deepEqual(bookingDurationHours, [1.5, 2, 2.5, 3]);
+  assert.deepEqual(borrowingDurationMinutes, [90, 120, 150, 180]);
 
-  for (const durationHours of bookingDurationHours) {
-    const range = createBookingRange(startAt, durationHours);
+  for (const durationMinutes of borrowingDurationMinutes) {
+    const range = createBookingRange(startAt, durationMinutes);
 
-    assert.equal(range.durationHours, durationHours);
-    assert.equal(range.endAt.getTime(), startAt.getTime() + durationHours * 60 * 60 * 1000);
+    assert.equal(range.durationMinutes, durationMinutes);
+    assert.equal(range.durationHours, durationMinutes / 60);
+    assert.equal(range.endAt.getTime(), startAt.getTime() + durationMinutes * 60 * 1000);
     assert.equal(range.requestedStartAt, range.startAt.toISOString());
     assert.equal(range.requestedEndAt, range.endAt.toISOString());
   }
@@ -43,9 +47,9 @@ test("supported booking durations compute the correct end times", () => {
 
 test("past start times fail future booking validation", () => {
   const now = new Date(2026, 4, 22, 10, 0, 0, 0);
-  const pastRange = createBookingRange(new Date(2026, 4, 22, 9, 0, 0, 0), 1);
-  const currentRange = createBookingRange(now, 1);
-  const futureRange = createBookingRange(new Date(2026, 4, 22, 11, 0, 0, 0), 1);
+  const pastRange = createBookingRange(new Date(2026, 4, 22, 9, 0, 0, 0), 90);
+  const currentRange = createBookingRange(now, 90);
+  const futureRange = createBookingRange(new Date(2026, 4, 22, 11, 0, 0, 0), 90);
 
   assert.equal(isFutureBookingRange(pastRange, now), false);
   assert.equal(isFutureBookingRange(currentRange, now), false);

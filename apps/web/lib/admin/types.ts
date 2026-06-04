@@ -1,11 +1,16 @@
 import type {
   AssetCondition,
   AssetStatus,
+  ActivityLogRowDto,
   BookingStatus,
+  BorrowingRowDto,
   DefectStatus,
   getDashboardCounters,
   Profile,
+  PrintableReportRowDto,
   QuickLoginAccount,
+  ReportType,
+  UsageAnalyticsRowDto,
   UserRole
 } from "@labtrack/shared";
 
@@ -45,7 +50,9 @@ export type ActiveQrRow = {
 
 export type BookingRow = {
   id: string;
-  asset_id: string;
+  resource_type: "asset" | "room";
+  asset_id: string | null;
+  location_id: string | null;
   instructor_id: string;
   purpose: string;
   status: BookingStatus;
@@ -128,3 +135,34 @@ export type AdminDashboardProps = {
 
 export type ProfileAccessUpdates = Partial<Pick<ProfileRow, "role" | "is_active">>;
 export type ProfileAccessRole = UserRole;
+
+export type BorrowingMonitorRow = BorrowingRowDto;
+export type UsageAnalyticsRow = UsageAnalyticsRowDto;
+export type ActivityLogRow = ActivityLogRowDto;
+export type PrintableReportRow = PrintableReportRowDto;
+
+export type BorrowingMonitorFilters = {
+  from: string;
+  to: string;
+  locationId?: string | null;
+  resourceId?: string | null;
+  statuses?: BookingStatus[] | null;
+};
+
+export type ReportFilters = {
+  from: string;
+  to: string;
+  locationId?: string | null;
+  assetId?: string | null;
+};
+
+export type PrintableReportFilters = ReportFilters & {
+  reportType: ReportType;
+};
+
+export type ActivityLogFilters = {
+  from?: string | null;
+  to?: string | null;
+  limit?: number;
+  offset?: number;
+};

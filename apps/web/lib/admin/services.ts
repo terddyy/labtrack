@@ -3,7 +3,9 @@ import {
   buildQuickLoginAccounts,
   callRpc,
   getDashboardCounters,
+  isCustodianRole,
   type AdminAssetRowDto,
+  type BookingStatus,
   type Profile
 } from "@labtrack/shared";
 import { getSupabaseServerClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
@@ -11,13 +13,21 @@ import type {
   AdminAccessState,
   AssetFormState,
   AssetView,
+  ActivityLogFilters,
+  ActivityLogRow,
+  BorrowingMonitorFilters,
+  BorrowingMonitorRow,
   CategoryRow,
   DashboardData,
   DefectRow,
   LocationRow,
+  PrintableReportFilters,
+  PrintableReportRow,
   ProfileAccessUpdates,
   ProfileRow,
-  TicketMessageRow
+  ReportFilters,
+  TicketMessageRow,
+  UsageAnalyticsRow
 } from "./types";
 
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof getSupabaseServerClient>>>;
@@ -39,12 +49,13 @@ export function getEmptyDashboardData() {
 
 export function getWebQuickLoginAccounts() {
   const nodeEnv: string = process.env.NODE_ENV;
+  const demoLoginFlag = process.env.LABTRACK_ENABLE_DEMO_LOGINS ?? process.env.NEXT_PUBLIC_ENABLE_QUICK_LOGIN;
 
-  if (nodeEnv === "production") {
+  if (demoLoginFlag === "false") {
     return [];
   }
 
-  const includeDefaults = nodeEnv !== "production" && process.env.LABTRACK_ENABLE_DEMO_LOGINS !== "false";
+  const includeDefaults = nodeEnv !== "production" || demoLoginFlag === "true";
 
   return buildQuickLoginAccounts({
     super_admin: {
@@ -98,7 +109,7 @@ export async function getAdminAccess(): Promise<AdminAccessState> {
 
   const profile = toProfile(data as ProfileRow);
 
-  if (!profile.isActive || (profile.role !== "admin" && profile.role !== "super_admin")) {
+  if (!profile.isActive || !isCustodianRole(profile.role)) {
     return { status: "forbidden", profile };
   }
 
@@ -125,7 +136,7 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     callRpc(supabase, "listAdminAssets", { p_limit: 500, p_offset: 0 }),
     supabase
       .from("bookings")
-      .select("id,asset_id,instructor_id,purpose,status,requested_start_at,requested_end_at,decision_notes")
+      .select("id,resource_type,asset_id,location_id,instructor_id,purpose,status,requested_start_at,requested_end_at,decision_notes")
       .order("created_at", { ascending: false })
       .limit(50),
     supabase
@@ -207,6 +218,52 @@ export async function getTicketMessages(threadId: string | null): Promise<Ticket
   return (data ?? []) as TicketMessageRow[];
 }
 
+export async function getBorrowingMonitor(input: BorrowingMonitorFilters): Promise<BorrowingMonitorRow[]> {
+  const supabase = await requireAuthorizedAdminClient();
+
+  return callRpc(supabase, "getBorrowingMonitor", {
+    p_from: input.from,
+    p_to: input.to,
+    p_location_id: input.locationId ?? null,
+    p_resource_id: input.resourceId ?? null,
+    p_statuses: normalizeStatuses(input.statuses)
+  });
+}
+
+export async function getUsageAnalytics(input: ReportFilters): Promise<UsageAnalyticsRow[]> {
+  const supabase = await requireAuthorizedAdminClient();
+
+  return callRpc(supabase, "getUsageAnalytics", {
+    p_from: input.from,
+    p_to: input.to,
+    p_location_id: input.locationId ?? null,
+    p_asset_id: input.assetId ?? null
+  });
+}
+
+export async function listActivityLogs(input: ActivityLogFilters): Promise<ActivityLogRow[]> {
+  const supabase = await requireAuthorizedAdminClient();
+
+  return callRpc(supabase, "listActivityLogs", {
+    p_from: input.from ?? null,
+    p_to: input.to ?? null,
+    p_limit: input.limit ?? 100,
+    p_offset: input.offset ?? 0
+  });
+}
+
+export async function getPrintableReportData(input: PrintableReportFilters): Promise<PrintableReportRow[]> {
+  const supabase = await requireAuthorizedAdminClient();
+
+  return callRpc(supabase, "getPrintableReportData", {
+    p_report_type: input.reportType,
+    p_from: input.from,
+    p_to: input.to,
+    p_location_id: input.locationId ?? null,
+    p_asset_id: input.assetId ?? null
+  });
+}
+
 export async function createAsset(input: AssetFormState) {
   const supabase = await requireAuthorizedAdminClient();
   const profile = await requireAuthorizedAdminProfile();
@@ -269,35 +326,35 @@ export async function generateAssetQr(assetId: string) {
 export async function decideBooking(bookingId: string, status: "approved" | "rejected") {
   const supabase = await requireAuthorizedAdminClient();
 
-  await callRpc(supabase, "decideBooking", {
-    p_booking_id: bookingId,
+  await callRpc(supabase, "decideBorrowing", {
+    p_borrowing_id: bookingId,
     p_status: status,
-    p_notes: status === "approved" ? "Approved from LABTRACK admin." : "Rejected from LABTRACK admin."
+    p_notes: status === "approved" ? "Approved from LABTRACK custodian." : "Rejected from LABTRACK custodian."
   });
 }
 
 export async function checkoutBooking(bookingId: string) {
   const supabase = await requireAuthorizedAdminClient();
 
-  await callRpc(supabase, "checkoutBooking", {
-    p_booking_id: bookingId,
-    p_notes: "Checked out from LABTRACK admin."
+  await callRpc(supabase, "checkoutBorrowing", {
+    p_borrowing_id: bookingId,
+    p_notes: "Checked out from LABTRACK custodian."
   });
 }
 
 export async function returnBooking(bookingId: string) {
   const supabase = await requireAuthorizedAdminClient();
 
-  await callRpc(supabase, "returnBooking", {
-    p_booking_id: bookingId,
-    p_notes: "Returned from LABTRACK admin."
+  await callRpc(supabase, "returnBorrowing", {
+    p_borrowing_id: bookingId,
+    p_notes: "Returned from LABTRACK custodian."
   });
 }
 
 export async function cancelBooking(bookingId: string) {
   const supabase = await requireAuthorizedAdminClient();
 
-  await callRpc(supabase, "cancelBooking", { p_booking_id: bookingId });
+  await callRpc(supabase, "cancelBorrowing", { p_borrowing_id: bookingId });
 }
 
 export async function triageDefectReport(defectReportId: string, status: "under_review" | "sent_for_repair" | "resolved" | "rejected", label: string) {
@@ -324,7 +381,7 @@ export async function updateProfileAccess(profileId: string, updates: ProfileAcc
   const currentProfile = await requireAuthorizedAdminProfile();
 
   if (currentProfile.role !== "super_admin") {
-    throw new Error("Only super admins can manage account access.");
+    throw new Error("Only Super Admin accounts can manage account access.");
   }
 
   const allowedUpdates: ProfileAccessUpdates = {};
@@ -386,7 +443,7 @@ async function requireAuthorizedAdminClient(): Promise<SupabaseServerClient> {
   const access = await getAdminAccess();
 
   if (access.status !== "authorized") {
-    throw new Error(access.status === "error" ? access.message : "Active admin access is required.");
+    throw new Error(access.status === "error" ? access.message : "Active Custodian access is required.");
   }
 
   const supabase = await getSupabaseServerClient();
@@ -402,7 +459,7 @@ async function requireAuthorizedAdminProfile() {
   const access = await getAdminAccess();
 
   if (access.status !== "authorized") {
-    throw new Error(access.status === "error" ? access.message : "Active admin access is required.");
+    throw new Error(access.status === "error" ? access.message : "Active Custodian access is required.");
   }
 
   return access.profile;
@@ -417,6 +474,10 @@ function toProfile(row: ProfileRow): Profile {
     department: row.department,
     isActive: row.is_active
   };
+}
+
+function normalizeStatuses(statuses: BorrowingMonitorFilters["statuses"]): BookingStatus[] | null {
+  return statuses?.length ? statuses : null;
 }
 
 function toAssetView(row: AdminAssetRowDto): AssetView {

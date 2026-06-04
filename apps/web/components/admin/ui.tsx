@@ -4,7 +4,9 @@ import {
   formatStatusLabel,
   getBookingStatusTone,
   getDefectStatusTone,
-  getRoleTone
+  getRoleDisplayLabel,
+  getRoleTone,
+  userRoles
 } from "@labtrack/shared";
 import { AlertTriangle } from "lucide-react";
 import type { ReactNode } from "react";
@@ -19,7 +21,7 @@ export function Metric({ label, value }: { label: string; value: string }) {
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  return <span className={`badge ${status} ${getStatusTone(status)}`}>{formatStatusLabel(status)}</span>;
+  return <span className={`badge ${status} ${getStatusTone(status)}`}>{formatBadgeLabel(status)}</span>;
 }
 
 export function Notice({ children, tone }: { children: ReactNode; tone: "danger" | "neutral" | "success" | "warning" }) {
@@ -44,8 +46,8 @@ function getStatusTone(status: string) {
     return getDefectStatusTone(status as (typeof defectStatuses)[number]);
   }
 
-  if (status === "super_admin" || status === "admin" || status === "instructor") {
-    return getRoleTone(status);
+  if (userRoles.includes(status as never)) {
+    return getRoleTone(status as (typeof userRoles)[number]);
   }
 
   if (status === "available" || status === "excellent" || status === "good") {
@@ -57,4 +59,12 @@ function getStatusTone(status: string) {
   }
 
   return "warning";
+}
+
+function formatBadgeLabel(status: string) {
+  if (userRoles.includes(status as never)) {
+    return getRoleDisplayLabel(status as (typeof userRoles)[number]);
+  }
+
+  return formatStatusLabel(status);
 }

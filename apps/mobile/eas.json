@@ -4,25 +4,37 @@
     "appVersionSource": "local"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal",
-      "credentialsSource": "local",
-      "android": {
-        "buildType": "apk"
+      "development": {
+        "developmentClient": true,
+        "distribution": "internal",
+        "credentialsSource": "local",
+        "env": {
+          "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS": "pampangastateu.edu.ph",
+          "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
+        },
+        "android": {
+          "buildType": "apk"
+        }
+      },
+      "preview": {
+        "distribution": "internal",
+        "credentialsSource": "local",
+        "env": {
+          "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS": "pampangastateu.edu.ph",
+          "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
+        },
+        "android": {
+          "buildType": "apk"
+        }
+      },
+      "production": {
+        "env": {
+          "EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS": "pampangastateu.edu.ph",
+          "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
+        },
+        "android": {
+          "buildType": "app-bundle"
+        }
       }
-    },
-    "preview": {
-      "distribution": "internal",
-      "credentialsSource": "local",
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production": {
-      "android": {
-        "buildType": "app-bundle"
-      }
-    }
   }
 }

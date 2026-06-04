@@ -1,27 +1,39 @@
-import { buildQuickLoginAccounts, type QuickLoginAccount } from "@labtrack/shared";
+import { buildQuickLoginAccounts, isUniversityEmailAllowed, type QuickLoginAccount } from "@labtrack/shared";
 import { router } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { Button, Card, Field, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 import { formatApiError, hasSupabaseConfig, signInWithPassword } from "@/lib/labtrack-api";
 
-const isQuickLoginEnabled = process.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN === "true" || process.env.NODE_ENV !== "production";
+const isQuickLoginEnabled = process.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN !== "false";
 const quickLoginAccounts = isQuickLoginEnabled
   ? buildQuickLoginAccounts(
     {
+      super_admin: {
+        email: process.env.EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL,
+        password: process.env.EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD
+      },
+      admin: {
+        email: process.env.EXPO_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL,
+        password: process.env.EXPO_PUBLIC_QUICK_LOGIN_ADMIN_PASSWORD
+      },
       instructor: {
         email: process.env.EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_EMAIL,
         password: process.env.EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_PASSWORD
       }
     },
     {
-      includeDefaults: process.env.NODE_ENV !== "production",
-      roles: ["instructor"] as const
+      includeDefaults: true,
+      roles: ["super_admin", "admin", "instructor"] as const
     }
   )
   : [];
+const allowedUniversityEmailDomains = (process.env.EXPO_PUBLIC_ALLOWED_EMAIL_DOMAINS ?? "pampangastateu.edu.ph")
+  .split(",")
+  .map((domain: string) => domain.trim())
+  .filter(Boolean);
 
 export default function SignInScreen() {
   const auth = useCurrentProfile();
@@ -34,6 +46,11 @@ export default function SignInScreen() {
   const isManualSignInDisabled = isSubmitting || !isConfigured || !email.trim() || !password;
 
   async function handleSignIn() {
+    if (!isUniversityEmailAllowed(email, allowedUniversityEmailDomains)) {
+      setMessage(`Use a university email account (${allowedUniversityEmailDomains.join(", ")}).`);
+      return;
+    }
+
     setIsSubmitting(true);
     setMessage(null);
 
@@ -70,9 +87,13 @@ export default function SignInScreen() {
   return (
     <ScreenScrollView contentContainerStyle={styles.screenContent} includeTopInset>
       <View style={styles.heroPanel}>
-        <View style={styles.brandRow}>
+          <View style={styles.brandRow}>
           <View style={styles.brandMark}>
-            <Text style={styles.brandMarkText}>LT</Text>
+            <Image
+              accessibilityIgnoresInvertColors
+              source={require("../assets/brand/labtrack-icon.png")}
+              style={styles.brandMarkImage}
+            />
           </View>
           <View style={styles.brandCopy}>
             <Text style={styles.brandName}>LABTRACK</Text>
@@ -93,7 +114,7 @@ export default function SignInScreen() {
           keyboardType="email-address"
           label="Email"
           onChangeText={setEmail}
-          placeholder="instructor@labtrack.local"
+          placeholder="faculty@pampangastateu.edu.ph"
           textContentType="emailAddress"
           value={email}
         />
@@ -113,7 +134,7 @@ export default function SignInScreen() {
 
       {quickLoginAccounts.length ? (
         <Card style={styles.quickPanel}>
-          <SectionTitle title="Quick login" caption="Training access is shown only when quick login is enabled for this build." />
+          <SectionTitle title="Quick login" caption="Sample production accounts for one-tap access." />
           <View style={styles.quickGrid}>
             {quickLoginAccounts.map((account) => (
               <Button
@@ -145,16 +166,16 @@ const styles = StyleSheet.create({
   },
   brandMark: {
     alignItems: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: "#F4F7F8",
     borderRadius: 8,
     height: 44,
     justifyContent: "center",
+    overflow: "hidden",
     width: 44
   },
-  brandMarkText: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: "900"
+  brandMarkImage: {
+    height: 44,
+    width: 44
   },
   brandName: {
     color: colors.surface,

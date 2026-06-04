@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="LabTrack logo">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="112" x2="864" y2="912" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7FBFC"/>
+      <stop offset="1" stop-color="#E9F2F3"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="240" y1="190" x2="784" y2="854" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2E7EA4"/>
+      <stop offset="1" stop-color="#155778"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="314" y1="342" x2="710" y2="738" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38B995"/>
+      <stop offset="1" stop-color="#1C8A70"/>
+    </linearGradient>
+    <filter id="shadow" x="112" y="112" width="800" height="824" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="28" stdDeviation="26" flood-color="#0F3042" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <path fill="url(#panel)" d="M512 148c136 0 246 38 246 84v288c0 182-104 301-246 356-142-55-246-174-246-356V232c0-46 110-84 246-84Z"/>
+  </g>
+  <path fill="#FFFFFF" opacity=".16" d="M320 255c0-26 86-53 192-53s192 27 192 53v38c-48 24-116 38-192 38s-144-14-192-38v-38Z"/>
+  <path fill="#FFFFFF" d="M433 298h158v54l-38 58v94l118 176c20 31-2 72-39 72H392c-37 0-59-41-39-72l118-176v-94l-38-58v-54Z"/>
+  <path fill="url(#accent)" d="M443 624h138l58 86c6 9 0 21-11 21H396c-11 0-17-12-11-21l58-86Z"/>
+  <path fill="#A8E6D4" d="M475 444h74v119h-74z"/>
+  <path fill="#155778" d="M391 281h242v39H391z"/>
+  <path fill="#155778" opacity=".18" d="M448 504h128v28H448z"/>
+  <path fill="#FFFFFF" d="M660 332h42v42h-42zM714 332h42v42h-42zM660 386h42v42h-42zM714 386h42v42h-42z"/>
+  <path fill="#FFFFFF" opacity=".92" d="M298 345h45v20h-25v82h-20V345Zm388 314h20v82h25v20h-45V659Zm-388 0h45v20h-25v82h-20V659Zm388-314h45v102h-20v-82h-25V345Z"/>
+  <circle cx="452" cy="665" r="18" fill="#FFFFFF" opacity=".72"/>
+  <circle cx="535" cy="694" r="14" fill="#FFFFFF" opacity=".56"/>
+</svg>

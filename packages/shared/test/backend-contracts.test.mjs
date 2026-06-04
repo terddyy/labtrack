@@ -7,10 +7,12 @@ import { adminAssetRowDtoSchema, backendRpcArgumentNames, backendRpcNames, instr
 const workflowMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605220001_workflow_rpc_security.sql", import.meta.url));
 const adminReadModelsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605280001_admin_read_models.sql", import.meta.url));
 const bookingHardeningMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605310001_booking_contract_hardening.sql", import.meta.url));
+const borrowingMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606040001_borrowing_availability_roles_reports.sql", import.meta.url));
 const workflowMigration = readFileSync(workflowMigrationPath, "utf8");
 const adminReadModelsMigration = readFileSync(adminReadModelsMigrationPath, "utf8");
 const bookingHardeningMigration = readFileSync(bookingHardeningMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}`;
+const borrowingMigration = readFileSync(borrowingMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -100,4 +102,11 @@ test("admin asset read model DTO matches RPC return columns", () => {
 test("create booking backend contract rejects past starts", () => {
   assert.match(bookingHardeningMigration, /p_requested_start_at\s*<=\s*now\(\)/i);
   assert.match(bookingHardeningMigration, /Booking start time must be later than now/i);
+});
+
+test("borrowing availability migration exposes room-aware read models", () => {
+  assert.match(borrowingMigration, /create type public\.borrowing_resource_type as enum \('asset', 'room'\)/i);
+  assert.match(borrowingMigration, /p_resource_type public\.borrowing_resource_type/i);
+  assert.match(borrowingMigration, /Borrowing duration must be between 90 and 180 minutes/i);
+  assert.match(borrowingMigration, /status = 'pending'::public\.booking_status then 'tentative'/i);
 });

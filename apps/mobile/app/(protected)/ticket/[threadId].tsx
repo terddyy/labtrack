@@ -13,7 +13,7 @@ export default function TicketThreadScreen() {
   return (
     <ScreenScrollView>
       <View style={styles.headerRow}>
-        <SectionTitle title="Ticket chat" caption="Messages are shared with LABTRACK administrators." />
+        <SectionTitle title="Ticket chat" caption="Messages are shared with LABTRACK custodians." />
         <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
           Refresh
         </Button>
@@ -29,7 +29,7 @@ export default function TicketThreadScreen() {
           return (
             <Card key={message.id} style={[styles.messageCard, isMine ? styles.myMessageCard : null]}>
               <View style={styles.messageMetaRow}>
-                <Text style={styles.senderText}>{isMine ? "You" : "Admin"}</Text>
+                <Text style={styles.senderText}>{isMine ? "You" : "Custodian"}</Text>
                 <Text style={styles.messageDate}>{new Date(message.createdAt).toLocaleString()}</Text>
               </View>
               <Text style={styles.messageBody}>{message.body}</Text>

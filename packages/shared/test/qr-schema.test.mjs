@@ -95,6 +95,17 @@ test("exposes planned backend RPC names", () => {
     decideBooking: "decide_booking",
     checkoutBooking: "checkout_booking",
     returnBooking: "return_booking",
+    listBorrowableResources: "list_borrowable_resources",
+    listResourceSchedule: "list_resource_schedule",
+    createBorrowing: "create_borrowing",
+    cancelBorrowing: "cancel_borrowing",
+    decideBorrowing: "decide_borrowing",
+    checkoutBorrowing: "checkout_borrowing",
+    returnBorrowing: "return_borrowing",
+    getBorrowingMonitor: "get_borrowing_monitor",
+    getUsageAnalytics: "get_usage_analytics",
+    listActivityLogs: "list_activity_logs",
+    getPrintableReportData: "get_printable_report_data",
     createDefectReport: "create_defect_report",
     triageDefectReport: "triage_defect_report",
     ensureTicketThread: "ensure_ticket_thread",
@@ -113,6 +124,17 @@ test("exposes planned backend RPC argument names", () => {
     decideBooking: ["p_booking_id", "p_status", "p_notes"],
     checkoutBooking: ["p_booking_id", "p_notes"],
     returnBooking: ["p_booking_id", "p_notes"],
+    listBorrowableResources: ["p_start_at", "p_end_at", "p_resource_type", "p_location_id", "p_query"],
+    listResourceSchedule: ["p_resource_type", "p_resource_id", "p_from", "p_to"],
+    createBorrowing: ["p_resource_type", "p_resource_id", "p_requested_start_at", "p_requested_end_at", "p_purpose"],
+    cancelBorrowing: ["p_borrowing_id"],
+    decideBorrowing: ["p_borrowing_id", "p_status", "p_notes"],
+    checkoutBorrowing: ["p_borrowing_id", "p_notes"],
+    returnBorrowing: ["p_borrowing_id", "p_notes"],
+    getBorrowingMonitor: ["p_from", "p_to", "p_location_id", "p_resource_id", "p_statuses"],
+    getUsageAnalytics: ["p_from", "p_to", "p_location_id", "p_asset_id"],
+    listActivityLogs: ["p_from", "p_to", "p_limit", "p_offset"],
+    getPrintableReportData: ["p_report_type", "p_from", "p_to", "p_location_id", "p_asset_id"],
     createDefectReport: ["p_asset_id", "p_title", "p_description"],
     triageDefectReport: ["p_defect_report_id", "p_status", "p_notes"],
     ensureTicketThread: ["p_subject_type", "p_booking_id", "p_defect_report_id"],
@@ -237,19 +259,19 @@ test("builds default quick login accounts for requested roles", () => {
     {
       role: "super_admin",
       label: "Super admin login",
-      email: "superadmin@gmail.com",
+      email: "superadmin@pampangastateu.edu.ph",
       password: "demo123"
     },
     {
       role: "admin",
-      label: "Admin login",
-      email: "admin@gmail.com",
+      label: "Custodian login",
+      email: "custodian@pampangastateu.edu.ph",
       password: "demo123"
     },
     {
       role: "instructor",
-      label: "Instructor login",
-      email: "instructor@gmail.com",
+      label: "Faculty login",
+      email: "faculty@pampangastateu.edu.ph",
       password: "demo123"
     }
   ]);
@@ -262,7 +284,7 @@ test("overrides quick login accounts only when email and password are both provi
   }, { roles: ["admin", "instructor"] }), [
     {
       role: "admin",
-      label: "Admin login",
+      label: "Custodian login",
       email: "lab-admin@example.edu",
       password: "custom-secret"
     }

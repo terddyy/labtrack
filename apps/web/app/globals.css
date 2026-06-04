@@ -346,6 +346,12 @@ h3 {
   gap: 12px;
 }
 
+.filter-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+}
+
 .quick-login-grid {
   display: grid;
   gap: 10px;
@@ -423,6 +429,26 @@ h3 {
   margin-bottom: 8px;
 }
 
+.report-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.report-metrics {
+  margin-bottom: 0;
+}
+
+.report-section pre {
+  background: var(--panel-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 10px 0 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -439,5 +465,33 @@ h3 {
 
   .asset-form {
     grid-template-columns: 1fr;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  .sidebar,
+  .topbar,
+  .profile-strip,
+  .metrics:not(.report-metrics),
+  .no-print {
+    display: none !important;
+  }
+
+  .app-shell,
+  .content {
+    display: block;
+    padding: 0;
+  }
+
+  .panel {
+    border: 0;
   }
 }

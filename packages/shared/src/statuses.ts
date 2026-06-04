@@ -1,4 +1,4 @@
-export const userRoles = ["super_admin", "admin", "instructor"] as const;
+export const userRoles = ["super_admin", "admin", "custodian", "instructor", "faculty", "student"] as const;
 export type UserRole = (typeof userRoles)[number];
 
 export const assetStatuses = ["available", "reserved", "checked_out", "under_review", "for_repair", "retired"] as const;

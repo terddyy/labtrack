@@ -1,3 +1,4 @@
+import { getRoleDisplayLabel } from "@labtrack/shared";
 import { Link, router } from "expo-router";
 import { useEffect, useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -14,8 +15,8 @@ export default function HomeScreen() {
   const isReady = auth.status === "ready";
   const { summary } = useDashboardSummary(isReady);
   const profile = auth.status === "ready" || auth.status === "inactive" ? auth.profile : null;
-  const displayName = profile?.fullName ?? "Lab instructor";
-  const roleLabel = profile?.role.replaceAll("_", " ") ?? "mobile workspace";
+  const displayName = profile?.fullName ?? "Faculty user";
+  const roleLabel = profile ? getRoleDisplayLabel(profile.role) : "mobile workspace";
   const firstName = displayName.split(" ")[0] || displayName;
 
   const actionRows = useMemo(
@@ -29,7 +30,7 @@ export default function HomeScreen() {
       },
       {
         accent: colors.secondary,
-        caption: `${summary.pendingBookings} active of ${summary.bookings} total borrow requests.`,
+        caption: `${summary.pendingBookings} active of ${summary.bookings} total borrowing requests.`,
         href: "/borrow" as const,
         label: "Borrow items",
         value: String(summary.pendingBookings)
@@ -50,7 +51,7 @@ export default function HomeScreen() {
       },
       {
         accent: colors.success,
-        caption: `${summary.threads} borrow or defect conversations.`,
+        caption: `${summary.threads} borrowing or defect conversations.`,
         href: "/ticket" as const,
         label: "Ticket chat",
         value: String(summary.threads)
@@ -87,18 +88,18 @@ export default function HomeScreen() {
       ) : null}
       {auth.status === "error" ? <Notice tone="danger">{auth.error}</Notice> : null}
       {auth.status === "inactive" ? (
-        <Notice tone="danger">Your LABTRACK profile is inactive. Contact an administrator before scanning or submitting requests.</Notice>
+        <Notice tone="danger">Your LABTRACK profile is inactive. Contact a custodian before scanning or submitting requests.</Notice>
       ) : null}
       {summary.error ? <Notice tone="warning">{summary.error}</Notice> : null}
 
       <Card style={styles.heroCard}>
         <View style={styles.heroCopy}>
-          <Text style={styles.eyebrow}>Instructor workspace</Text>
+          <Text style={styles.eyebrow}>Faculty and student workspace</Text>
           <Text style={styles.heroTitle}>{isReady ? "Ready for lab handoffs" : "Sign in to start scanning"}</Text>
           <Text style={styles.heroText}>
             {isReady
-              ? "Scan QR labels, track approvals, report defects, and keep ticket replies in one queue."
-              : "Authentication unlocks QR scanning, borrow requests, defect reports, ticket chat, and notifications."}
+              ? "Browse schedules, scan QR labels, track approvals, report defects, and keep ticket replies in one queue."
+              : "Authentication unlocks QR scanning, borrowing requests, defect reports, ticket chat, and notifications."}
           </Text>
         </View>
         <Link href={isReady ? "/scan" : "/sign-in"} asChild>
