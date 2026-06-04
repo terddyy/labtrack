@@ -86,6 +86,10 @@ export async function getAdminAccess(): Promise<AdminAccessState> {
   } = await supabase.auth.getUser();
 
   if (userError) {
+    if (isMissingSessionError(userError)) {
+      return { status: "signed-out" };
+    }
+
     return { status: "error", message: userError.message };
   }
 
@@ -511,4 +515,10 @@ function createAssetQrCode(propertyNumber: string) {
   const normalizedProperty = propertyNumber.replace(/[^A-Z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase();
 
   return `ASSET-${normalizedProperty}-${suffix}`;
+}
+
+function isMissingSessionError(error: { code?: string; message?: string; name?: string }) {
+  return error.name === "AuthSessionMissingError"
+    || error.code === "session_not_found"
+    || error.message?.toLowerCase().includes("auth session missing") === true;
 }

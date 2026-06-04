@@ -29,6 +29,7 @@ test("web quick login and QR actions keep explicit credential and payload contro
   const services = readFileSync(path.join(webRoot, "lib", "admin", "services.ts"), "utf8");
   const actions = readFileSync(path.join(webRoot, "lib", "admin", "actions.ts"), "utf8");
 
+  assert.match(services, /isMissingSessionError\(userError\)[\s\S]*return \{ status: "signed-out" \}/);
   assert.match(services, /demoLoginFlag === "false"[\s\S]*return \[\]/);
   assert.match(services, /includeDefaults = nodeEnv !== "production" \|\| demoLoginFlag === "true"/);
   assert.match(services, /\.from\("assets"\)[\s\S]*\.select\("property_number"\)/);
