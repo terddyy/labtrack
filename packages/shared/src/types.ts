@@ -104,8 +104,33 @@ export type InstructorAssetLookupDto = {
   condition: AssetCondition;
   status: AssetStatus;
   qr_code_id: string;
-  qr_code: string;
+  active_qr_code: string;
   qr_generated_at: string;
+};
+
+export type BookingRpcResultDto = {
+  booking_id: string;
+  ticket_thread_id: string;
+  asset_id: string;
+  instructor_id: string;
+  requested_start_at: string;
+  requested_end_at: string;
+  purpose: string;
+  status: BookingStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DefectReportRpcResultDto = {
+  defect_report_id: string;
+  ticket_thread_id: string;
+  asset_id: string;
+  instructor_id: string;
+  title: string;
+  description: string;
+  status: DefectStatus;
+  created_at: string;
+  updated_at: string;
 };
 
 export type BookingRowDto = {

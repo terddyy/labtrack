@@ -47,11 +47,11 @@ export async function registerForPushNotifications() {
   }
 
   const existingPermission = await Notifications.getPermissionsAsync();
-  const finalPermission = existingPermission.status === "granted"
+  const finalPermission = existingPermission.granted
     ? existingPermission
     : await Notifications.requestPermissionsAsync();
 
-  if (finalPermission.status !== "granted") {
+  if (!finalPermission.granted) {
     return null;
   }
 

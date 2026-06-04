@@ -5,26 +5,35 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:dev-client": "expo start --dev-client",
     "android": "expo run:android",
-    "build:android": "eas build -p android",
+    "build:android:development": "npx eas build -p android --profile development",
+    "build:android": "npx eas build -p android",
+    "eas-build-post-install": "cd ../.. && npm run build -w @labtrack/shared",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~56.0.13",
     "@labtrack/shared": "file:../../packages/shared",
+    "@react-native-community/datetimepicker": "9.1.0",
     "@supabase/supabase-js": "^2.89.0",
-    "expo": "~55.0.26",
-    "expo-camera": "~55.0.19",
-    "expo-constants": "^55.0.14",
-    "expo-notifications": "^55.0.23",
-    "expo-router": "~55.0.16",
-    "expo-secure-store": "^55.0.14",
-    "react": "19.2.0",
-    "react-native": "0.83.6",
-    "react-native-safe-area-context": "~5.6.2",
-    "react-native-screens": "~4.23.0"
+    "expo": "^56.0.5",
+    "expo-camera": "~56.0.7",
+    "expo-constants": "~56.0.16",
+    "expo-dev-client": "~56.0.18",
+    "expo-linking": "~56.0.12",
+    "expo-notifications": "~56.0.14",
+    "expo-router": "~56.2.7",
+    "expo-secure-store": "~56.0.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "@types/react": "^19.2.7",
-    "typescript": "^5.9.3"
+    "typescript": "~6.0.3"
   }
 }

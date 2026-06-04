@@ -1,69 +1,22 @@
-import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { RequireActiveProfile } from "@/components/auth-gate";
 import { Badge, Button, Card, EmptyState, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/theme";
-import { cancelBooking, formatApiError, listMyBookings, type MobileBooking } from "@/lib/labtrack-api";
+import { useBookings } from "@/lib/use-bookings";
 
-export default function BookingsScreen() {
-  return (
-    <RequireActiveProfile>
-      <BookingsContent />
-    </RequireActiveProfile>
-  );
-}
-
-function BookingsContent() {
-  const [bookings, setBookings] = useState<MobileBooking[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
-
-  const loadBookings = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      setBookings(await listMyBookings());
-    } catch (loadError) {
-      setError(formatApiError(loadError));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadBookings();
-    }, [loadBookings])
-  );
-
-  async function handleCancel(id: string) {
-    setError(null);
-    setCancellingId(id);
-
-    try {
-      await cancelBooking(id);
-      await loadBookings();
-    } catch (cancelError) {
-      setError(formatApiError(cancelError));
-    } finally {
-      setCancellingId(null);
-    }
-  }
+export default function BorrowScreen() {
+  const { bookings, cancel, cancellingId, error, isLoading, refresh } = useBookings();
 
   return (
     <ScreenScrollView>
       <View style={styles.headerRow}>
-        <SectionTitle title="My bookings" caption="Track requests, approvals, checkout, and return status." />
-        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={loadBookings} variant="secondary">
+        <SectionTitle title="My borrows" caption="Track requests, approvals, checkout, and return status." />
+        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
           Refresh
         </Button>
       </View>
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {!bookings.length && !isLoading ? (
-        <EmptyState body="Approved, rejected, checked-out, and returned bookings will appear here." title="No bookings yet" />
+        <EmptyState body="Approved, rejected, checked-out, and returned borrow requests will appear here." title="No borrows yet" />
       ) : null}
       {bookings.map((booking) => (
         <Card key={booking.id}>
@@ -86,7 +39,7 @@ function BookingsContent() {
             <Button
               disabled={Boolean(cancellingId)}
               loading={cancellingId === booking.id}
-              onPress={() => void handleCancel(booking.id)}
+              onPress={() => void cancel(booking.id)}
               variant="secondary"
             >
               Cancel pending request

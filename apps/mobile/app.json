@@ -9,7 +9,12 @@
     "android": {
       "package": "edu.psu.ccs.labtrack",
       "versionCode": 1,
-      "permissions": ["CAMERA", "POST_NOTIFICATIONS"],
+      "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#F4F7F8"
       }
@@ -28,12 +33,16 @@
         {
           "color": "#236A91"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
     ],
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "replace-with-eas-project-id"
+        "projectId": "9fea1624-1130-4849-b991-9bc1b77eca41"
       }
-    }
+    },
+    "owner": "terddy"
   }
 }

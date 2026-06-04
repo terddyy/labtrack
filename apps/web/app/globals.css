@@ -311,22 +311,17 @@ h3 {
   white-space: nowrap;
 }
 
-.badge.available,
-.badge.approved,
-.badge.resolved {
+.badge.success {
   background: oklch(0.93 0.045 155);
   color: oklch(0.34 0.09 155);
 }
 
-.badge.pending,
-.badge.under_review {
+.badge.warning {
   background: oklch(0.94 0.045 78);
   color: oklch(0.41 0.08 78);
 }
 
-.badge.for_repair,
-.badge.rejected,
-.badge.defective {
+.badge.danger {
   background: oklch(0.94 0.045 28);
   color: oklch(0.43 0.11 28);
 }

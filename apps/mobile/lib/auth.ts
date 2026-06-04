@@ -1,4 +1,4 @@
-import { createContext, createElement, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, createElement, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Profile } from "@labtrack/shared";
 import { formatApiError, getCurrentProfile, hasSupabaseConfig, signOut } from "@/lib/labtrack-api";
 
@@ -18,6 +18,7 @@ export type CurrentProfile = AuthState & {
 const AuthContext = createContext<CurrentProfile | null>(null);
 
 function useCurrentProfileState(): CurrentProfile {
+  const requestIdRef = useRef(0);
   const [state, setState] = useState<AuthState>(() => (
     hasSupabaseConfig()
       ? { status: "loading", profile: null, error: null }
@@ -25,6 +26,9 @@ function useCurrentProfileState(): CurrentProfile {
   ));
 
   const refresh = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     if (!hasSupabaseConfig()) {
       setState({ status: "missing-config", profile: null, error: null });
       return;
@@ -34,19 +38,24 @@ function useCurrentProfileState(): CurrentProfile {
 
     try {
       const profile = await getCurrentProfile();
-      setState(
-        profile
-          ? profile.isActive
-            ? { status: "ready", profile, error: null }
-            : { status: "inactive", profile, error: null }
-          : { status: "signed-out", profile: null, error: null }
-      );
+      if (requestIdRef.current === requestId) {
+        setState(
+          profile
+            ? profile.isActive
+              ? { status: "ready", profile, error: null }
+              : { status: "inactive", profile, error: null }
+            : { status: "signed-out", profile: null, error: null }
+        );
+      }
     } catch (error) {
-      setState({ status: "error", profile: null, error: formatApiError(error) });
+      if (requestIdRef.current === requestId) {
+        setState({ status: "error", profile: null, error: formatApiError(error) });
+      }
     }
   }, []);
 
   const signOutAndRefresh = useCallback(async () => {
+    requestIdRef.current += 1;
     await signOut();
     setState({ status: "signed-out", profile: null, error: null });
   }, []);

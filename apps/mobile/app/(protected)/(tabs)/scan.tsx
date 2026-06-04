@@ -1,16 +1,12 @@
-import { parseQrPayload } from "@labtrack/shared";
-import { CameraView, useCameraPermissions, type BarcodeScanningResult, type BarcodeSettings } from "expo-camera";
-import { router, useFocusEffect } from "expo-router";
-import { memo, useCallback, useRef, useState } from "react";
+import { CameraView, type BarcodeScanningResult, type BarcodeSettings } from "expo-camera";
+import { memo } from "react";
 import { Linking, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { RequireActiveProfile } from "@/components/auth-gate";
 import { Button, Card, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/theme";
+import { useScanner } from "@/lib/use-scanner";
 
 const QR_SCANNER_SETTINGS: BarcodeSettings = { barcodeTypes: ["qr"] };
-const INVALID_QR_MESSAGE = "This QR code is not a valid LABTRACK asset code.";
-const INVALID_SCAN_FEEDBACK_MS = 1200;
 
 const ScannerCamera = memo(function ScannerCamera({ onScan }: { onScan: (result: BarcodeScanningResult) => void }) {
   return (
@@ -38,58 +34,8 @@ const ScannerOverlay = memo(function ScannerOverlay({ bottomInset, error, isLock
 });
 
 export default function ScanScreen() {
-  return (
-    <RequireActiveProfile>
-      <ScanContent />
-    </RequireActiveProfile>
-  );
-}
-
-function ScanContent() {
   const insets = useSafeAreaInsets();
-  const [permission, requestPermission] = useCameraPermissions();
-  const [isScreenFocused, setIsScreenFocused] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const scanLockedRef = useRef(false);
-  const lastInvalidScanAtRef = useRef(0);
-
-  useFocusEffect(
-    useCallback(() => {
-      scanLockedRef.current = false;
-      lastInvalidScanAtRef.current = 0;
-      setError(null);
-      setIsLocked(false);
-      setIsScreenFocused(true);
-
-      return () => {
-        scanLockedRef.current = true;
-        setIsScreenFocused(false);
-      };
-    }, [])
-  );
-
-  const handleScan = useCallback((result: BarcodeScanningResult) => {
-    if (scanLockedRef.current) {
-      return;
-    }
-
-    if (!parseQrPayload(result.data)) {
-      const now = Date.now();
-
-      if (now - lastInvalidScanAtRef.current > INVALID_SCAN_FEEDBACK_MS) {
-        lastInvalidScanAtRef.current = now;
-        setError(INVALID_QR_MESSAGE);
-      }
-
-      return;
-    }
-
-    scanLockedRef.current = true;
-    setError(null);
-    setIsLocked(true);
-    router.replace({ pathname: "/asset/[payload]", params: { payload: encodeURIComponent(result.data) } });
-  }, []);
+  const { error, handleScan, isCameraActive, isLocked, permission, requestPermission } = useScanner();
 
   if (!permission) {
     return <View style={styles.screen} />;
@@ -109,8 +55,6 @@ function ScanContent() {
       </ScreenScrollView>
     );
   }
-
-  const isCameraActive = isScreenFocused && !isLocked;
 
   return (
     <View style={styles.screen}>

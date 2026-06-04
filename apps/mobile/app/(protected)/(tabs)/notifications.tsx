@@ -1,74 +1,22 @@
-import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { RequireActiveProfile } from "@/components/auth-gate";
 import { Badge, Button, Card, EmptyState, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/theme";
-import {
-  formatApiError,
-  listNotifications,
-  markNotificationRead,
-  type MobileNotification
-} from "@/lib/labtrack-api";
+import { useNotifications } from "@/lib/use-notifications";
 
 export default function NotificationsScreen() {
-  return (
-    <RequireActiveProfile>
-      <NotificationsContent />
-    </RequireActiveProfile>
-  );
-}
-
-function NotificationsContent() {
-  const [notifications, setNotifications] = useState<MobileNotification[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [readingId, setReadingId] = useState<string | null>(null);
-
-  const loadNotifications = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      setNotifications(await listNotifications());
-    } catch (loadError) {
-      setError(formatApiError(loadError));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadNotifications();
-    }, [loadNotifications])
-  );
-
-  async function handleRead(id: string) {
-    setError(null);
-    setReadingId(id);
-
-    try {
-      await markNotificationRead(id);
-      await loadNotifications();
-    } catch (readError) {
-      setError(formatApiError(readError));
-    } finally {
-      setReadingId(null);
-    }
-  }
+  const { error, isLoading, markRead, notifications, readingId, refresh } = useNotifications();
 
   return (
     <ScreenScrollView>
       <View style={styles.headerRow}>
-        <SectionTitle title="Notifications" caption="Booking, defect, and ticket updates from LABTRACK." />
-        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={loadNotifications} variant="secondary">
+        <SectionTitle title="Notifications" caption="Borrow, defect, and ticket updates from LABTRACK." />
+        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
           Refresh
         </Button>
       </View>
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {!notifications.length && !isLoading ? (
-        <EmptyState body="New booking decisions, defect updates, and ticket replies will appear here." title="No notifications yet" />
+        <EmptyState body="New borrow decisions, defect updates, and ticket replies will appear here." title="No notifications yet" />
       ) : null}
       {notifications.map((notification) => (
         <Card key={notification.id} style={!notification.readAt ? styles.unreadCard : null}>
@@ -82,7 +30,7 @@ function NotificationsContent() {
             <Button
               disabled={Boolean(readingId)}
               loading={readingId === notification.id}
-              onPress={() => void handleRead(notification.id)}
+              onPress={() => void markRead(notification.id)}
               variant="secondary"
             >
               Mark read
@@ -124,6 +72,6 @@ const styles = StyleSheet.create({
     gap: 12
   },
   unreadCard: {
-    borderColor: "#DFC895"
+    borderColor: colors.warning
   }
 });

@@ -1,79 +1,20 @@
 import { useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { RequireActiveProfile } from "@/components/auth-gate";
 import { Button, Card, EmptyState, Field, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
-import {
-  formatApiError,
-  listTicketMessages,
-  sendTicketMessage,
-  type MobileTicketMessage
-} from "@/lib/labtrack-api";
+import { useTicketThread } from "@/lib/use-ticket-thread";
 
 export default function TicketThreadScreen() {
-  return (
-    <RequireActiveProfile>
-      <TicketThreadContent />
-    </RequireActiveProfile>
-  );
-}
-
-function TicketThreadContent() {
   const auth = useCurrentProfile();
   const { threadId } = useLocalSearchParams<{ threadId?: string }>();
-  const [messages, setMessages] = useState<MobileTicketMessage[]>([]);
-  const [body, setBody] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-
-  const loadMessages = useCallback(async () => {
-    if (!threadId) {
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      setMessages(await listTicketMessages(threadId));
-    } catch (loadError) {
-      setError(formatApiError(loadError));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [threadId]);
-
-  useEffect(() => {
-    void loadMessages();
-  }, [loadMessages]);
-
-  async function handleSend() {
-    if (!threadId) {
-      return;
-    }
-
-    setIsSending(true);
-    setError(null);
-
-    try {
-      await sendTicketMessage(threadId, body.trim());
-      setBody("");
-      await loadMessages();
-    } catch (sendError) {
-      setError(formatApiError(sendError));
-    } finally {
-      setIsSending(false);
-    }
-  }
+  const { body, error, isLoading, isSending, messages, refresh, send, setBody } = useTicketThread(threadId);
 
   return (
     <ScreenScrollView>
       <View style={styles.headerRow}>
         <SectionTitle title="Ticket chat" caption="Messages are shared with LABTRACK administrators." />
-        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={loadMessages} variant="secondary">
+        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
           Refresh
         </Button>
       </View>
@@ -104,7 +45,7 @@ function TicketThreadContent() {
           placeholder="Type a message"
           value={body}
         />
-        <Button disabled={isSending || !body.trim()} loading={isSending} onPress={handleSend}>
+        <Button disabled={isSending || !body.trim()} loading={isSending} onPress={send}>
           Send message
         </Button>
       </Card>
@@ -143,7 +84,7 @@ const styles = StyleSheet.create({
   },
   myMessageCard: {
     backgroundColor: colors.primaryMuted,
-    borderColor: "#C3DED8"
+    borderColor: colors.secondaryMuted
   },
   replyCard: {
     gap: 14

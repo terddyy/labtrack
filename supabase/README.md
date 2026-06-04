@@ -9,6 +9,20 @@ supabase start
 supabase db reset
 ```
 
+## Weekly keepalive cron
+
+Migration `202605310002_weekly_keepalive_cron.sql` enables `pg_cron` and schedules `labtrack-weekly-keepalive` every Friday at 09:00 UTC:
+
+```sql
+select cron.schedule(
+  'labtrack-weekly-keepalive',
+  '0 9 * * 5',
+  $$ insert into app_private.supabase_keepalive_events (note) values ('weekly Friday keepalive activity'); $$
+);
+```
+
+Each run inserts one private audit row into `app_private.supabase_keepalive_events`.
+
 ## First Super Admin
 
 Create the first user in Supabase Auth. New email-based Auth users are automatically bootstrapped into `public.profiles` with the default `instructor` role, so promote the first administrator after signup:

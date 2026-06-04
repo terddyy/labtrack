@@ -13,6 +13,7 @@ import {
   decideBookingInputSchema,
   ensureTicketThreadInputSchema,
   isLabtrackQrPayload,
+  listAdminAssetsInputSchema,
   markNotificationReadInputSchema,
   parseQrPayload,
   regenerateAssetQrInputSchema,
@@ -86,6 +87,7 @@ test("rejects incomplete asset creation input", () => {
 
 test("exposes planned backend RPC names", () => {
   assert.deepEqual(backendRpcNames, {
+    listAdminAssets: "list_admin_assets",
     resolveAssetByQrCode: "resolve_asset_by_qr_code",
     regenerateAssetQr: "regenerate_asset_qr",
     createBooking: "create_booking",
@@ -103,6 +105,7 @@ test("exposes planned backend RPC names", () => {
 
 test("exposes planned backend RPC argument names", () => {
   assert.deepEqual(backendRpcArgumentNames, {
+    listAdminAssets: ["p_limit", "p_offset"],
     resolveAssetByQrCode: ["p_qr_code"],
     regenerateAssetQr: ["p_asset_id", "p_qr_code"],
     createBooking: ["p_asset_id", "p_requested_start_at", "p_requested_end_at", "p_purpose"],
@@ -124,9 +127,15 @@ test("validates lifecycle RPC inputs", () => {
   const defectReportId = "8f4a8f90-9231-4ef0-b621-2c97af733003";
   const threadId = "8f4a8f90-9231-4ef0-b621-2c97af733004";
   const notificationId = "8f4a8f90-9231-4ef0-b621-2c97af733005";
+  const bookingStart = new Date(Date.now() + 60 * 60 * 1000);
+  const bookingEnd = new Date(bookingStart.getTime() + 2 * 60 * 60 * 1000);
 
   assert.equal(resolveAssetByQrCodeInputSchema.safeParse({
     p_qr_code: "ASSET-LT-001-7JQ2"
+  }).success, true);
+  assert.equal(listAdminAssetsInputSchema.safeParse({
+    p_limit: 100,
+    p_offset: 0
   }).success, true);
   assert.equal(regenerateAssetQrInputSchema.safeParse({
     p_asset_id: assetId,
@@ -134,8 +143,8 @@ test("validates lifecycle RPC inputs", () => {
   }).success, true);
   assert.equal(createBookingInputSchema.safeParse({
     p_asset_id: assetId,
-    p_requested_start_at: "2026-05-22T01:00:00.000Z",
-    p_requested_end_at: "2026-05-22T03:00:00.000Z",
+    p_requested_start_at: bookingStart.toISOString(),
+    p_requested_end_at: bookingEnd.toISOString(),
     p_purpose: "Laboratory class session"
   }).success, true);
   assert.equal(cancelBookingInputSchema.safeParse({ p_booking_id: bookingId }).success, true);
@@ -180,9 +189,15 @@ test("rejects invalid lifecycle RPC inputs", () => {
   const bookingId = "8f4a8f90-9231-4ef0-b621-2c97af733002";
   const defectReportId = "8f4a8f90-9231-4ef0-b621-2c97af733003";
   const threadId = "8f4a8f90-9231-4ef0-b621-2c97af733004";
+  const pastStart = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const pastEnd = new Date(Date.now() - 60 * 60 * 1000);
 
   assert.equal(resolveAssetByQrCodeInputSchema.safeParse({
     p_qr_code: "   "
+  }).success, false);
+  assert.equal(listAdminAssetsInputSchema.safeParse({
+    p_limit: 1000,
+    p_offset: -1
   }).success, false);
   assert.equal(regenerateAssetQrInputSchema.safeParse({
     p_asset_id: assetId,
@@ -192,6 +207,12 @@ test("rejects invalid lifecycle RPC inputs", () => {
     p_asset_id: assetId,
     p_requested_start_at: "2026-05-22T03:00:00.000Z",
     p_requested_end_at: "2026-05-22T01:00:00.000Z",
+    p_purpose: "Laboratory class session"
+  }).success, false);
+  assert.equal(createBookingInputSchema.safeParse({
+    p_asset_id: assetId,
+    p_requested_start_at: pastStart.toISOString(),
+    p_requested_end_at: pastEnd.toISOString(),
     p_purpose: "Laboratory class session"
   }).success, false);
   assert.equal(decideBookingInputSchema.safeParse({

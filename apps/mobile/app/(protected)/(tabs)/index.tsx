@@ -1,44 +1,18 @@
-import { Link, router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, router } from "expo-router";
+import { useEffect, useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Badge, Button, Card, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
-import {
-  formatApiError,
-  listMyBookings,
-  listMyDefectReports,
-  listNotifications,
-  listTicketThreads
-} from "@/lib/labtrack-api";
+import { useDashboardSummary } from "@/lib/use-dashboard-summary";
 import { registerForPushNotifications } from "@/lib/notifications";
 
-type DashboardSummary = {
-  bookings: number;
-  error: string | null;
-  isLoading: boolean;
-  openDefects: number;
-  pendingBookings: number;
-  threads: number;
-  unreadNotifications: number;
-};
-
-type DashboardHref = "/bookings" | "/notifications" | "/reports" | "/scan" | "/ticket";
-
-const emptySummary: DashboardSummary = {
-  bookings: 0,
-  error: null,
-  isLoading: false,
-  openDefects: 0,
-  pendingBookings: 0,
-  threads: 0,
-  unreadNotifications: 0
-};
+type DashboardHref = "/borrow" | "/notifications" | "/reports" | "/scan" | "/ticket";
 
 export default function HomeScreen() {
   const auth = useCurrentProfile();
-  const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const isReady = auth.status === "ready";
+  const { summary } = useDashboardSummary(isReady);
   const profile = auth.status === "ready" || auth.status === "inactive" ? auth.profile : null;
   const displayName = profile?.fullName ?? "Lab instructor";
   const roleLabel = profile?.role.replaceAll("_", " ") ?? "mobile workspace";
@@ -55,9 +29,9 @@ export default function HomeScreen() {
       },
       {
         accent: colors.secondary,
-        caption: `${summary.pendingBookings} active of ${summary.bookings} total requests.`,
-        href: "/bookings" as const,
-        label: "Bookings",
+        caption: `${summary.pendingBookings} active of ${summary.bookings} total borrow requests.`,
+        href: "/borrow" as const,
+        label: "Borrow items",
         value: String(summary.pendingBookings)
       },
       {
@@ -76,7 +50,7 @@ export default function HomeScreen() {
       },
       {
         accent: colors.success,
-        caption: `${summary.threads} booking or defect conversations.`,
+        caption: `${summary.threads} borrow or defect conversations.`,
         href: "/ticket" as const,
         label: "Ticket chat",
         value: String(summary.threads)
@@ -91,55 +65,8 @@ export default function HomeScreen() {
     }
   }, [auth.status]);
 
-  useFocusEffect(
-    useCallback(() => {
-    let isMounted = true;
-
-    async function loadSummary() {
-      setSummary((current) => ({ ...current, error: null, isLoading: true }));
-
-      try {
-        const [bookings, defects, notifications, threads] = await Promise.all([
-          listMyBookings(),
-          listMyDefectReports(),
-          listNotifications(),
-          listTicketThreads()
-        ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setSummary({
-          bookings: bookings.length,
-          error: null,
-          isLoading: false,
-          openDefects: defects.filter((report) => report.status !== "resolved" && report.status !== "rejected").length,
-          pendingBookings: bookings.filter((booking) => ["approved", "checked_out", "pending"].includes(booking.status)).length,
-          threads: threads.length,
-          unreadNotifications: notifications.filter((notification) => !notification.readAt).length
-        });
-      } catch (error) {
-        if (isMounted) {
-          setSummary({ ...emptySummary, error: formatApiError(error) });
-        }
-      }
-    }
-
-    if (auth.status === "ready") {
-      void loadSummary();
-    } else {
-      setSummary(emptySummary);
-    }
-
-    return () => {
-      isMounted = false;
-    };
-    }, [auth.status])
-  );
-
   return (
-    <ScreenScrollView includeTopInset>
+    <ScreenScrollView>
       <View style={styles.topBar}>
         <View style={styles.identity}>
           <View style={styles.avatar}>
@@ -171,7 +98,7 @@ export default function HomeScreen() {
           <Text style={styles.heroText}>
             {isReady
               ? "Scan QR labels, track approvals, report defects, and keep ticket replies in one queue."
-              : "Authentication unlocks QR scanning, booking requests, defect reports, ticket chat, and notifications."}
+              : "Authentication unlocks QR scanning, borrow requests, defect reports, ticket chat, and notifications."}
           </Text>
         </View>
         <Link href={isReady ? "/scan" : "/sign-in"} asChild>
@@ -210,9 +137,9 @@ export default function HomeScreen() {
       ) : null}
 
       <View style={styles.sectionBlock}>
-        <SectionTitle title="Open work" caption={summary.isLoading ? "Syncing your current queues." : "Current booking, defect, and message pressure."} />
+        <SectionTitle title="Open work" caption={summary.isLoading ? "Syncing your current queues." : "Current borrow, defect, and message pressure."} />
         <View style={styles.statusGrid}>
-          <StatusTile accent={colors.secondary} label="Bookings" value={summary.pendingBookings} />
+          <StatusTile accent={colors.secondary} label="Borrows" value={summary.pendingBookings} />
           <StatusTile accent={colors.coral} label="Defects" value={summary.openDefects} />
           <StatusTile accent={colors.pink} label="Unread" value={summary.unreadNotifications} />
           <StatusTile accent={colors.success} label="Threads" value={summary.threads} />
@@ -408,7 +335,7 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     backgroundColor: colors.primaryMuted,
-    borderColor: "#C3DED8",
+    borderColor: colors.secondaryMuted,
     gap: 14
   },
   heroCopy: {

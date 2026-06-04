@@ -22,9 +22,9 @@ type Tone = "neutral" | "success" | "warning" | "danger";
 
 const toneStyles: Record<Tone, { background: string; border: string; text: string }> = {
   neutral: { background: colors.surfaceMuted, border: colors.border, text: colors.muted },
-  success: { background: colors.successMuted, border: "#B9DACB", text: colors.success },
-  warning: { background: colors.warningMuted, border: "#DFC895", text: colors.warning },
-  danger: { background: colors.dangerMuted, border: "#E1B5B9", text: colors.danger }
+  success: { background: colors.successMuted, border: colors.success, text: colors.success },
+  warning: { background: colors.warningMuted, border: colors.warning, text: colors.warning },
+  danger: { background: colors.dangerMuted, border: colors.danger, text: colors.danger }
 };
 
 export function ScreenScrollView({
@@ -43,13 +43,13 @@ export function ScreenScrollView({
       {...props}
       style={[styles.screen, props.style]}
       contentContainerStyle={[
-        styles.screenContent,
+        styles.screenViewport,
         includeTopInset ? { paddingTop: Math.max(insets.top + 16, 28) } : null,
         { paddingBottom: Math.max(insets.bottom + 24, 32) },
         contentContainerStyle
       ]}
     >
-      {children}
+      <View style={styles.screenInner}>{children}</View>
     </ScrollView>
   );
 }
@@ -252,10 +252,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 12,
     padding: 16,
-    shadowColor: "#111811",
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     ...Platform.select({ android: { elevation: 1 } })
   },
   disabled: {
@@ -331,10 +331,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     flex: 1
   },
-  screenContent: {
+  screenInner: {
+    boxSizing: "border-box",
     gap: spacing.gap,
+    maxWidth: 390,
     paddingHorizontal: spacing.page,
-    paddingTop: spacing.page
+    paddingTop: spacing.page,
+    width: "100%"
+  },
+  screenViewport: {
+    alignItems: "center",
+    flexGrow: 1
   },
   sectionCaption: {
     color: colors.muted,

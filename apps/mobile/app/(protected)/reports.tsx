@@ -1,48 +1,16 @@
-import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { RequireActiveProfile } from "@/components/auth-gate";
 import { Badge, Button, Card, EmptyState, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors } from "@/constants/theme";
-import { formatApiError, listMyDefectReports, type MobileDefectReport } from "@/lib/labtrack-api";
+import { useDefectReports } from "@/lib/use-defect-reports";
 
 export default function ReportsScreen() {
-  return (
-    <RequireActiveProfile>
-      <ReportsContent />
-    </RequireActiveProfile>
-  );
-}
-
-function ReportsContent() {
-  const [reports, setReports] = useState<MobileDefectReport[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const loadReports = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      setReports(await listMyDefectReports());
-    } catch (loadError) {
-      setError(formatApiError(loadError));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadReports();
-    }, [loadReports])
-  );
+  const { error, isLoading, refresh, reports } = useDefectReports();
 
   return (
     <ScreenScrollView>
       <View style={styles.headerRow}>
         <SectionTitle title="Defect reports" caption="Follow up on equipment issues and administrator triage." />
-        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={loadReports} variant="secondary">
+        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
           Refresh
         </Button>
       </View>

@@ -2,20 +2,20 @@
 
 import {
   assetConditions,
-  assetSchema,
   assetStatuses,
-  buildQuickLoginAccounts,
   createQrPayload,
+  formatStatusLabel,
+  getBookingWorkflowActions,
+  getDashboardCounters,
+  getDefectTransitions,
   type AssetCondition,
   type AssetStatus,
-  type BookingStatus,
   type DefectStatus,
   type Profile,
   type QuickLoginAccount,
   type UserRole
 } from "@labtrack/shared";
 import {
-  AlertTriangle,
   CheckCircle2,
   ClipboardCheck,
   Download,
@@ -34,131 +34,38 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
-
-type SupabaseClient = NonNullable<ReturnType<typeof getSupabaseBrowserClient>>;
-
-type AccessState =
-  | { status: "checking" }
-  | { status: "missing-config" }
-  | { status: "signed-out" }
-  | { status: "forbidden"; profile: Profile }
-  | { status: "error"; message: string }
-  | { status: "authorized"; profile: Profile };
-
-type ProfileRow = {
-  id: string;
-  email: string;
-  full_name: string;
-  role: Profile["role"];
-  department: string | null;
-  is_active: boolean;
-};
-
-type CategoryRow = {
-  id: string;
-  name: string;
-};
-
-type LocationRow = {
-  id: string;
-  name: string;
-};
-
-type AssetRow = {
-  id: string;
-  property_number: string;
-  serial_number: string | null;
-  name: string;
-  category_id: string;
-  location_id: string;
-  condition: AssetCondition;
-  status: AssetStatus;
-  notes: string | null;
-  created_at: string;
-};
-
-type ActiveQrRow = {
-  id: string;
-  asset_id: string;
-  code: string;
-  generated_at: string;
-};
-
-type BookingRow = {
-  id: string;
-  asset_id: string;
-  instructor_id: string;
-  purpose: string;
-  status: BookingStatus;
-  requested_start_at: string;
-  requested_end_at: string;
-  decision_notes: string | null;
-};
-
-type DefectRow = {
-  id: string;
-  asset_id: string;
-  instructor_id: string;
-  title: string;
-  description: string;
-  status: DefectStatus;
-  resolution_notes: string | null;
-  created_at: string;
-};
-
-type TicketThreadRow = {
-  id: string;
-  subject_type: "booking" | "defect_report";
-  booking_id: string | null;
-  defect_report_id: string | null;
-  created_at: string;
-};
-
-type TicketMessageRow = {
-  id: string;
-  thread_id: string;
-  sender_id: string;
-  body: string;
-  created_at: string;
-};
-
-type AssetView = {
-  id: string;
-  propertyNumber: string;
-  serialNumber: string | null;
-  name: string;
-  categoryId: string;
-  categoryName: string;
-  locationId: string;
-  locationName: string;
-  condition: AssetCondition;
-  status: AssetStatus;
-  notes: string | null;
-  activeQr: ActiveQrRow | null;
-};
-
-type DashboardData = {
-  categories: CategoryRow[];
-  locations: LocationRow[];
-  assets: AssetView[];
-  bookings: BookingRow[];
-  defects: DefectRow[];
-  profiles: ProfileRow[];
-  ticketThreads: TicketThreadRow[];
-};
-
-type AssetFormState = {
-  propertyNumber: string;
-  serialNumber: string;
-  name: string;
-  categoryId: string;
-  locationId: string;
-  condition: AssetCondition;
-  status: AssetStatus;
-  notes: string;
-};
-
-type FormErrors = Partial<Record<keyof AssetFormState, string>>;
+import { EmptyState, Metric, Notice, StatusBadge } from "@/components/admin/ui";
+import {
+  cancelBookingAction,
+  checkoutBookingAction,
+  createAssetAction,
+  createCategoryAction,
+  createLocationAction,
+  decideBookingAction,
+  generateAssetQrAction,
+  getAdminAccessAction,
+  getAdminDashboardDataAction,
+  getTicketMessagesAction,
+  returnBookingAction,
+  sendTicketMessageAction,
+  triageDefectReportAction,
+  updateProfileAccessAction
+} from "@/lib/admin/actions";
+import type {
+  AdminAccessState,
+  AssetFormState,
+  AssetView,
+  BookingRow,
+  CategoryRow,
+  DashboardData,
+  DefectRow,
+  FormErrors,
+  LocationRow,
+  ProfileRow,
+  TicketMessageRow,
+  TicketThreadRow,
+  AdminDashboardProps
+} from "@/lib/admin/types";
 
 const blankAssetForm: AssetFormState = {
   propertyNumber: "",
@@ -169,6 +76,17 @@ const blankAssetForm: AssetFormState = {
   condition: "good",
   status: "available",
   notes: ""
+};
+
+const emptyDashboardData: DashboardData = {
+  categories: [],
+  locations: [],
+  assets: [],
+  bookings: [],
+  defects: [],
+  profiles: [],
+  ticketThreads: [],
+  counters: getDashboardCounters({ assets: [], bookings: [], defects: [] })
 };
 
 type AdminSection = "dashboard" | "assets" | "bookings" | "defects" | "tickets" | "access" | "catalog";
@@ -183,36 +101,14 @@ const navigation: Array<{ key: AdminSection; label: string; icon: typeof Clipboa
   { key: "catalog", label: "Catalog", icon: Settings }
 ];
 
-const webQuickLoginAccounts = buildQuickLoginAccounts({
-  super_admin: {
-    email: process.env.NEXT_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL,
-    password: process.env.NEXT_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD
-  },
-  admin: {
-    email: process.env.NEXT_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL,
-    password: process.env.NEXT_PUBLIC_QUICK_LOGIN_ADMIN_PASSWORD
-  },
-  instructor: {
-    email: process.env.NEXT_PUBLIC_QUICK_LOGIN_INSTRUCTOR_EMAIL,
-    password: process.env.NEXT_PUBLIC_QUICK_LOGIN_INSTRUCTOR_PASSWORD
-  }
-}, { roles: ["super_admin", "admin"] });
-
-export function AdminDashboard() {
+export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts }: AdminDashboardProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [access, setAccess] = useState<AccessState>({ status: "checking" });
+  const shouldSkipInitialDashboardLoad = useRef(initialAccess.status === "authorized");
+  const [access, setAccess] = useState<AdminAccessState>(initialAccess);
   const [credentials, setCredentials] = useState({ email: "", password: "" });
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [quickLoginRole, setQuickLoginRole] = useState<string | null>(null);
-  const [data, setData] = useState<DashboardData>({
-    categories: [],
-    locations: [],
-    assets: [],
-    bookings: [],
-    defects: [],
-    profiles: [],
-    ticketThreads: []
-  });
+  const [data, setData] = useState<DashboardData>(initialData);
   const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -237,6 +133,12 @@ export function AdminDashboard() {
     return data.assets.find((asset) => asset.id === selectedAssetId) ?? data.assets[0];
   }, [data.assets, selectedAssetId]);
 
+  const counters = useMemo(() => data.counters ?? getDashboardCounters({
+    assets: data.assets,
+    bookings: data.bookings,
+    defects: data.defects
+  }), [data]);
+
   const authorizedProfile = access.status === "authorized" ? access.profile : null;
 
   const loadAccess = useCallback(async () => {
@@ -247,181 +149,56 @@ export function AdminDashboard() {
 
     setAccess({ status: "checking" });
     setAuthMessage(null);
-
-    const {
-      data: { session },
-      error: sessionError
-    } = await supabase.auth.getSession();
-
-    if (sessionError) {
-      setAccess({ status: "error", message: sessionError.message });
-      return;
-    }
-
-    if (!session) {
-      setAccess({ status: "signed-out" });
-      return;
-    }
-
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("id,email,full_name,role,department,is_active")
-      .eq("id", session.user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      setAccess({ status: "error", message: profileError.message });
-      return;
-    }
-
-    if (!profileData) {
-      setAccess({ status: "error", message: "No LABTRACK profile exists for the signed-in user." });
-      return;
-    }
-
-    const profile = toProfile(profileData as ProfileRow);
-
-    if (!profile.isActive || (profile.role !== "admin" && profile.role !== "super_admin")) {
-      setAccess({ status: "forbidden", profile });
-      return;
-    }
-
-    setAccess({ status: "authorized", profile });
+    setAccess(await getAdminAccessAction());
   }, [supabase]);
 
   const loadDashboardData = useCallback(async () => {
-    if (!supabase) {
-      return;
-    }
-
     setIsLoadingData(true);
     setDashboardMessage(null);
 
-    const [
-      categoriesResult,
-      locationsResult,
-      assetsResult,
-      qrResult,
-      bookingsResult,
-      defectsResult,
-      profilesResult,
-      threadsResult
-    ] = await Promise.all([
-      supabase.from("asset_categories").select("id,name").order("name"),
-      supabase.from("locations").select("id,name").order("name"),
-      supabase
-        .from("assets")
-        .select("id,property_number,serial_number,name,category_id,location_id,condition,status,notes,created_at")
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("asset_qr_codes")
-        .select("id,asset_id,code,generated_at")
-        .eq("is_active", true)
-        .order("generated_at", { ascending: false }),
-      supabase
-        .from("bookings")
-        .select("id,asset_id,instructor_id,purpose,status,requested_start_at,requested_end_at,decision_notes")
-        .order("created_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("defect_reports")
-        .select("id,asset_id,instructor_id,title,description,status,resolution_notes,created_at")
-        .order("created_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("profiles")
-        .select("id,email,full_name,role,department,is_active")
-        .order("full_name"),
-      supabase
-        .from("ticket_threads")
-        .select("id,subject_type,booking_id,defect_report_id,created_at")
-        .order("created_at", { ascending: false })
-        .limit(50)
-    ]);
+    const result = await getAdminDashboardDataAction();
 
-    const error = [
-      categoriesResult.error,
-      locationsResult.error,
-      assetsResult.error,
-      qrResult.error,
-      bookingsResult.error,
-      defectsResult.error,
-      profilesResult.error,
-      threadsResult.error
-    ].find(Boolean);
-
-    if (error) {
-      setDashboardMessage(error.message);
+    if (result.error || !result.data) {
+      setDashboardMessage(result.error ?? "Unable to load dashboard data.");
       setIsLoadingData(false);
       return;
     }
 
-    const categories = (categoriesResult.data ?? []) as CategoryRow[];
-    const locations = (locationsResult.data ?? []) as LocationRow[];
-    const qrCodes = (qrResult.data ?? []) as ActiveQrRow[];
-    const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
-    const locationNames = new Map(locations.map((location) => [location.id, location.name]));
-    const qrByAssetId = new Map(qrCodes.map((qrCode) => [qrCode.asset_id, qrCode]));
-    const assets = ((assetsResult.data ?? []) as AssetRow[]).map((asset) => ({
-      id: asset.id,
-      propertyNumber: asset.property_number,
-      serialNumber: asset.serial_number,
-      name: asset.name,
-      categoryId: asset.category_id,
-      categoryName: categoryNames.get(asset.category_id) ?? "Uncategorized",
-      locationId: asset.location_id,
-      locationName: locationNames.get(asset.location_id) ?? "Unassigned",
-      condition: asset.condition,
-      status: asset.status,
-      notes: asset.notes,
-      activeQr: qrByAssetId.get(asset.id) ?? null
-    }));
-
-    setData({
-      categories,
-      locations,
-      assets,
-      bookings: (bookingsResult.data ?? []) as BookingRow[],
-      defects: (defectsResult.data ?? []) as DefectRow[],
-      profiles: (profilesResult.data ?? []) as ProfileRow[],
-      ticketThreads: (threadsResult.data ?? []) as TicketThreadRow[]
-    });
+    const nextData = result.data;
+    setData(nextData);
     setSelectedAssetId((current) => {
-      if (current && assets.some((asset) => asset.id === current)) {
+      if (current && nextData.assets.some((asset) => asset.id === current)) {
         return current;
       }
 
-      return assets[0]?.id ?? null;
+      return nextData.assets[0]?.id ?? null;
     });
     setIsLoadingData(false);
-  }, [supabase]);
+  }, []);
 
   const loadThreadMessages = useCallback(async (threadId: string | null) => {
-    if (!supabase || !threadId) {
+    if (!threadId) {
       setThreadMessages([]);
       return;
     }
 
-    const { data: messages, error } = await supabase
-      .from("ticket_messages")
-      .select("id,thread_id,sender_id,body,created_at")
-      .eq("thread_id", threadId)
-      .order("created_at", { ascending: true });
+    const result = await getTicketMessagesAction(threadId);
 
-    if (error) {
-      setDashboardMessage(error.message);
+    if (result.error || !result.data) {
+      setDashboardMessage(result.error ?? "Unable to load ticket messages.");
       return;
     }
 
-    setThreadMessages((messages ?? []) as TicketMessageRow[]);
-  }, [supabase]);
-
-  useEffect(() => {
-    void loadAccess();
-  }, [loadAccess]);
+    setThreadMessages(result.data);
+  }, []);
 
   useEffect(() => {
     if (access.status === "authorized") {
+      if (shouldSkipInitialDashboardLoad.current) {
+        shouldSkipInitialDashboardLoad.current = false;
+        return;
+      }
+
       void loadDashboardData();
     }
   }, [access.status, loadDashboardData]);
@@ -478,7 +255,7 @@ export function AdminDashboard() {
     }
 
     await supabase.auth.signOut();
-    setData({ categories: [], locations: [], assets: [], bookings: [], defects: [], profiles: [], ticketThreads: [] });
+    setData(emptyDashboardData);
     setSelectedAssetId(null);
     setSelectedThreadId(null);
     setThreadMessages([]);
@@ -488,23 +265,7 @@ export function AdminDashboard() {
   async function handleCreateAsset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!supabase || !authorizedProfile) {
-      return;
-    }
-
-    const normalized = {
-      propertyNumber: assetForm.propertyNumber.trim(),
-      serialNumber: assetForm.serialNumber.trim() || null,
-      name: assetForm.name.trim(),
-      categoryId: assetForm.categoryId,
-      locationId: assetForm.locationId,
-      condition: assetForm.condition,
-      status: assetForm.status
-    };
-    const validation = assetSchema.safeParse(normalized);
-
-    if (!validation.success) {
-      setFormErrors(toFormErrors(validation.error.issues));
+    if (!authorizedProfile) {
       return;
     }
 
@@ -512,24 +273,16 @@ export function AdminDashboard() {
     setFormErrors({});
     setDashboardMessage(null);
 
-    const { data: insertedAsset, error } = await supabase
-      .from("assets")
-      .insert({
-        property_number: validation.data.propertyNumber,
-        serial_number: validation.data.serialNumber ?? null,
-        name: validation.data.name,
-        category_id: validation.data.categoryId,
-        location_id: validation.data.locationId,
-        condition: validation.data.condition,
-        status: validation.data.status,
-        notes: assetForm.notes.trim() || null,
-        created_by: authorizedProfile.id
-      })
-      .select("id")
-      .single();
+    const result = await createAssetAction(assetForm);
 
-    if (error) {
-      setDashboardMessage(error.message);
+    if (result.error || !result.data) {
+      setDashboardMessage(result.error ?? "Unable to create asset.");
+      setIsSavingAsset(false);
+      return;
+    }
+
+    if ("formErrors" in result.data) {
+      setFormErrors(toFormErrors(result.data.formErrors ?? []));
       setIsSavingAsset(false);
       return;
     }
@@ -537,13 +290,13 @@ export function AdminDashboard() {
     setAssetForm(blankAssetForm);
     setIsAssetFormOpen(false);
     await loadDashboardData();
-    setSelectedAssetId((insertedAsset as { id: string } | null)?.id ?? null);
+    setSelectedAssetId(result.data.id);
     setDashboardMessage("Asset created.");
     setIsSavingAsset(false);
   }
 
   async function handleGenerateQr(asset: AssetView | null) {
-    if (!supabase || !authorizedProfile || !asset) {
+    if (!authorizedProfile || !asset) {
       return;
     }
 
@@ -552,29 +305,25 @@ export function AdminDashboard() {
       return;
     }
 
-    await writeNewQrCode(supabase, authorizedProfile, asset);
+    await writeAssetQrCode(asset, "QR code updated.");
   }
 
   async function handleRegenerateQr(asset: AssetView | null) {
-    if (!supabase || !authorizedProfile || !asset) {
+    if (!authorizedProfile || !asset) {
       return;
     }
 
-    if (!asset.activeQr) {
-      await writeNewQrCode(supabase, authorizedProfile, asset);
-      return;
-    }
+    await writeAssetQrCode(asset, asset.activeQr ? "QR code regenerated." : "QR code updated.");
+  }
 
+  async function writeAssetQrCode(asset: AssetView, successMessage: string) {
     setIsWritingQr(true);
     setDashboardMessage(null);
 
-    const { error } = await supabase.rpc("regenerate_asset_qr", {
-      p_asset_id: asset.id,
-      p_qr_code: createAssetQrCode(asset)
-    });
+    const result = await generateAssetQrAction(asset.id);
 
-    if (error) {
-      setDashboardMessage(`${error.message} Refreshing asset data.`);
+    if (result.error) {
+      setDashboardMessage(`${result.error} Refreshing asset data.`);
       await loadDashboardData();
       setIsWritingQr(false);
       return;
@@ -582,41 +331,18 @@ export function AdminDashboard() {
 
     await loadDashboardData();
     setSelectedAssetId(asset.id);
-    setDashboardMessage("QR code regenerated.");
+    setDashboardMessage(successMessage);
     setIsWritingQr(false);
   }
 
-  async function writeNewQrCode(supabaseClient: SupabaseClient, profile: Profile, asset: AssetView) {
-    setIsWritingQr(true);
-    setDashboardMessage(null);
-
-    const { error } = await supabaseClient.from("asset_qr_codes").insert({
-      asset_id: asset.id,
-      code: createAssetQrCode(asset),
-      generated_by: profile.id
-    });
-
-    if (error) {
-      setDashboardMessage(`${error.message} Refreshing asset data.`);
-      await loadDashboardData();
-      setIsWritingQr(false);
-      return;
-    }
-
-    await loadDashboardData();
-    setSelectedAssetId(asset.id);
-    setDashboardMessage("QR code updated.");
-    setIsWritingQr(false);
-  }
-
-  async function runWorkflowMutation(action: () => PromiseLike<{ error: { message: string } | null }>, successMessage: string) {
+  async function runWorkflowMutation(action: () => PromiseLike<{ error: string | null }>, successMessage: string) {
     setIsMutatingWorkflow(true);
     setDashboardMessage(null);
 
     const { error } = await action();
 
     if (error) {
-      setDashboardMessage(error.message);
+      setDashboardMessage(error);
       setIsMutatingWorkflow(false);
       return;
     }
@@ -630,83 +356,52 @@ export function AdminDashboard() {
   }
 
   async function handleBookingDecision(booking: BookingRow, status: "approved" | "rejected") {
-    if (!supabase) {
-      return;
-    }
-
     await runWorkflowMutation(
-      () => supabase.rpc("decide_booking", {
-        p_booking_id: booking.id,
-        p_status: status,
-        p_notes: status === "approved" ? "Approved from LABTRACK admin." : "Rejected from LABTRACK admin."
-      }),
+      () => decideBookingAction(booking.id, status),
       `Booking ${status}.`
     );
   }
 
   async function handleBookingCheckout(booking: BookingRow) {
-    if (!supabase) {
-      return;
-    }
-
     await runWorkflowMutation(
-      () => supabase.rpc("checkout_booking", { p_booking_id: booking.id, p_notes: "Checked out from LABTRACK admin." }),
+      () => checkoutBookingAction(booking.id),
       "Booking checked out."
     );
   }
 
   async function handleBookingReturn(booking: BookingRow) {
-    if (!supabase) {
-      return;
-    }
-
     await runWorkflowMutation(
-      () => supabase.rpc("return_booking", { p_booking_id: booking.id, p_notes: "Returned from LABTRACK admin." }),
+      () => returnBookingAction(booking.id),
       "Booking returned."
     );
   }
 
   async function handleBookingCancel(booking: BookingRow) {
-    if (!supabase) {
-      return;
-    }
-
     await runWorkflowMutation(
-      () => supabase.rpc("cancel_booking", { p_booking_id: booking.id }),
+      () => cancelBookingAction(booking.id),
       "Booking cancelled."
     );
   }
 
   async function handleDefectTriage(report: DefectRow, status: "under_review" | "sent_for_repair" | "resolved" | "rejected") {
-    if (!supabase) {
-      return;
-    }
-
     await runWorkflowMutation(
-      () => supabase.rpc("triage_defect_report", {
-        p_defect_report_id: report.id,
-        p_status: status,
-        p_notes: `Marked ${formatLabel(status)} from LABTRACK admin.`
-      }),
+      () => triageDefectReportAction(report.id, status, formatLabel(status)),
       `Defect marked ${formatLabel(status)}.`
     );
   }
 
   async function handleSendTicketMessage() {
-    if (!supabase || !selectedThreadId || !ticketBody.trim()) {
+    if (!selectedThreadId || !ticketBody.trim()) {
       return;
     }
 
     setIsMutatingWorkflow(true);
     setDashboardMessage(null);
 
-    const { error } = await supabase.rpc("send_ticket_message", {
-      p_thread_id: selectedThreadId,
-      p_body: ticketBody.trim()
-    });
+    const { error } = await sendTicketMessageAction(selectedThreadId, ticketBody.trim());
 
     if (error) {
-      setDashboardMessage(error.message);
+      setDashboardMessage(error);
       setIsMutatingWorkflow(false);
       return;
     }
@@ -718,20 +413,15 @@ export function AdminDashboard() {
   }
 
   async function handleProfileUpdate(profile: ProfileRow, updates: Partial<Pick<ProfileRow, "role" | "is_active">>) {
-    if (!supabase || authorizedProfile?.role !== "super_admin") {
-      return;
-    }
-
-    if (profile.id === authorizedProfile.id && (updates.is_active === false || (updates.role && updates.role !== "super_admin"))) {
-      setDashboardMessage("You cannot remove your own active super admin access.");
+    if (authorizedProfile?.role !== "super_admin") {
       return;
     }
 
     setIsMutatingWorkflow(true);
-    const { error } = await supabase.from("profiles").update(updates).eq("id", profile.id);
+    const { error } = await updateProfileAccessAction(profile, updates);
 
     if (error) {
-      setDashboardMessage(error.message);
+      setDashboardMessage(error);
       setIsMutatingWorkflow(false);
       return;
     }
@@ -744,15 +434,15 @@ export function AdminDashboard() {
   async function handleCreateCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!supabase || !categoryName.trim()) {
+    if (!categoryName.trim()) {
       return;
     }
 
     setIsMutatingWorkflow(true);
-    const { error } = await supabase.from("asset_categories").insert({ name: categoryName.trim() });
+    const { error } = await createCategoryAction(categoryName);
 
     if (error) {
-      setDashboardMessage(error.message);
+      setDashboardMessage(error);
       setIsMutatingWorkflow(false);
       return;
     }
@@ -766,15 +456,15 @@ export function AdminDashboard() {
   async function handleCreateLocation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!supabase || !locationName.trim()) {
+    if (!locationName.trim()) {
       return;
     }
 
     setIsMutatingWorkflow(true);
-    const { error } = await supabase.from("locations").insert({ name: locationName.trim() });
+    const { error } = await createLocationAction(locationName);
 
     if (error) {
-      setDashboardMessage(error.message);
+      setDashboardMessage(error);
       setIsMutatingWorkflow(false);
       return;
     }
@@ -791,7 +481,7 @@ export function AdminDashboard() {
         access={access}
         authMessage={authMessage}
         credentials={credentials}
-        quickLoginAccounts={webQuickLoginAccounts}
+        quickLoginAccounts={quickLoginAccounts}
         quickLoginRole={quickLoginRole}
         onCredentialsChange={setCredentials}
         onQuickSignIn={handleQuickSignIn}
@@ -853,10 +543,10 @@ export function AdminDashboard() {
         {dashboardMessage ? <Notice tone={dashboardMessage.includes("created") || dashboardMessage.includes("updated") ? "success" : "warning"}>{dashboardMessage}</Notice> : null}
 
         <section className="metrics" aria-label="Operational summary">
-          <Metric label="Registered assets" value={data.assets.length.toString()} />
-          <Metric label="Pending bookings" value={data.bookings.filter((booking) => booking.status === "pending").length.toString()} />
-          <Metric label="Defect reports" value={data.defects.length.toString()} />
-          <Metric label="Active QR codes" value={data.assets.filter((asset) => asset.activeQr).length.toString()} />
+          <Metric label="Registered assets" value={counters.registeredAssets.toString()} />
+          <Metric label="Pending bookings" value={counters.pendingBookings.toString()} />
+          <Metric label="Open defects" value={counters.openDefects.toString()} />
+          <Metric label="Active QR codes" value={counters.activeQrCodes.toString()} />
         </section>
 
         {activeSection === "dashboard" ? (
@@ -1039,7 +729,7 @@ function AccessShell({
   onSignIn,
   onSignOut
 }: {
-  access: AccessState;
+  access: AdminAccessState;
   authMessage: string | null;
   credentials: { email: string; password: string };
   quickLoginAccounts: QuickLoginAccount[];
@@ -1227,19 +917,6 @@ function AssetForm({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="metric">
-      <span className="muted">{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return <span className={`badge ${status}`}>{formatLabel(status)}</span>;
-}
-
 function QrPreview({ asset }: { asset: AssetView | null }) {
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const activeCode = asset?.activeQr?.code ?? "";
@@ -1323,6 +1000,7 @@ function BookingAdminPanel({
         {bookings.length ? bookings.map((booking) => {
           const asset = assets.find((item) => item.id === booking.asset_id);
           const instructor = profiles.find((profile) => profile.id === booking.instructor_id);
+          const actions = getBookingWorkflowActions(booking.status);
           return (
             <article className="timeline-item" key={booking.id}>
               <div className="topbar compact">
@@ -1336,22 +1014,11 @@ function BookingAdminPanel({
               <p className="muted">{formatDateTime(booking.requested_start_at)} - {formatDateTime(booking.requested_end_at)}</p>
               {booking.decision_notes ? <p className="muted">{booking.decision_notes}</p> : null}
               <div className="actions">
-                {booking.status === "pending" ? (
-                  <>
-                    <button className="button primary" disabled={disabled} onClick={() => onApprove(booking)} type="button">Approve</button>
-                    <button className="button secondary" disabled={disabled} onClick={() => onReject(booking)} type="button">Reject</button>
-                    <button className="button secondary" disabled={disabled} onClick={() => onCancel(booking)} type="button">Cancel</button>
-                  </>
-                ) : null}
-                {booking.status === "approved" ? (
-                  <>
-                    <button className="button primary" disabled={disabled} onClick={() => onCheckout(booking)} type="button">Check out</button>
-                    <button className="button secondary" disabled={disabled} onClick={() => onCancel(booking)} type="button">Cancel</button>
-                  </>
-                ) : null}
-                {booking.status === "checked_out" ? (
-                  <button className="button primary" disabled={disabled} onClick={() => onReturn(booking)} type="button">Return</button>
-                ) : null}
+                {actions.includes("approve") ? <button className="button primary" disabled={disabled} onClick={() => onApprove(booking)} type="button">Approve</button> : null}
+                {actions.includes("reject") ? <button className="button secondary" disabled={disabled} onClick={() => onReject(booking)} type="button">Reject</button> : null}
+                {actions.includes("checkout") ? <button className="button primary" disabled={disabled} onClick={() => onCheckout(booking)} type="button">Check out</button> : null}
+                {actions.includes("return") ? <button className="button primary" disabled={disabled} onClick={() => onReturn(booking)} type="button">Return</button> : null}
+                {actions.includes("cancel") ? <button className="button secondary" disabled={disabled} onClick={() => onCancel(booking)} type="button">Cancel</button> : null}
               </div>
             </article>
           );
@@ -1386,7 +1053,7 @@ function DefectAdminPanel({
         {reports.length ? reports.map((report) => {
           const asset = assets.find((item) => item.id === report.asset_id);
           const instructor = profiles.find((profile) => profile.id === report.instructor_id);
-          const canTriage = !["resolved", "rejected"].includes(report.status);
+          const transitions = getDefectTransitions(report.status);
           return (
             <article className="timeline-item" key={report.id}>
               <div className="topbar compact">
@@ -1398,12 +1065,12 @@ function DefectAdminPanel({
               </div>
               <p className="muted">{report.description}</p>
               {report.resolution_notes ? <p className="muted">{report.resolution_notes}</p> : null}
-              {canTriage ? (
+              {transitions.length ? (
                 <div className="actions">
-                  {report.status === "pending" ? <button className="button secondary" disabled={disabled} onClick={() => onTriage(report, "under_review")} type="button">Review</button> : null}
-                  <button className="button secondary" disabled={disabled} onClick={() => onTriage(report, "sent_for_repair")} type="button">Send for repair</button>
-                  <button className="button primary" disabled={disabled} onClick={() => onTriage(report, "resolved")} type="button">Resolve</button>
-                  <button className="button secondary" disabled={disabled} onClick={() => onTriage(report, "rejected")} type="button">Reject</button>
+                  {transitions.includes("under_review") ? <button className="button secondary" disabled={disabled} onClick={() => onTriage(report, "under_review")} type="button">Review</button> : null}
+                  {transitions.includes("sent_for_repair") ? <button className="button secondary" disabled={disabled} onClick={() => onTriage(report, "sent_for_repair")} type="button">Send for repair</button> : null}
+                  {transitions.includes("resolved") ? <button className="button primary" disabled={disabled} onClick={() => onTriage(report, "resolved")} type="button">Resolve</button> : null}
+                  {transitions.includes("rejected") ? <button className="button secondary" disabled={disabled} onClick={() => onTriage(report, "rejected")} type="button">Reject</button> : null}
                 </div>
               ) : null}
             </article>
@@ -1618,30 +1285,6 @@ function CatalogPanel({
   );
 }
 
-function Notice({ children, tone }: { children: React.ReactNode; tone: "danger" | "neutral" | "success" | "warning" }) {
-  return (
-    <div className={`notice ${tone}`}>
-      <AlertTriangle size={16} />
-      <span>{children}</span>
-    </div>
-  );
-}
-
-function EmptyState({ label }: { label: string }) {
-  return <div className="empty-state">{label}</div>;
-}
-
-function toProfile(row: ProfileRow): Profile {
-  return {
-    id: row.id,
-    email: row.email,
-    fullName: row.full_name,
-    role: row.role,
-    department: row.department,
-    isActive: row.is_active
-  };
-}
-
 function toFormErrors(issues: Array<{ path: PropertyKey[]; message: string }>): FormErrors {
   return issues.reduce<FormErrors>((errors, issue) => {
     const key = issue.path[0];
@@ -1654,17 +1297,8 @@ function toFormErrors(issues: Array<{ path: PropertyKey[]; message: string }>): 
   }, {});
 }
 
-function createAssetQrCode(asset: AssetView) {
-  const randomBytes = new Uint8Array(4);
-  crypto.getRandomValues(randomBytes);
-  const suffix = Array.from(randomBytes, (byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
-  const normalizedProperty = asset.propertyNumber.replace(/[^A-Z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase();
-
-  return `ASSET-${normalizedProperty}-${suffix}`;
-}
-
 function formatLabel(value: string) {
-  return value.replaceAll("_", " ");
+  return formatStatusLabel(value);
 }
 
 function formatDateTime(value: string) {

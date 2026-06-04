@@ -1,4 +1,5 @@
 export const backendRpcNames = {
+  listAdminAssets: "list_admin_assets",
   resolveAssetByQrCode: "resolve_asset_by_qr_code",
   regenerateAssetQr: "regenerate_asset_qr",
   createBooking: "create_booking",
@@ -14,6 +15,7 @@ export const backendRpcNames = {
 } as const;
 
 export const backendRpcArgumentNames = {
+  listAdminAssets: ["p_limit", "p_offset"],
   resolveAssetByQrCode: ["p_qr_code"],
   regenerateAssetQr: ["p_asset_id", "p_qr_code"],
   createBooking: ["p_asset_id", "p_requested_start_at", "p_requested_end_at", "p_purpose"],

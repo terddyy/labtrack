@@ -7,20 +7,21 @@ import { colors } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 import { formatApiError, hasSupabaseConfig, signInWithPassword } from "@/lib/labtrack-api";
 
-const quickLoginAccounts = buildQuickLoginAccounts({
-  super_admin: {
-    email: process.env.EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL,
-    password: process.env.EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD
-  },
-  admin: {
-    email: process.env.EXPO_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL,
-    password: process.env.EXPO_PUBLIC_QUICK_LOGIN_ADMIN_PASSWORD
-  },
-  instructor: {
-    email: process.env.EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_EMAIL,
-    password: process.env.EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_PASSWORD
-  }
-});
+const isQuickLoginEnabled = process.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN === "true" || process.env.NODE_ENV !== "production";
+const quickLoginAccounts = isQuickLoginEnabled
+  ? buildQuickLoginAccounts(
+    {
+      instructor: {
+        email: process.env.EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_EMAIL,
+        password: process.env.EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_PASSWORD
+      }
+    },
+    {
+      includeDefaults: process.env.NODE_ENV !== "production",
+      roles: ["instructor"] as const
+    }
+  )
+  : [];
 
 export default function SignInScreen() {
   const auth = useCurrentProfile();
@@ -30,6 +31,7 @@ export default function SignInScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingQuickRole, setPendingQuickRole] = useState<string | null>(null);
   const isConfigured = hasSupabaseConfig();
+  const isManualSignInDisabled = isSubmitting || !isConfigured || !email.trim() || !password;
 
   async function handleSignIn() {
     setIsSubmitting(true);
@@ -66,37 +68,25 @@ export default function SignInScreen() {
   }
 
   return (
-    <ScreenScrollView includeTopInset>
-      <View style={styles.brandRow}>
-        <View style={styles.brandMark}>
-          <Text style={styles.brandMarkText}>LT</Text>
+    <ScreenScrollView contentContainerStyle={styles.screenContent} includeTopInset>
+      <View style={styles.heroPanel}>
+        <View style={styles.brandRow}>
+          <View style={styles.brandMark}>
+            <Text style={styles.brandMarkText}>LT</Text>
+          </View>
+          <View style={styles.brandCopy}>
+            <Text style={styles.brandName}>LABTRACK</Text>
+            <Text style={styles.brandCaption}>Mobile asset access</Text>
+          </View>
         </View>
-        <View style={styles.brandCopy}>
-          <Text style={styles.brandName}>LABTRACK</Text>
-          <Text style={styles.brandCaption}>Instructor asset workflow</Text>
-        </View>
+        <Text style={styles.heroTitle}>Sign in to borrow, scan, and report lab equipment.</Text>
       </View>
-
-      <Card style={styles.introCard}>
-        <View style={styles.introCopy}>
-          <Text style={styles.eyebrow}>Mobile portal</Text>
-          <Text style={styles.heroTitle}>Scan, book, report, and reply from the lab floor.</Text>
-          <Text style={styles.heroText}>
-            Use the same LABTRACK account to open QR scanning, booking status, defect reports, tickets, and notifications.
-          </Text>
-        </View>
-        <View style={styles.previewGrid}>
-          <PreviewPill accent={colors.primary} label="QR scan" value="Ready" />
-          <PreviewPill accent={colors.coral} label="Bookings" value="Live" />
-          <PreviewPill accent={colors.secondary} label="Tickets" value="Synced" />
-        </View>
-      </Card>
 
       {!isConfigured ? <Notice tone="warning">Supabase mobile configuration is missing.</Notice> : null}
       {message ? <Notice tone="danger">{message}</Notice> : null}
 
       <Card style={styles.formPanel}>
-        <SectionTitle title="Sign in" caption="Use your LABTRACK account to unlock scanner and workflow actions." />
+        <SectionTitle title="Sign in" caption="Use your LABTRACK account to open the mobile workflow." />
         <Field
           autoCapitalize="none"
           autoComplete="email"
@@ -116,14 +106,14 @@ export default function SignInScreen() {
           textContentType="password"
           value={password}
         />
-        <Button disabled={isSubmitting || !isConfigured} loading={isSubmitting && !pendingQuickRole} onPress={handleSignIn}>
+        <Button disabled={isManualSignInDisabled} loading={isSubmitting && !pendingQuickRole} onPress={handleSignIn}>
           Open dashboard
         </Button>
       </Card>
 
       {quickLoginAccounts.length ? (
         <Card style={styles.quickPanel}>
-          <SectionTitle title="Quick access" caption="Demo accounts appear here when local credentials are configured." />
+          <SectionTitle title="Quick login" caption="Training access is shown only when quick login is enabled for this build." />
           <View style={styles.quickGrid}>
             {quickLoginAccounts.map((account) => (
               <Button
@@ -143,21 +133,9 @@ export default function SignInScreen() {
   );
 }
 
-function PreviewPill({ accent, label, value }: { accent: string; label: string; value: string }) {
-  return (
-    <View style={styles.previewPill}>
-      <View style={[styles.previewDot, { backgroundColor: accent }]} />
-      <View style={styles.previewCopy}>
-        <Text style={styles.previewLabel}>{label}</Text>
-        <Text style={styles.previewValue}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   brandCaption: {
-    color: colors.muted,
+    color: "#C8D8EF",
     fontSize: 13,
     fontWeight: "700"
   },
@@ -167,19 +145,19 @@ const styles = StyleSheet.create({
   },
   brandMark: {
     alignItems: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface,
     borderRadius: 8,
     height: 44,
     justifyContent: "center",
     width: 44
   },
   brandMarkText: {
-    color: colors.surface,
+    color: colors.primary,
     fontSize: 16,
     fontWeight: "900"
   },
   brandName: {
-    color: colors.text,
+    color: colors.surface,
     fontSize: 18,
     fontWeight: "900",
     letterSpacing: 0
@@ -189,72 +167,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12
   },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 0,
-    textTransform: "uppercase"
-  },
   formPanel: {
     gap: 14
   },
-  heroText: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 20
+  heroPanel: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    gap: 28,
+    padding: 20
   },
   heroTitle: {
-    color: colors.text,
-    fontSize: 22,
+    color: colors.surface,
+    fontSize: 28,
     fontWeight: "900",
-    lineHeight: 27
-  },
-  introCard: {
-    backgroundColor: colors.primaryMuted,
-    borderColor: "#C3DED8",
-    gap: 14
-  },
-  introCopy: {
-    gap: 7
-  },
-  previewCopy: {
-    flex: 1,
-    gap: 1
-  },
-  previewDot: {
-    borderRadius: 999,
-    height: 9,
-    width: 9
-  },
-  previewGrid: {
-    gap: 8
-  },
-  previewLabel: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "800"
-  },
-  previewPill: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 9,
-    minHeight: 42,
-    paddingHorizontal: 11
-  },
-  previewValue: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: "800"
+    lineHeight: 34
   },
   quickGrid: {
     gap: 10
   },
   quickPanel: {
     gap: 14
+  },
+  screenContent: {
+    flexGrow: 1,
+    justifyContent: "center"
   }
 });
