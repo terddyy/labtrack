@@ -1,9 +1,13 @@
 "use server";
 
 import {
+  assetConditions,
+  assetStatuses,
   bookingStatuses,
   reportTypes,
   userRoles as sharedUserRoles,
+  type AssetCondition,
+  type AssetStatus,
   type BookingStatus,
   type DefectStatus,
   type ReportType,
@@ -52,6 +56,8 @@ import type {
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string };
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const defectTriageStatuses = new Set(["under_review", "sent_for_repair", "resolved", "rejected"]);
+const validAssetConditions = new Set<string>(assetConditions);
+const validAssetStatuses = new Set<string>(assetStatuses);
 const validBookingStatuses = new Set<string>(bookingStatuses);
 const validReportTypes = new Set<string>(reportTypes);
 const userRoles = new Set<string>(sharedUserRoles);
@@ -87,8 +93,8 @@ export async function getPrintableReportDataAction(input: PrintableReportFilters
   }));
 }
 
-export async function createAssetAction(input: AssetFormState) {
-  return toActionResult(() => createAsset(input));
+export async function createAssetAction(input: FormData) {
+  return toActionResult(() => createAsset(parseAssetForm(input)));
 }
 
 export async function generateAssetQrAction(assetId: string) {
@@ -286,6 +292,50 @@ function parseBookingStatusList(value: BookingStatus[] | null | undefined): Book
 
     return status;
   });
+}
+
+function parseAssetForm(value: FormData): AssetFormState {
+  return {
+    name: readFormText(value, "name"),
+    categoryId: readFormText(value, "categoryId"),
+    locationId: readFormText(value, "locationId"),
+    condition: parseAssetCondition(readFormText(value, "condition")),
+    status: parseAssetStatus(readFormText(value, "status")),
+    notes: readFormText(value, "notes"),
+    imageFile: readOptionalImageFile(value, "imageFile")
+  };
+}
+
+function readFormText(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  return typeof value === "string" ? value : "";
+}
+
+function readOptionalImageFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  if (!(value instanceof File) || value.size === 0) {
+    return null;
+  }
+
+  return value;
+}
+
+function parseAssetCondition(value: string): AssetCondition {
+  if (!validAssetConditions.has(value)) {
+    throw new Error("Asset condition is invalid.");
+  }
+
+  return value as AssetCondition;
+}
+
+function parseAssetStatus(value: string): AssetStatus {
+  if (!validAssetStatuses.has(value)) {
+    throw new Error("Asset status is invalid.");
+  }
+
+  return value as AssetStatus;
 }
 
 function parseReportType(value: ReportType): ReportType {

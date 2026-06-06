@@ -39,7 +39,7 @@ export function RequireActiveProfile({ children }: { children: ReactNode }) {
     return (
       <GateScreen>
         <Notice tone="danger">{auth.error}</Notice>
-        <Button onPress={() => void auth.refresh()} variant="secondary">Try Again</Button>
+        <Button onPress={() => void auth.refresh({ showLoading: true })} variant="secondary">Try Again</Button>
       </GateScreen>
     );
   }
@@ -54,5 +54,5 @@ export function RequireActiveProfile({ children }: { children: ReactNode }) {
 }
 
 function GateScreen({ children }: { children: ReactNode }) {
-  return <ScreenScrollView>{children}</ScreenScrollView>;
+  return <ScreenScrollView includeTopInset>{children}</ScreenScrollView>;
 }

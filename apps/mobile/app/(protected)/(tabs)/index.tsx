@@ -2,7 +2,7 @@ import { formatStatusLabel, getBookingStatusTone, getRoleDisplayLabel } from "@l
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Badge, Card, Notice, ScreenScrollView } from "@/components/ui";
+import { Badge, Card, Notice, ScreenScrollView, SkeletonCard } from "@/components/ui";
 import { colors, shadows, spacing } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 import { registerForPushNotifications } from "@/lib/notifications";
@@ -28,12 +28,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (auth.status === "ready") {
-      void registerForPushNotifications();
+      registerForPushNotifications().catch((error) => {
+        console.warn("LABTRACK push notification registration failed.", error);
+      });
     }
   }, [auth.status]);
 
   return (
-    <ScreenScrollView>
+    <ScreenScrollView includeTopInset>
       <View style={styles.topBar}>
         <View style={styles.identity}>
           <View style={styles.avatar}>
@@ -53,49 +55,30 @@ export default function HomeScreen() {
       {auth.status === "error" ? <Notice tone="danger">{auth.error}</Notice> : null}
       {auth.status === "inactive" ? <Notice tone="danger">Your LABTRACK profile is inactive. Contact a custodian before using workflows.</Notice> : null}
       {summary.error ? <Notice tone="warning">{summary.error}</Notice> : null}
+      {bookingQueue.error ? <Notice tone="warning">{bookingQueue.error}</Notice> : null}
+      {defects.error ? <Notice tone="warning">{defects.error}</Notice> : null}
 
       <View style={styles.quickRow}>
         <QuickAction label="Scan" icon="scan" onPress={() => router.push("/scan")} />
         <QuickAction label="Borrow" icon="box" onPress={() => router.push("/borrow")} />
         <QuickAction label="Report" icon="alert" onPress={() => router.push("/reports")} />
+        <QuickAction label="Tickets" icon="message" onPress={() => router.push("/ticket")} />
       </View>
 
-      <View style={styles.heroGrid}>
-        <Card style={styles.primaryCard}>
-          <View style={styles.cardLabelRow}>
-            <Text style={styles.eyebrow}>Dashboard</Text>
-            <SoftIcon color={colors.primary} name="monitor" />
-          </View>
-          <Text style={styles.assetCount}>{formatNumber(trackedAssets)}</Text>
-          <Text style={styles.assetCaption}>
-            tracked assets across {summary.labCount || 5} computer laboratories
-          </Text>
-          <View style={styles.heroMetaRow}>
-            <MiniStat label="Role" value={roleLabel} />
-            <MiniStat label="Open work" value={String(summary.pendingBookings + summary.openDefects)} />
-          </View>
-        </Card>
-
-        <Pressable accessibilityRole="button" onPress={() => router.push("/scan")} style={({ pressed }) => [styles.scanCard, pressed ? styles.pressed : null]}>
-          <View style={styles.scanFrame}>
-            <View style={[styles.scanCorner, styles.scanTopLeft]} />
-            <View style={[styles.scanCorner, styles.scanTopRight]} />
-            <View style={[styles.scanCorner, styles.scanBottomLeft]} />
-            <View style={[styles.scanCorner, styles.scanBottomRight]} />
-            <View style={styles.scanGlyphBox}>
-              <View style={styles.qrBlockRow}>
-                <View style={styles.qrBlock} />
-                <View style={styles.qrBlock} />
-              </View>
-              <View style={styles.qrBlockRow}>
-                <View style={styles.qrBlockWide} />
-                <View style={styles.qrBlock} />
-              </View>
-            </View>
-          </View>
-          <Text style={styles.scanTitle}>Scan{"\n"}QR Code</Text>
-        </Pressable>
-      </View>
+      <Card style={styles.primaryCard}>
+        <View style={styles.cardLabelRow}>
+          <Text style={styles.eyebrow}>Dashboard</Text>
+          <SoftIcon color={colors.primary} name="monitor" />
+        </View>
+        <Text style={styles.assetCount}>{formatNumber(trackedAssets)}</Text>
+        <Text style={styles.assetCaption}>
+          tracked assets across {summary.labCount || 5} computer laboratories
+        </Text>
+        <View style={styles.heroMetaRow}>
+          <MiniStat label="Role" value={roleLabel} />
+          <MiniStat label="Open work" value={String(summary.pendingBookings + summary.openDefects)} />
+        </View>
+      </Card>
 
       <View style={styles.metricGrid}>
         <MetricCard color={colors.blue} icon="box" label="On loan" value={onLoan} />
@@ -106,10 +89,11 @@ export default function HomeScreen() {
 
       <SectionHeader actionLabel="Review all" onAction={() => router.push("/borrow")} title="Borrowing Queue" />
       <View style={styles.queueList}>
+        {!bookingQueue.hasLoaded && bookingQueue.isLoading ? <SkeletonCard lines={3} /> : null}
         {bookingQueue.bookings.slice(0, 3).map((booking) => (
           <BorrowQueueCard booking={booking} key={booking.id} />
         ))}
-        {!bookingQueue.bookings.length && !bookingQueue.isLoading ? (
+        {!bookingQueue.bookings.length && bookingQueue.hasLoaded && !bookingQueue.isLoading ? (
           <SoftEmpty body="Approved, pending, and returned borrowing activity will appear here." title="No active borrowing queue" />
         ) : null}
       </View>
@@ -132,10 +116,11 @@ export default function HomeScreen() {
 
       <SectionHeader actionLabel="Open" onAction={() => router.push("/reports")} title="Recent Defect Reports" />
       <View style={styles.defectList}>
+        {!defects.hasLoaded && defects.isLoading ? <SkeletonCard lines={3} /> : null}
         {defects.reports.slice(0, 3).map((report) => (
           <IncidentCard key={report.id} report={report} />
         ))}
-        {!defects.reports.length && !defects.isLoading ? (
+        {!defects.reports.length && defects.hasLoaded && !defects.isLoading ? (
           <SoftEmpty body="New laboratory incidents will appear here after defect reports are submitted." title="No recent incidents" />
         ) : null}
       </View>
@@ -283,7 +268,7 @@ function SoftEmpty({ body, title }: { body: string; title: string }) {
   );
 }
 
-type IconName = "alert" | "box" | "check" | "clock" | "monitor" | "scan";
+type IconName = "alert" | "box" | "check" | "clock" | "message" | "monitor" | "scan";
 
 function SoftIcon({ color, name, size = 22 }: { color: string; name: IconName; size?: number }) {
   if (name === "alert") {
@@ -328,6 +313,15 @@ function SoftIcon({ color, name, size = 22 }: { color: string; name: IconName; s
       <View style={[styles.iconCanvas, { height: size, width: size }]}>
         <View style={[styles.monitorScreen, { borderColor: color }]} />
         <View style={[styles.monitorStand, { backgroundColor: color }]} />
+      </View>
+    );
+  }
+
+  if (name === "message") {
+    return (
+      <View style={[styles.iconCanvas, { height: size, width: size }]}>
+        <View style={[styles.messageBubble, { borderColor: color }]} />
+        <View style={[styles.messageTail, { borderTopColor: color }]} />
       </View>
     );
   }
@@ -586,14 +580,16 @@ const styles = StyleSheet.create({
     minWidth: 0
   },
   incidentCard: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     minHeight: 76,
     padding: 12
   },
   incidentCopy: {
     flex: 1,
+    flexBasis: 150,
     gap: 3,
     minWidth: 0
   },
@@ -670,6 +666,23 @@ const styles = StyleSheet.create({
     height: 3,
     marginTop: 2,
     width: 12
+  },
+  messageBubble: {
+    borderRadius: 7,
+    borderWidth: 2,
+    height: 15,
+    width: 19
+  },
+  messageTail: {
+    borderLeftColor: "transparent",
+    borderLeftWidth: 4,
+    borderRightColor: "transparent",
+    borderRightWidth: 0,
+    borderTopWidth: 5,
+    height: 0,
+    marginLeft: -8,
+    marginTop: -2,
+    width: 0
   },
   notificationButton: {
     alignItems: "center",
@@ -788,14 +801,16 @@ const styles = StyleSheet.create({
     width: 22
   },
   queueCard: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     minHeight: 84,
     padding: 14
   },
   queueCopy: {
     flex: 1,
+    flexBasis: 150,
     gap: 4,
     minWidth: 0
   },
@@ -818,10 +833,12 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.8)",
     borderRadius: 18,
     borderWidth: 1,
-    flex: 1,
+    flexBasis: "47%",
+    flexGrow: 1,
     flexDirection: "row",
     gap: 8,
     justifyContent: "center",
+    minWidth: 140,
     minHeight: 50,
     paddingHorizontal: 10,
     ...shadows.soft
@@ -833,6 +850,7 @@ const styles = StyleSheet.create({
   },
   quickRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10
   },
   scanBottomLeft: {

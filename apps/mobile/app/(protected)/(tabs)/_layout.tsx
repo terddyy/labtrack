@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { Platform, StyleSheet, View, type ColorValue } from "react-native";
-import { colors, shadows, spacing } from "@/constants/theme";
+import { colors } from "@/constants/theme";
 
 type TabIconName = "home" | "borrow" | "scan" | "notifications" | "profile";
 
@@ -249,13 +249,9 @@ const styles = StyleSheet.create({
   },
   scanShell: {
     backgroundColor: colors.primaryMuted,
-    borderColor: colors.surface,
-    borderRadius: 999,
-    borderWidth: 4,
-    height: 58,
-    marginTop: -34,
-    width: 58,
-    ...shadows.accent
+    borderRadius: 16,
+    height: 38,
+    width: 48
   },
   scanShellActive: {
     backgroundColor: colors.primary
@@ -274,25 +270,18 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     backgroundColor: colors.surface,
-    borderColor: "rgba(255, 255, 255, 0.82)",
-    borderRadius: spacing.navRadius,
-    borderWidth: 1,
-    bottom: Platform.select({ android: 18, default: 22 }),
-    height: Platform.select({ android: 74, default: 82 }),
-    left: 18,
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    height: Platform.select({ android: 76, default: 84 }),
     paddingBottom: Platform.select({ android: 10, default: 18 }),
-    paddingHorizontal: 10,
-    paddingTop: 10,
-    position: "absolute",
-    right: 18,
-    ...shadows.floating,
-    ...Platform.select({ ios: { borderCurve: "continuous" } })
+    paddingHorizontal: 8,
+    paddingTop: 10
   },
   tabItem: {
-    minWidth: 58
+    minWidth: 0
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     marginTop: 3
   }

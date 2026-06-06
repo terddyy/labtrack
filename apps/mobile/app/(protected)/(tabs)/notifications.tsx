@@ -1,35 +1,46 @@
 import { StyleSheet, Text, View } from "react-native";
-import { Badge, Button, Card, EmptyState, Notice, ScreenScrollView } from "@/components/ui";
-import { colors, shadows } from "@/constants/theme";
+import { Badge, Button, Card, EmptyState, Notice, ScreenFlatList, SkeletonCard } from "@/components/ui";
+import { colors } from "@/constants/theme";
 import { useNotifications } from "@/lib/use-notifications";
 
 export default function NotificationsScreen() {
-  const { error, isLoading, markRead, notifications, readingId, refresh } = useNotifications();
+  const { error, hasLoaded, isLoading, markRead, notifications, readingId, refresh } = useNotifications();
 
   return (
-    <ScreenScrollView>
-      <Card style={styles.heroCard}>
-        <View style={styles.headerRow}>
-          <View style={styles.heroCopy}>
-            <Text style={styles.heroKicker}>Notification Center</Text>
-            <Text style={styles.heroTitle}>Updates that need attention.</Text>
-            <Text style={styles.heroCaption}>Borrow decisions, defect changes, and ticket replies stay organized here.</Text>
-          </View>
-          <View style={styles.unreadBubble}>
-            <Text style={styles.unreadValue}>{notifications.filter((notification) => !notification.readAt).length}</Text>
-            <Text style={styles.unreadLabel}>unread</Text>
-          </View>
-        </View>
-        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
-          Refresh
-        </Button>
-      </Card>
-      {error ? <Notice tone="danger">{error}</Notice> : null}
-      {!notifications.length && !isLoading ? (
-        <EmptyState body="New borrow decisions, defect updates, and ticket replies will appear here." title="No notifications yet" />
-      ) : null}
-      {notifications.map((notification) => (
-        <Card key={notification.id} style={[styles.notificationCard, !notification.readAt ? styles.unreadCard : null]}>
+    <ScreenFlatList
+      data={notifications}
+      empty={hasLoaded && !isLoading ? <EmptyState body="New borrow decisions, defect updates, and ticket replies will appear here." title="No notifications yet" /> : null}
+      header={(
+        <>
+          <Card style={styles.heroCard}>
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroKicker}>Notification Center</Text>
+              <Text style={styles.heroTitle}>Updates that need attention.</Text>
+              <Text style={styles.heroCaption}>Borrow decisions, defect changes, and ticket replies stay organized here.</Text>
+            </View>
+            <View style={styles.heroActions}>
+              <View style={styles.unreadPill}>
+                <Text style={styles.unreadValue}>{notifications.filter((notification) => !notification.readAt).length}</Text>
+                <Text style={styles.unreadLabel}>unread</Text>
+              </View>
+              <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
+                Refresh
+              </Button>
+            </View>
+          </Card>
+          {error ? <Notice tone="danger">{error}</Notice> : null}
+          {!hasLoaded && isLoading ? (
+            <>
+              <SkeletonCard lines={3} />
+              <SkeletonCard lines={3} />
+            </>
+          ) : null}
+        </>
+      )}
+      includeTopInset
+      keyExtractor={(notification) => notification.id}
+      renderItem={({ item: notification }) => (
+        <Card style={[styles.notificationCard, !notification.readAt ? styles.unreadCard : null]}>
           <View style={styles.cardHeader}>
             <Badge label={notification.readAt ? "read" : "unread"} tone={notification.readAt ? "neutral" : "warning"} />
             <Text style={styles.dateText}>{new Date(notification.createdAt).toLocaleString()}</Text>
@@ -47,8 +58,8 @@ export default function NotificationsScreen() {
             </Button>
           ) : null}
         </Card>
-      ))}
-    </ScreenScrollView>
+      )}
+    />
   );
 }
 
@@ -60,8 +71,9 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   cardHeader: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     justifyContent: "space-between"
   },
@@ -76,28 +88,28 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 12,
     fontWeight: "700",
-    textAlign: "right"
-  },
-  headerRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 14,
-    justifyContent: "space-between"
+    lineHeight: 17,
+    textAlign: "left"
   },
   heroCaption: {
     color: colors.muted,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    lineHeight: 20
+    lineHeight: 18
+  },
+  heroActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
   },
   heroCard: {
     backgroundColor: colors.blueMuted,
     borderColor: "rgba(255,255,255,0.84)",
-    gap: 16,
-    padding: 22
+    gap: 14,
+    padding: 18
   },
   heroCopy: {
-    flex: 1,
     gap: 7,
     minWidth: 0
   },
@@ -109,33 +121,34 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: colors.text,
-    fontSize: 25,
+    fontSize: 21,
     fontWeight: "900",
-    lineHeight: 30
+    lineHeight: 26
   },
   notificationCard: {
     gap: 12
   },
-  unreadBubble: {
+  unreadPill: {
     alignItems: "center",
     backgroundColor: colors.surface,
-    borderRadius: 22,
-    height: 82,
+    borderRadius: 18,
+    flexDirection: "row",
+    gap: 7,
+    minHeight: 52,
     justifyContent: "center",
-    width: 82,
-    ...shadows.soft
+    paddingHorizontal: 14
   },
   unreadLabel: {
     color: colors.muted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800"
   },
   unreadValue: {
     color: colors.blue,
-    fontSize: 28,
+    fontSize: 22,
     fontVariant: ["tabular-nums"],
     fontWeight: "900",
-    lineHeight: 32
+    lineHeight: 26
   },
   unreadCard: {
     borderColor: colors.warning,

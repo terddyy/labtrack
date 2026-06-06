@@ -113,6 +113,7 @@ export type AssetView = {
   condition: AssetCondition;
   status: AssetStatus;
   notes: string | null;
+  primaryImageUrl: string | null;
   activeQr: ActiveQrRow | null;
 };
 
@@ -129,14 +130,13 @@ export type DashboardData = {
 };
 
 export type AssetFormState = {
-  propertyNumber: string;
-  serialNumber: string;
   name: string;
   categoryId: string;
   locationId: string;
   condition: AssetCondition;
   status: AssetStatus;
   notes: string;
+  imageFile: File | null;
 };
 
 export type FormErrors = Partial<Record<keyof AssetFormState, string>>;

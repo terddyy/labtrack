@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Platform,
   Pressable,
   ScrollView,
@@ -9,6 +10,8 @@ import {
   TextInput,
   View,
   type PressableProps,
+  type FlatListProps,
+  type ListRenderItem,
   type ScrollViewProps,
   type StyleProp,
   type TextInputProps,
@@ -53,6 +56,40 @@ export function ScreenScrollView({
     >
       <View style={styles.screenInner}>{children}</View>
     </ScrollView>
+  );
+}
+
+export function ScreenFlatList<ItemT>({
+  contentContainerStyle,
+  empty,
+  header,
+  includeTopInset = false,
+  renderItem,
+  ...props
+}: Omit<FlatListProps<ItemT>, "ListEmptyComponent" | "ListHeaderComponent" | "renderItem"> & {
+  empty?: ReactNode;
+  header?: ReactNode;
+  includeTopInset?: boolean;
+  renderItem: ListRenderItem<ItemT>;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <FlatList
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      {...props}
+      style={[styles.screen, props.style]}
+      contentContainerStyle={[
+        styles.screenListViewport,
+        includeTopInset ? { paddingTop: Math.max(insets.top + 16, 28) } : null,
+        { paddingBottom: Math.max(insets.bottom + 112, 128) },
+        contentContainerStyle
+      ]}
+      ListEmptyComponent={empty ? <View style={styles.screenListItem}>{empty}</View> : null}
+      ListHeaderComponent={header ? <View style={styles.screenListHeader}>{header}</View> : null}
+      renderItem={(info) => <View style={styles.screenListItem}>{renderItem(info)}</View>}
+    />
   );
 }
 
@@ -157,6 +194,25 @@ export function EmptyState({ action, body, title }: { action?: ReactNode; body: 
   );
 }
 
+export function SkeletonCard({ lines = 3 }: { lines?: number }) {
+  return (
+    <Card style={styles.skeletonCard}>
+      {Array.from({ length: lines }).map((_, index) => (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          key={index}
+          style={[
+            styles.skeletonLine,
+            index === 0 ? styles.skeletonLineStrong : null,
+            index === lines - 1 ? styles.skeletonLineShort : null
+          ]}
+        />
+      ))}
+    </Card>
+  );
+}
+
 export function Field({
   inputStyle,
   label,
@@ -191,6 +247,7 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: "flex-start",
     borderRadius: 999,
+    flexShrink: 1,
     maxWidth: "100%",
     minHeight: 30,
     paddingHorizontal: 12,
@@ -252,6 +309,7 @@ const styles = StyleSheet.create({
     color: colors.primaryDark
   },
   card: {
+    alignSelf: "stretch",
     backgroundColor: colors.surface,
     borderColor: "rgba(255, 255, 255, 0.78)",
     borderRadius: spacing.radius,
@@ -352,6 +410,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexGrow: 1
   },
+  screenListHeader: {
+    alignSelf: "center",
+    boxSizing: "border-box",
+    gap: spacing.gap,
+    maxWidth: 390,
+    paddingHorizontal: spacing.page,
+    width: "100%"
+  },
+  screenListItem: {
+    alignSelf: "center",
+    boxSizing: "border-box",
+    maxWidth: 390,
+    paddingHorizontal: spacing.page,
+    width: "100%"
+  },
+  screenListViewport: {
+    alignItems: "stretch",
+    flexGrow: 1,
+    gap: spacing.gap,
+    paddingTop: 18
+  },
   sectionCaption: {
     color: colors.muted,
     fontSize: 14,
@@ -366,5 +445,22 @@ const styles = StyleSheet.create({
     fontSize: 21,
     fontWeight: "900",
     lineHeight: 26
+  },
+  skeletonCard: {
+    gap: 12,
+    paddingVertical: 20
+  },
+  skeletonLine: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    height: 12,
+    width: "100%"
+  },
+  skeletonLineShort: {
+    width: "58%"
+  },
+  skeletonLineStrong: {
+    height: 18,
+    width: "74%"
   }
 });

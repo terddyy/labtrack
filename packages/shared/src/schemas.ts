@@ -19,8 +19,18 @@ const lifecycleNotesSchema = optionalNotesSchema(2000);
 const decisionNotesSchema = optionalNotesSchema(1000);
 const idSchema = z.uuid();
 const timestampSchema = z.string().min(1);
+const optionalPrimaryImageUrlSchema = z.string().nullable().default(null);
 export const resourceTypes = ["asset", "room"] as const;
 export const availabilityStates = ["available", "tentative", "busy", "unavailable"] as const;
+export const borrowerQrPickupStates = [
+  "ready",
+  "waiting_approval",
+  "not_ready",
+  "reserved_by_other",
+  "already_checked_out",
+  "no_reservation",
+  "unavailable"
+] as const;
 export const reportTypes = [
   "asset_management_summary",
   "borrowing_transactions",
@@ -177,6 +187,16 @@ export const borrowingLifecycleInputSchema = z.object({
   p_notes: lifecycleNotesSchema
 });
 
+export const getBorrowerQrPickupInputSchema = z.object({
+  p_qr_code: qrCodeValueSchema
+});
+
+export const checkoutBorrowingByQrInputSchema = z.object({
+  p_qr_code: qrCodeValueSchema,
+  p_borrowing_id: idSchema,
+  p_notes: lifecycleNotesSchema
+});
+
 export const borrowingMonitorInputSchema = z.object({
   p_from: z.iso.datetime(),
   p_to: z.iso.datetime(),
@@ -311,7 +331,8 @@ export const instructorAssetLookupDtoSchema = z.object({
   condition: z.enum(assetConditions),
   status: z.enum(assetStatuses),
   active_qr_code: z.string(),
-  qr_generated_at: timestampSchema
+  qr_generated_at: timestampSchema,
+  primary_image_url: optionalPrimaryImageUrlSchema
 });
 
 export const adminAssetRowDtoSchema = z.object({
@@ -331,7 +352,8 @@ export const adminAssetRowDtoSchema = z.object({
   updated_at: timestampSchema,
   active_qr_code_id: idSchema.nullable(),
   active_qr_code: z.string().nullable(),
-  active_qr_generated_at: timestampSchema.nullable()
+  active_qr_generated_at: timestampSchema.nullable(),
+  primary_image_url: optionalPrimaryImageUrlSchema
 });
 
 export const bookingRowDtoSchema = z.object({
@@ -425,7 +447,7 @@ export const borrowingResourceRowDtoSchema = z.object({
   condition: z.enum(assetConditions).nullable(),
   availability: z.enum(availabilityStates),
   next_available_at: timestampSchema.nullable(),
-  primary_image_url: z.string().nullable(),
+  primary_image_url: optionalPrimaryImageUrlSchema,
   is_active: z.boolean(),
   is_archived: z.boolean()
 });
@@ -458,6 +480,20 @@ export const borrowingRowDtoSchema = z.object({
   status: z.enum(bookingStatuses),
   created_at: timestampSchema,
   updated_at: timestampSchema
+});
+
+export const borrowerQrPickupRowDtoSchema = z.object({
+  state: z.enum(borrowerQrPickupStates),
+  borrowing_id: idSchema.nullable(),
+  asset_id: idSchema.nullable(),
+  borrower_id: idSchema.nullable(),
+  borrower_name: z.string().nullable(),
+  borrower_email: z.email().nullable(),
+  status: z.enum(bookingStatuses).nullable(),
+  requested_start_at: timestampSchema.nullable(),
+  requested_end_at: timestampSchema.nullable(),
+  purpose: z.string().nullable(),
+  message: z.string()
 });
 
 export const usageAnalyticsRowDtoSchema = z.object({
@@ -503,6 +539,8 @@ export type CreateBorrowingInput = z.infer<typeof createBorrowingInputSchema>;
 export type BorrowingIdInput = z.infer<typeof borrowingIdInputSchema>;
 export type DecideBorrowingInput = z.infer<typeof decideBorrowingInputSchema>;
 export type BorrowingLifecycleInput = z.infer<typeof borrowingLifecycleInputSchema>;
+export type GetBorrowerQrPickupInput = z.infer<typeof getBorrowerQrPickupInputSchema>;
+export type CheckoutBorrowingByQrInput = z.infer<typeof checkoutBorrowingByQrInputSchema>;
 export type BorrowingMonitorInput = z.infer<typeof borrowingMonitorInputSchema>;
 export type UsageAnalyticsInput = z.infer<typeof usageAnalyticsInputSchema>;
 export type ListActivityLogsInput = z.infer<typeof listActivityLogsInputSchema>;
@@ -530,6 +568,7 @@ export type NotificationRowDtoInput = z.infer<typeof notificationRowDtoSchema>;
 export type BorrowingResourceRowDtoInput = z.infer<typeof borrowingResourceRowDtoSchema>;
 export type ResourceScheduleEntryRowDtoInput = z.infer<typeof resourceScheduleEntryRowDtoSchema>;
 export type BorrowingRowDtoInput = z.infer<typeof borrowingRowDtoSchema>;
+export type BorrowerQrPickupRowDtoInput = z.infer<typeof borrowerQrPickupRowDtoSchema>;
 export type UsageAnalyticsRowDtoInput = z.infer<typeof usageAnalyticsRowDtoSchema>;
 export type ActivityLogRowDtoInput = z.infer<typeof activityLogRowDtoSchema>;
 export type PrintableReportRowDtoInput = z.infer<typeof printableReportRowDtoSchema>;

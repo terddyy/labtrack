@@ -5,13 +5,16 @@ import {
   backendRpcArgumentNames,
   backendRpcNames,
   buildQuickLoginAccounts,
+  borrowerQrPickupRowDtoSchema,
   cancelBookingInputSchema,
+  checkoutBorrowingByQrInputSchema,
   checkoutBookingInputSchema,
   createBookingInputSchema,
   createDefectReportInputSchema,
   createQrPayload,
   decideBookingInputSchema,
   ensureTicketThreadInputSchema,
+  getBorrowerQrPickupInputSchema,
   isLabtrackQrPayload,
   listAdminAssetsInputSchema,
   markNotificationReadInputSchema,
@@ -101,6 +104,8 @@ test("exposes planned backend RPC names", () => {
     cancelBorrowing: "cancel_borrowing",
     decideBorrowing: "decide_borrowing",
     checkoutBorrowing: "checkout_borrowing",
+    getBorrowerQrPickup: "get_borrower_qr_pickup",
+    checkoutBorrowingByQr: "checkout_borrowing_by_qr",
     returnBorrowing: "return_borrowing",
     getBorrowingMonitor: "get_borrowing_monitor",
     getUsageAnalytics: "get_usage_analytics",
@@ -130,6 +135,8 @@ test("exposes planned backend RPC argument names", () => {
     cancelBorrowing: ["p_borrowing_id"],
     decideBorrowing: ["p_borrowing_id", "p_status", "p_notes"],
     checkoutBorrowing: ["p_borrowing_id", "p_notes"],
+    getBorrowerQrPickup: ["p_qr_code"],
+    checkoutBorrowingByQr: ["p_qr_code", "p_borrowing_id", "p_notes"],
     returnBorrowing: ["p_borrowing_id", "p_notes"],
     getBorrowingMonitor: ["p_from", "p_to", "p_location_id", "p_resource_id", "p_statuses"],
     getUsageAnalytics: ["p_from", "p_to", "p_location_id", "p_asset_id"],
@@ -178,6 +185,14 @@ test("validates lifecycle RPC inputs", () => {
   assert.equal(checkoutBookingInputSchema.safeParse({
     p_booking_id: bookingId,
     p_notes: "Released to instructor"
+  }).success, true);
+  assert.equal(getBorrowerQrPickupInputSchema.safeParse({
+    p_qr_code: "ASSET-LT-001-7JQ2"
+  }).success, true);
+  assert.equal(checkoutBorrowingByQrInputSchema.safeParse({
+    p_qr_code: "ASSET-LT-001-7JQ2",
+    p_borrowing_id: bookingId,
+    p_notes: "Borrower confirmed pickup"
   }).success, true);
   assert.equal(returnBookingInputSchema.safeParse({
     p_booking_id: bookingId,
@@ -241,6 +256,11 @@ test("rejects invalid lifecycle RPC inputs", () => {
     p_booking_id: bookingId,
     p_status: "checked_out"
   }).success, false);
+  assert.equal(checkoutBorrowingByQrInputSchema.safeParse({
+    p_qr_code: "   ",
+    p_borrowing_id: bookingId,
+    p_notes: null
+  }).success, false);
   assert.equal(ensureTicketThreadInputSchema.safeParse({
     p_subject_type: "booking",
     p_defect_report_id: defectReportId
@@ -251,6 +271,40 @@ test("rejects invalid lifecycle RPC inputs", () => {
   }).success, false);
   assert.equal(markNotificationReadInputSchema.safeParse({
     p_notification_id: "not-a-uuid"
+  }).success, false);
+});
+
+test("validates borrower QR pickup return states", () => {
+  const assetId = "8f4a8f90-9231-4ef0-b621-2c97af733001";
+  const bookingId = "8f4a8f90-9231-4ef0-b621-2c97af733002";
+  const borrowerId = "8f4a8f90-9231-4ef0-b621-2c97af733003";
+
+  assert.equal(borrowerQrPickupRowDtoSchema.safeParse({
+    state: "ready",
+    borrowing_id: bookingId,
+    asset_id: assetId,
+    borrower_id: borrowerId,
+    borrower_name: "Faculty Borrower",
+    borrower_email: "faculty@pampangastateu.edu.ph",
+    status: "approved",
+    requested_start_at: "2026-06-05T08:00:00+00:00",
+    requested_end_at: "2026-06-05T10:00:00+00:00",
+    purpose: "Laboratory class session",
+    message: "Your approved reservation is ready for pickup."
+  }).success, true);
+
+  assert.equal(borrowerQrPickupRowDtoSchema.safeParse({
+    state: "walk_up",
+    borrowing_id: null,
+    asset_id: assetId,
+    borrower_id: null,
+    borrower_name: null,
+    borrower_email: null,
+    status: null,
+    requested_start_at: null,
+    requested_end_at: null,
+    purpose: null,
+    message: "Unsupported state."
   }).success, false);
 });
 

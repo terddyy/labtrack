@@ -5,6 +5,7 @@ import { formatApiError, listNotifications, markNotificationRead, type MobileNot
 export function useNotifications() {
   const [notifications, setNotifications] = useState<MobileNotification[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [readingId, setReadingId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
@@ -27,6 +28,7 @@ export function useNotifications() {
       }
     } finally {
       if (requestIdRef.current === requestId) {
+        setHasLoaded(true);
         setIsLoading(false);
       }
     }
@@ -56,5 +58,5 @@ export function useNotifications() {
     }
   }, [refresh]);
 
-  return { error, isLoading, markRead, notifications, readingId, refresh };
+  return { error, hasLoaded, isLoading, markRead, notifications, readingId, refresh };
 }

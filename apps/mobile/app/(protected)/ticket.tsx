@@ -1,36 +1,46 @@
 import { Link } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
-import { Button, Card, EmptyState, Notice, ScreenScrollView } from "@/components/ui";
-import { colors, shadows } from "@/constants/theme";
+import { Button, Card, EmptyState, Notice, ScreenFlatList, SkeletonCard } from "@/components/ui";
+import { colors } from "@/constants/theme";
 import { useTicketThreads } from "@/lib/use-ticket-threads";
 
 export default function TicketScreen() {
-  const { error, isLoading, refresh, threads } = useTicketThreads();
+  const { error, hasLoaded, isLoading, refresh, threads } = useTicketThreads();
 
   return (
-    <ScreenScrollView>
-      <Card style={styles.heroCard}>
-        <View style={styles.heroRow}>
-          <View style={styles.heroCopy}>
-            <Text style={styles.heroKicker}>Messages</Text>
-            <Text style={styles.heroTitle}>Threaded lab support.</Text>
-            <Text style={styles.heroCaption}>Borrowing and defect conversations stay attached to their original workflow.</Text>
-          </View>
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricValue}>{threads.length}</Text>
-            <Text style={styles.heroMetricLabel}>threads</Text>
-          </View>
-        </View>
-        <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
-          Refresh
-        </Button>
-      </Card>
-      {error ? <Notice tone="danger">{error}</Notice> : null}
-      {!threads.length && !isLoading ? (
-        <EmptyState body="Borrowing and defect conversations will appear after a thread is created." title="No ticket threads yet" />
-      ) : null}
-      {threads.map((thread) => (
-        <Card key={thread.id} style={styles.threadCard}>
+    <ScreenFlatList
+      data={threads}
+      empty={hasLoaded && !isLoading ? <EmptyState body="Borrowing and defect conversations will appear after a thread is created." title="No ticket threads yet" /> : null}
+      header={(
+        <>
+          <Card style={styles.heroCard}>
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroKicker}>Messages</Text>
+              <Text style={styles.heroTitle}>Threaded lab support.</Text>
+              <Text style={styles.heroCaption}>Borrowing and defect conversations stay attached to their original workflow.</Text>
+            </View>
+            <View style={styles.heroActions}>
+              <View style={styles.heroMetric}>
+                <Text style={styles.heroMetricValue}>{threads.length}</Text>
+                <Text style={styles.heroMetricLabel}>threads</Text>
+              </View>
+              <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
+                Refresh
+              </Button>
+            </View>
+          </Card>
+          {error ? <Notice tone="danger">{error}</Notice> : null}
+          {!hasLoaded && isLoading ? (
+            <>
+              <SkeletonCard lines={3} />
+              <SkeletonCard lines={3} />
+            </>
+          ) : null}
+        </>
+      )}
+      keyExtractor={(thread) => thread.id}
+      renderItem={({ item: thread }) => (
+        <Card style={styles.threadCard}>
           <View style={styles.threadTopRow}>
             <View style={styles.threadGlyph}>
               <Text style={styles.threadGlyphText}>{thread.subjectType === "booking" ? "B" : "D"}</Text>
@@ -47,8 +57,8 @@ export default function TicketScreen() {
             <Button>Open thread</Button>
           </Link>
         </Card>
-      ))}
-    </ScreenScrollView>
+      )}
+    />
   );
 }
 
@@ -66,18 +76,23 @@ const styles = StyleSheet.create({
   },
   heroCaption: {
     color: colors.muted,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    lineHeight: 20
+    lineHeight: 18
+  },
+  heroActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
   },
   heroCard: {
     backgroundColor: colors.purpleMuted,
     borderColor: "rgba(255,255,255,0.84)",
-    gap: 16,
-    padding: 22
+    gap: 14,
+    padding: 18
   },
   heroCopy: {
-    flex: 1,
     gap: 7,
     minWidth: 0
   },
@@ -90,35 +105,30 @@ const styles = StyleSheet.create({
   heroMetric: {
     alignItems: "center",
     backgroundColor: colors.surface,
-    borderRadius: 22,
-    height: 82,
+    borderRadius: 18,
+    flexDirection: "row",
+    gap: 7,
+    minHeight: 52,
     justifyContent: "center",
-    width: 82,
-    ...shadows.soft
+    paddingHorizontal: 14
   },
   heroMetricLabel: {
     color: colors.muted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800"
   },
   heroMetricValue: {
     color: colors.purple,
-    fontSize: 28,
+    fontSize: 22,
     fontVariant: ["tabular-nums"],
     fontWeight: "900",
-    lineHeight: 32
-  },
-  heroRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 14,
-    justifyContent: "space-between"
+    lineHeight: 26
   },
   heroTitle: {
     color: colors.text,
-    fontSize: 25,
+    fontSize: 21,
     fontWeight: "900",
-    lineHeight: 30
+    lineHeight: 26
   },
   metaText: {
     color: colors.muted,
@@ -148,8 +158,9 @@ const styles = StyleSheet.create({
     fontWeight: "900"
   },
   threadTopRow: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12
   }
 });

@@ -5,6 +5,7 @@ import { cancelBooking, formatApiError, listMyBookings, type MobileBooking } fro
 export function useBookings() {
   const [bookings, setBookings] = useState<MobileBooking[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
@@ -27,6 +28,7 @@ export function useBookings() {
       }
     } finally {
       if (requestIdRef.current === requestId) {
+        setHasLoaded(true);
         setIsLoading(false);
       }
     }
@@ -56,5 +58,5 @@ export function useBookings() {
     }
   }, [refresh]);
 
-  return { bookings, cancel, cancellingId, error, isLoading, refresh };
+  return { bookings, cancel, cancellingId, error, hasLoaded, isLoading, refresh };
 }

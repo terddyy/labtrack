@@ -30,7 +30,7 @@
           "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
         },
         "android": {
-          "buildType": "app-bundle"
+          "buildType": "apk"
         }
       }
   }

@@ -5,6 +5,7 @@ import { formatApiError, listMyDefectReports, type MobileDefectReport } from "@/
 export function useDefectReports() {
   const [reports, setReports] = useState<MobileDefectReport[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const requestIdRef = useRef(0);
 
@@ -26,6 +27,7 @@ export function useDefectReports() {
       }
     } finally {
       if (requestIdRef.current === requestId) {
+        setHasLoaded(true);
         setIsLoading(false);
       }
     }
@@ -41,5 +43,5 @@ export function useDefectReports() {
     }, [refresh])
   );
 
-  return { error, isLoading, refresh, reports };
+  return { error, hasLoaded, isLoading, refresh, reports };
 }

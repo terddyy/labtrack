@@ -13,6 +13,7 @@
     "dev:web": "npm run dev -w @labtrack/web",
     "dev:mobile": "npm run start -w @labtrack/mobile",
     "dev:mobile:dev-client": "npm run start:dev-client -w @labtrack/mobile",
+    "dev:mobile:dev-client:clear": "npm run start:dev-client:clear -w @labtrack/mobile",
     "build:mobile:android:development": "npm run build:android:development -w @labtrack/mobile",
     "build:mobile:android:dev-client": "npm run build:android:dev-client -w @labtrack/mobile",
     "build:mobile:android:preview": "npm run build:android:preview -w @labtrack/mobile",

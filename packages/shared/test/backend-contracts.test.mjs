@@ -2,33 +2,40 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { adminAssetRowDtoSchema, backendRpcArgumentNames, backendRpcNames, instructorAssetLookupDtoSchema } from "../dist/index.js";
+import { adminAssetRowDtoSchema, backendRpcArgumentNames, backendRpcNames, borrowerQrPickupRowDtoSchema, instructorAssetLookupDtoSchema } from "../dist/index.js";
 
 const workflowMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605220001_workflow_rpc_security.sql", import.meta.url));
 const adminReadModelsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605280001_admin_read_models.sql", import.meta.url));
 const bookingHardeningMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605310001_booking_contract_hardening.sql", import.meta.url));
 const borrowingMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606040001_borrowing_availability_roles_reports.sql", import.meta.url));
 const registrationPolicyMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606040002_registration_policy_toggle.sql", import.meta.url));
+const restoredAdminAssetsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260604144630_restore_list_admin_assets_rpc.sql", import.meta.url));
+const assetImageReadModelsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606050001_asset_image_read_models.sql", import.meta.url));
+const borrowerQrPickupMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606050002_borrower_qr_pickup.sql", import.meta.url));
 const workflowMigration = readFileSync(workflowMigrationPath, "utf8");
 const adminReadModelsMigration = readFileSync(adminReadModelsMigrationPath, "utf8");
 const bookingHardeningMigration = readFileSync(bookingHardeningMigrationPath, "utf8");
 const borrowingMigration = readFileSync(borrowingMigrationPath, "utf8");
 const registrationPolicyMigration = readFileSync(registrationPolicyMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}`;
+const restoredAdminAssetsMigration = readFileSync(restoredAdminAssetsMigrationPath, "utf8");
+const assetImageReadModelsMigration = readFileSync(assetImageReadModelsMigrationPath, "utf8");
+const borrowerQrPickupMigration = readFileSync(borrowerQrPickupMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function readFunctionParameters(functionName) {
-  const pattern = new RegExp(`create function public\\.${escapeRegExp(functionName)}\\s*\\((?<parameters>[\\s\\S]*?)\\)\\s*returns`, "i");
-  const match = backendMigrations.match(pattern);
-  return match?.groups?.parameters ?? null;
+  const pattern = new RegExp(`create function public\\.${escapeRegExp(functionName)}\\s*\\((?<parameters>[\\s\\S]*?)\\)\\s*returns`, "gi");
+  const matches = [...backendMigrations.matchAll(pattern)];
+  return matches.at(-1)?.groups?.parameters ?? null;
 }
 
 function readTableReturnColumns(functionName) {
-  const pattern = new RegExp(`create function public\\.${escapeRegExp(functionName)}\\s*\\([\\s\\S]*?\\)\\s*returns table\\s*\\((?<columns>[\\s\\S]*?)\\)\\s*language`, "i");
-  const match = backendMigrations.match(pattern);
+  const pattern = new RegExp(`create function public\\.${escapeRegExp(functionName)}\\s*\\([\\s\\S]*?\\)\\s*returns table\\s*\\((?<columns>[\\s\\S]*?)\\)\\s*language`, "gi");
+  const matches = [...backendMigrations.matchAll(pattern)];
+  const match = matches.at(-1);
   return [...(match?.groups?.columns ?? "").matchAll(/^\s*([a-z][a-z0-9_]*)\s+/gim)].map((columnMatch) => columnMatch[1]);
 }
 
@@ -66,10 +73,12 @@ test("resolve asset DTO matches RPC return columns", () => {
     "condition",
     "status",
     "active_qr_code",
-    "qr_generated_at"
+    "qr_generated_at",
+    "primary_image_url"
   ]);
 
   assert.ok("active_qr_code" in instructorAssetLookupDtoSchema.shape);
+  assert.ok("primary_image_url" in instructorAssetLookupDtoSchema.shape);
   assert.equal("qr_code" in instructorAssetLookupDtoSchema.shape, false);
 });
 
@@ -93,11 +102,34 @@ test("admin asset read model DTO matches RPC return columns", () => {
     "updated_at",
     "active_qr_code_id",
     "active_qr_code",
-    "active_qr_generated_at"
+    "active_qr_generated_at",
+    "primary_image_url"
   ]);
 
   for (const column of returnColumns) {
     assert.ok(column in adminAssetRowDtoSchema.shape, `${column} missing from adminAssetRowDtoSchema`);
+  }
+});
+
+test("borrower QR pickup DTO matches RPC return columns", () => {
+  const returnColumns = readTableReturnColumns(backendRpcNames.getBorrowerQrPickup);
+
+  assert.deepEqual(returnColumns, [
+    "state",
+    "borrowing_id",
+    "asset_id",
+    "borrower_id",
+    "borrower_name",
+    "borrower_email",
+    "status",
+    "requested_start_at",
+    "requested_end_at",
+    "purpose",
+    "message"
+  ]);
+
+  for (const column of returnColumns) {
+    assert.ok(column in borrowerQrPickupRowDtoSchema.shape, `${column} missing from borrowerQrPickupRowDtoSchema`);
   }
 });
 
@@ -111,6 +143,16 @@ test("borrowing availability migration exposes room-aware read models", () => {
   assert.match(borrowingMigration, /p_resource_type public\.borrowing_resource_type/i);
   assert.match(borrowingMigration, /Borrowing duration must be between 90 and 180 minutes/i);
   assert.match(borrowingMigration, /status = 'pending'::public\.booking_status then 'tentative'/i);
+});
+
+test("borrower QR pickup migration enforces first reservation priority and pickup grace", () => {
+  assert.match(borrowerQrPickupMigration, /create or replace function app_private\.first_priority_borrowing_id/i);
+  assert.match(borrowerQrPickupMigration, /order by b\.created_at,\s*b\.id/i);
+  assert.match(borrowerQrPickupMigration, /requested_start_at\s*-\s*interval '15 minutes'/i);
+  assert.match(borrowerQrPickupMigration, /This asset is reserved by an earlier borrowing request/i);
+  assert.match(borrowerQrPickupMigration, /create function public\.checkout_borrowing_by_qr/i);
+  assert.match(borrowerQrPickupMigration, /create or replace function public\.decide_borrowing/i);
+  assert.match(borrowerQrPickupMigration, /create or replace function public\.checkout_borrowing/i);
 });
 
 test("registration policy migration gates signup through the auth hook", () => {

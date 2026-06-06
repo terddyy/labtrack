@@ -6,12 +6,13 @@
   "scripts": {
     "start": "expo start",
     "start:dev-client": "expo start --dev-client",
+    "start:dev-client:clear": "expo start --dev-client --clear",
     "android": "expo run:android",
     "assets:generate": "node ./scripts/generate-app-assets.mjs",
     "build:android:development": "node ./scripts/build-android-apk.mjs --profile development",
     "build:android:dev-client": "node ./scripts/build-android-apk.mjs --profile development",
     "build:android:preview": "node ./scripts/build-android-apk.mjs --profile preview",
-    "build:android": "npx eas build -p android",
+    "build:android": "node ./scripts/build-android-apk.mjs --profile preview",
     "eas-build-post-install": "cd ../.. && npm run build -w @labtrack/shared",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -31,6 +32,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-url-polyfill": "^3.0.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-web": "^0.21.2"

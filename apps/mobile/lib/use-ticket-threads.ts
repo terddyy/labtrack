@@ -5,6 +5,7 @@ import { formatApiError, listTicketThreads, type MobileTicketThread } from "@/li
 export function useTicketThreads() {
   const [threads, setThreads] = useState<MobileTicketThread[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const requestIdRef = useRef(0);
 
@@ -26,6 +27,7 @@ export function useTicketThreads() {
       }
     } finally {
       if (requestIdRef.current === requestId) {
+        setHasLoaded(true);
         setIsLoading(false);
       }
     }
@@ -41,5 +43,5 @@ export function useTicketThreads() {
     }, [refresh])
   );
 
-  return { error, isLoading, refresh, threads };
+  return { error, hasLoaded, isLoading, refresh, threads };
 }

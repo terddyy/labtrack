@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  checkoutBorrowingByQrInputSchema,
   createBookingInputSchema,
   createDefectReportInputSchema,
   ensureTicketThreadInputSchema,
@@ -76,6 +77,16 @@ test("normalizes optional nullable workflow notes to match backend null handling
   }), {
     p_defect_report_id: defectReportId,
     p_status: "sent_for_repair",
+    p_notes: null
+  });
+
+  assert.deepEqual(checkoutBorrowingByQrInputSchema.parse({
+    p_qr_code: "  ASSET-LT-001-7JQ2  ",
+    p_borrowing_id: bookingId,
+    p_notes: "  "
+  }), {
+    p_qr_code: "ASSET-LT-001-7JQ2",
+    p_borrowing_id: bookingId,
     p_notes: null
   });
 });

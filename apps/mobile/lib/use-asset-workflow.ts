@@ -1,7 +1,7 @@
 import { bookingRequestSchema, createDefaultBookingRange, defectReportSchema, isFutureBookingRange, parseQrPayload } from "@labtrack/shared";
 import { useEffect, useMemo, useState } from "react";
 import {
-  createBooking,
+  createBorrowing,
   createDefectReport,
   formatApiError,
   resolveAssetByPayload,
@@ -107,9 +107,10 @@ export function useAssetWorkflow(payload?: string) {
     setBookingMessage(null);
 
     try {
-      await createBooking({
-        assetId: asset.id,
+      await createBorrowing({
         purpose: validation.data.purpose,
+        resourceId: asset.id,
+        resourceType: "asset",
         requestedEndAt: validation.data.requestedEndAt,
         requestedStartAt: validation.data.requestedStartAt
       });

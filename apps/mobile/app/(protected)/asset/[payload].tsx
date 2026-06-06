@@ -1,12 +1,21 @@
 import { isCustodianRole } from "@labtrack/shared";
 import { Link, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { BookingSchedulePicker } from "@/components/booking-schedule-picker";
 import { Badge, Button, Card, Field, InlineMeta, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors, shadows, spacing } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
-import { checkoutBorrowing, formatApiError, getBorrowingMonitor, returnBorrowing, type MobileBorrowing } from "@/lib/labtrack-api";
+import {
+  checkoutBorrowing,
+  checkoutBorrowingByQr,
+  formatApiError,
+  getBorrowerQrPickup,
+  getBorrowingMonitor,
+  returnBorrowing,
+  type MobileBorrowerQrPickup,
+  type MobileBorrowing
+} from "@/lib/labtrack-api";
 import { useAssetWorkflow } from "@/lib/use-asset-workflow";
 
 export default function AssetDetailsScreen() {
@@ -33,9 +42,15 @@ export default function AssetDetailsScreen() {
     submitDefect
   } = useAssetWorkflow(payload);
   const isCustodian = auth.status === "ready" && isCustodianRole(auth.profile.role);
+  const isBorrower = auth.status === "ready" && !isCustodian;
   const [handoffs, setHandoffs] = useState<MobileBorrowing[]>([]);
   const [handoffError, setHandoffError] = useState<string | null>(null);
   const [handoffMutationId, setHandoffMutationId] = useState<string | null>(null);
+  const [pickup, setPickup] = useState<MobileBorrowerQrPickup | null>(null);
+  const [pickupError, setPickupError] = useState<string | null>(null);
+  const [isLoadingPickup, setIsLoadingPickup] = useState(false);
+  const [isConfirmingPickup, setIsConfirmingPickup] = useState(false);
+  const [didAssetImageFail, setDidAssetImageFail] = useState(false);
 
   const loadHandoffs = useCallback(async () => {
     if (!asset || !isCustodian) {
@@ -60,9 +75,36 @@ export default function AssetDetailsScreen() {
     }
   }, [asset, isCustodian]);
 
+  const loadPickup = useCallback(async () => {
+    if (!asset || !isBorrower) {
+      setPickup(null);
+      return;
+    }
+
+    setIsLoadingPickup(true);
+
+    try {
+      setPickupError(null);
+      setPickup(await getBorrowerQrPickup(asset.activeQrCode));
+    } catch (error) {
+      setPickup(null);
+      setPickupError(formatApiError(error));
+    } finally {
+      setIsLoadingPickup(false);
+    }
+  }, [asset, isBorrower]);
+
   useEffect(() => {
     void loadHandoffs();
   }, [loadHandoffs]);
+
+  useEffect(() => {
+    void loadPickup();
+  }, [loadPickup]);
+
+  useEffect(() => {
+    setDidAssetImageFail(false);
+  }, [asset?.primaryImageUrl]);
 
   async function runHandoff(id: string, action: "checkout" | "return") {
     setHandoffMutationId(id);
@@ -80,6 +122,24 @@ export default function AssetDetailsScreen() {
       setHandoffError(formatApiError(error));
     } finally {
       setHandoffMutationId(null);
+    }
+  }
+
+  async function confirmPickup() {
+    if (!asset || pickup?.state !== "ready" || !pickup.borrowingId) {
+      return;
+    }
+
+    setIsConfirmingPickup(true);
+    setPickupError(null);
+
+    try {
+      await checkoutBorrowingByQr(asset.activeQrCode, pickup.borrowingId, "Borrower confirmed QR pickup.");
+      await loadPickup();
+    } catch (error) {
+      setPickupError(formatApiError(error));
+    } finally {
+      setIsConfirmingPickup(false);
     }
   }
 
@@ -110,9 +170,20 @@ export default function AssetDetailsScreen() {
     <ScreenScrollView>
       <Card style={styles.assetHero}>
         <View style={styles.heroTopRow}>
-          <View style={styles.assetIcon}>
-            <Text style={styles.assetIconText}>LT</Text>
-          </View>
+          {asset.primaryImageUrl && !didAssetImageFail ? (
+            <Image
+              accessibilityIgnoresInvertColors
+              accessibilityLabel={`${asset.name} image`}
+              onError={() => setDidAssetImageFail(true)}
+              resizeMode="cover"
+              source={{ uri: asset.primaryImageUrl }}
+              style={styles.assetImage}
+            />
+          ) : (
+            <View style={styles.assetIcon}>
+              <Text style={styles.assetIconText}>{getInitials(asset.name)}</Text>
+            </View>
+          )}
           <Badge label={asset.status} tone={isAvailable ? "success" : "warning"} />
         </View>
         <Text style={styles.assetName}>{asset.name}</Text>
@@ -127,6 +198,9 @@ export default function AssetDetailsScreen() {
             <Text numberOfLines={1} style={styles.assetQuickValue}>{asset.condition.replaceAll("_", " ")}</Text>
           </View>
         </View>
+        <Link href="/scan" asChild>
+          <Button fullWidth={false} variant="secondary">Scan another asset</Button>
+        </Link>
       </Card>
 
       <Card>
@@ -179,6 +253,37 @@ export default function AssetDetailsScreen() {
         </Card>
       ) : null}
 
+      {isBorrower ? (
+        <Card style={styles.formCard}>
+          <View style={styles.cardHeader}>
+            <SectionTitle title="QR pickup" caption="Confirm approved item pickup after scanning this asset." />
+            <Button disabled={isLoadingPickup} fullWidth={false} loading={isLoadingPickup} onPress={() => void loadPickup()} variant="secondary">Refresh</Button>
+          </View>
+          {pickupError ? <Notice tone="danger">{pickupError}</Notice> : null}
+          {!pickup && isLoadingPickup ? <Notice tone="neutral">Checking pickup status.</Notice> : null}
+          {pickup ? (
+            <>
+              <View style={styles.handoffRow}>
+                <View style={styles.handoffCopy}>
+                  <Badge label={pickup.state.replaceAll("_", " ")} tone={pickupTone(pickup.state)} />
+                  <Text style={styles.handoffTitle}>{pickup.message}</Text>
+                  {pickup.status ? <Text style={styles.assetMeta}>Reservation status: {pickup.status.replaceAll("_", " ")}</Text> : null}
+                  {pickup.purpose ? <Text style={styles.assetMeta}>{pickup.purpose}</Text> : null}
+                  {pickup.requestedStartAt && pickup.requestedEndAt ? (
+                    <Text style={styles.assetMeta}>{new Date(pickup.requestedStartAt).toLocaleString()} - {new Date(pickup.requestedEndAt).toLocaleString()}</Text>
+                  ) : null}
+                </View>
+              </View>
+              {pickup.state === "ready" && pickup.borrowingId ? (
+                <Button disabled={isConfirmingPickup} loading={isConfirmingPickup} onPress={() => void confirmPickup()}>
+                  Confirm pickup
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Card style={styles.formCard}>
         <SectionTitle title="Request borrowing" caption="Submit the schedule and purpose. A custodian will approve or reject the request." />
         {bookingMessage ? <Notice tone={bookingMessage.includes("submitted") ? "success" : "warning"}>{bookingMessage}</Notice> : null}
@@ -224,6 +329,23 @@ export default function AssetDetailsScreen() {
   );
 }
 
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part[0]?.toUpperCase()).join("") || "LT";
+}
+
+function pickupTone(state: MobileBorrowerQrPickup["state"]) {
+  if (state === "ready" || state === "already_checked_out") {
+    return "success";
+  }
+
+  if (state === "reserved_by_other" || state === "unavailable") {
+    return "danger";
+  }
+
+  return "warning";
+}
+
 const styles = StyleSheet.create({
   assetHero: {
     backgroundColor: colors.mintSoft,
@@ -237,15 +359,24 @@ const styles = StyleSheet.create({
     borderColor: colors.surface,
     borderRadius: 20,
     borderWidth: 3,
-    height: 54,
+    height: 72,
     justifyContent: "center",
-    width: 54,
+    width: 72,
     ...shadows.soft
   },
   assetIconText: {
     color: colors.surface,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900"
+  },
+  assetImage: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.surface,
+    borderRadius: 20,
+    borderWidth: 3,
+    height: 72,
+    width: 72,
+    ...shadows.soft
   },
   assetMeta: {
     color: colors.muted,

@@ -1,6 +1,7 @@
+import "react-native-url-polyfill/auto";
 import * as SecureStore from "expo-secure-store";
 import { createClient } from "@supabase/supabase-js";
-import { Platform } from "react-native";
+import { AppState, Platform, type AppStateStatus } from "react-native";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -12,6 +13,7 @@ type AuthStorage = {
 };
 
 const memoryStorage = new Map<string, string>();
+let hasWarnedAboutMemoryStorage = false;
 
 function getWebStorage() {
   if (Platform.OS !== "web" || typeof window === "undefined") {
@@ -49,10 +51,12 @@ const authStorage: AuthStorage = {
       try {
         return await SecureStore.getItemAsync(key);
       } catch {
+        warnAuthStorageFallback();
         return memoryStorage.get(key) ?? null;
       }
     }
 
+    warnAuthStorageFallback();
     return memoryStorage.get(key) ?? null;
   },
   async setItem(key, value) {
@@ -68,11 +72,13 @@ const authStorage: AuthStorage = {
         await SecureStore.setItemAsync(key, value);
         return;
       } catch {
+        warnAuthStorageFallback();
         memoryStorage.set(key, value);
         return;
       }
     }
 
+    warnAuthStorageFallback();
     memoryStorage.set(key, value);
   },
   async removeItem(key) {
@@ -88,6 +94,7 @@ const authStorage: AuthStorage = {
         await SecureStore.deleteItemAsync(key);
         return;
       } catch {
+        warnAuthStorageFallback();
         memoryStorage.delete(key);
         return;
       }
@@ -107,3 +114,35 @@ export const supabase = supabaseUrl && supabaseKey
       }
     })
   : null;
+
+export function subscribeToSupabaseAppStateRefresh() {
+  if (!supabase || Platform.OS === "web") {
+    return () => undefined;
+  }
+
+  const client = supabase;
+  const syncAutoRefresh = (state: AppStateStatus) => {
+    if (state === "active") {
+      client.auth.startAutoRefresh();
+    } else {
+      client.auth.stopAutoRefresh();
+    }
+  };
+
+  syncAutoRefresh(AppState.currentState);
+  const subscription = AppState.addEventListener("change", syncAutoRefresh);
+
+  return () => {
+    subscription.remove();
+    client.auth.stopAutoRefresh();
+  };
+}
+
+function warnAuthStorageFallback() {
+  if (hasWarnedAboutMemoryStorage) {
+    return;
+  }
+
+  hasWarnedAboutMemoryStorage = true;
+  console.warn("Supabase auth storage fell back to memory; sessions may not survive app restart.");
+}

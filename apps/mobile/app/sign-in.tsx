@@ -63,7 +63,7 @@ export default function SignInScreen() {
         await signInWithPassword(email.trim(), password);
       }
 
-      await auth.refresh();
+      await auth.refresh({ showLoading: true });
       router.replace("/");
     } catch (error) {
       setMessage({ tone: "danger", text: formatApiError(error) });
@@ -81,7 +81,7 @@ export default function SignInScreen() {
 
     try {
       await signInWithPassword(account.email, account.password);
-      await auth.refresh();
+      await auth.refresh({ showLoading: true });
       router.replace("/");
     } catch (error) {
       setMessage({ tone: "danger", text: formatApiError(error) });
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   },
   brandMark: {
     alignItems: "center",
-    backgroundColor: "#F4F7F8",
+    backgroundColor: colors.surfaceMuted,
     borderColor: colors.surface,
     borderRadius: 22,
     borderWidth: 3,
@@ -241,15 +241,15 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.86)",
     borderRadius: spacing.radiusLarge,
     borderWidth: 1,
-    gap: 20,
-    padding: 24,
+    gap: 16,
+    padding: 22,
     ...shadows.card
   },
   heroTitle: {
     color: colors.text,
-    fontSize: 31,
+    fontSize: 28,
     fontWeight: "900",
-    lineHeight: 37
+    lineHeight: 34
   },
   quickGrid: {
     gap: 10

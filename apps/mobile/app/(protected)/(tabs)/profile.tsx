@@ -1,4 +1,5 @@
 import { getRoleDisplayLabel } from "@labtrack/shared";
+import { router } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Badge, Button, Card, InlineMeta, ScreenScrollView, SectionTitle } from "@/components/ui";
 import { colors, shadows } from "@/constants/theme";
@@ -15,7 +16,7 @@ export default function ProfileScreen() {
   const initials = getInitials(auth.profile.fullName);
 
   return (
-    <ScreenScrollView>
+    <ScreenScrollView includeTopInset>
       <Card style={styles.heroCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>
@@ -42,6 +43,13 @@ export default function ProfileScreen() {
         <SectionTitle title="Account details" caption="Profile information used by LABTRACK workflows." />
         <InlineMeta label="Department" value={auth.profile.department ?? "Not assigned"} />
         <InlineMeta label="Status" value={auth.profile.isActive ? "Active" : "Inactive"} />
+      </Card>
+
+      <Card style={styles.detailCard}>
+        <SectionTitle title="Support" caption="Review borrowing and defect conversations with custodians." />
+        <Button onPress={() => router.push("/ticket")} variant="secondary">
+          Open support tickets
+        </Button>
       </Card>
 
       <Button onPress={() => void auth.signOut()} variant="secondary">

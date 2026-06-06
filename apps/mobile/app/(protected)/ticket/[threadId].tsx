@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
-import { Button, Card, EmptyState, Field, Notice, ScreenScrollView } from "@/components/ui";
+import { Button, Card, EmptyState, Field, Notice, ScreenScrollView, SkeletonCard } from "@/components/ui";
 import { colors } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 import { useTicketThread } from "@/lib/use-ticket-thread";
@@ -8,7 +8,7 @@ import { useTicketThread } from "@/lib/use-ticket-thread";
 export default function TicketThreadScreen() {
   const auth = useCurrentProfile();
   const { threadId } = useLocalSearchParams<{ threadId?: string }>();
-  const { body, error, isLoading, isSending, messages, refresh, send, setBody } = useTicketThread(threadId);
+  const { body, error, hasLoaded, isLoading, isSending, messages, refresh, send, setBody } = useTicketThread(threadId);
 
   return (
     <ScreenScrollView>
@@ -25,7 +25,13 @@ export default function TicketThreadScreen() {
         </Button>
       </Card>
       {error ? <Notice tone="danger">{error}</Notice> : null}
-      {!messages.length && !isLoading ? (
+      {!hasLoaded && isLoading ? (
+        <>
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
+        </>
+      ) : null}
+      {!messages.length && hasLoaded && !isLoading ? (
         <EmptyState body="Use the reply field below to start the conversation on this thread." title="No messages yet" />
       ) : null}
       <View style={styles.messageList}>
@@ -87,9 +93,9 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: colors.text,
-    fontSize: 25,
+    fontSize: 24,
     fontWeight: "900",
-    lineHeight: 30
+    lineHeight: 29
   },
   messageBody: {
     color: colors.text,
@@ -104,8 +110,9 @@ const styles = StyleSheet.create({
     maxWidth: "90%"
   },
   messageMetaRow: {
-    alignItems: "center",
+    alignItems: "flex-start",
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     justifyContent: "space-between"
   },
@@ -114,7 +121,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 12,
     fontWeight: "700",
-    textAlign: "right"
+    lineHeight: 17,
+    textAlign: "left"
   },
   messageList: {
     gap: 12

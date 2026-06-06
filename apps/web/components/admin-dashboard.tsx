@@ -11,7 +11,6 @@ import {
   getRoleDisplayLabel,
   type AssetCondition,
   type AssetStatus,
-  type BookingStatus,
   type DefectStatus,
   type Profile,
   type QuickLoginAccount,
@@ -37,9 +36,15 @@ import {
   Settings,
   Wrench
 } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import {
+  BorrowingCalendar,
+  type BorrowingCalendarActionTarget,
+  type BorrowingCalendarFilters
+} from "@/components/admin/borrowing-calendar";
 import { EmptyState, Metric, Notice, StatusBadge } from "@/components/admin/ui";
 import {
   cancelBookingAction,
@@ -87,14 +92,13 @@ import type {
 } from "@/lib/admin/types";
 
 const blankAssetForm: AssetFormState = {
-  propertyNumber: "",
-  serialNumber: "",
   name: "",
   categoryId: "",
   locationId: "",
   condition: "good",
   status: "available",
-  notes: ""
+  notes: "",
+  imageFile: null
 };
 
 const emptyDashboardData: DashboardData = {
@@ -113,14 +117,6 @@ const emptyDashboardData: DashboardData = {
 };
 
 type AdminSection = "dashboard" | "assets" | "bookings" | "monitor" | "defects" | "tickets" | "reports" | "access" | "catalog";
-type MonitorStatusFilter = "all" | BookingStatus;
-type MonitorFilterState = {
-  from: string;
-  to: string;
-  locationId: string;
-  resourceId: string;
-  status: MonitorStatusFilter;
-};
 type ReportFilterState = {
   from: string;
   to: string;
@@ -140,6 +136,8 @@ const navigation: Array<{ key: AdminSection; label: string; icon: typeof Clipboa
   { key: "catalog", label: "Catalog", icon: Settings }
 ];
 
+const adminSectionKeys = new Set<AdminSection>(navigation.map((item) => item.key));
+
 const reportTypeLabels: Record<ReportType, string> = {
   asset_management_summary: "Asset Management Summary",
   borrowing_transactions: "Borrowing Transactions",
@@ -148,9 +146,10 @@ const reportTypeLabels: Record<ReportType, string> = {
   equipment_utilization: "Equipment Utilization"
 };
 
-const monitorStatusOptions: MonitorStatusFilter[] = ["all", "pending", "approved", "checked_out", "returned", "cancelled", "rejected"];
-
 export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts }: AdminDashboardProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const shouldSkipInitialDashboardLoad = useRef(initialAccess.status === "authorized");
   const [access, setAccess] = useState<AdminAccessState>(initialAccess);
@@ -158,7 +157,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [quickLoginRole, setQuickLoginRole] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData>(initialData);
-  const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [activeSection, setActiveSection] = useState<AdminSection>(() => parseAdminSection(searchParams.get("section")) ?? "dashboard");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [threadMessages, setThreadMessages] = useState<TicketMessageRow[]>([]);
@@ -174,7 +173,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   const [categoryName, setCategoryName] = useState("");
   const [locationName, setLocationName] = useState("");
   const [domainForm, setDomainForm] = useState({ domain: "", notes: "" });
-  const [monitorFilters, setMonitorFilters] = useState<MonitorFilterState>(() => createDefaultMonitorFilters());
+  const [monitorFilters, setMonitorFilters] = useState<BorrowingCalendarFilters>(() => createDefaultMonitorFilters());
   const [monitorRows, setMonitorRows] = useState<BorrowingMonitorRow[]>([]);
   const [monitorMessage, setMonitorMessage] = useState<string | null>(null);
   const [isLoadingMonitor, setIsLoadingMonitor] = useState(false);
@@ -201,6 +200,19 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   }), [data]);
 
   const authorizedProfile = access.status === "authorized" ? access.profile : null;
+
+  useEffect(() => {
+    const nextSection = parseAdminSection(searchParams.get("section")) ?? "dashboard";
+    setActiveSection((currentSection) => currentSection === nextSection ? currentSection : nextSection);
+  }, [searchParams]);
+
+  const handleSectionChange = useCallback((section: AdminSection) => {
+    setActiveSection(section);
+
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    nextSearchParams.set("section", section);
+    router.push(`${pathname}?${nextSearchParams.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   const loadAccess = useCallback(async () => {
     if (!supabase) {
@@ -330,10 +342,10 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   }, [loadThreadMessages, selectedThreadId]);
 
   useEffect(() => {
-    if (access.status === "authorized" && activeSection === "monitor" && !monitorRows.length && !isLoadingMonitor) {
+    if (access.status === "authorized" && activeSection === "monitor") {
       void loadBorrowingMonitor();
     }
-  }, [access.status, activeSection, isLoadingMonitor, loadBorrowingMonitor, monitorRows.length]);
+  }, [access.status, activeSection, loadBorrowingMonitor]);
 
   useEffect(() => {
     if (access.status === "authorized" && activeSection === "reports" && !usageRows.length && !isLoadingReports) {
@@ -407,7 +419,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     setFormErrors({});
     setDashboardMessage(null);
 
-    const result = await createAssetAction(assetForm);
+    const result = await createAssetAction(new FormData(event.currentTarget));
 
     if (result.error || !result.data) {
       setDashboardMessage(result.error ?? "Unable to create asset.");
@@ -495,28 +507,28 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     setIsMutatingWorkflow(false);
   }
 
-  async function handleBookingDecision(booking: BookingRow, status: "approved" | "rejected") {
+  async function handleBookingDecision(booking: { id: string }, status: "approved" | "rejected") {
     await runWorkflowMutation(
       () => decideBookingAction(booking.id, status),
       `Borrowing ${status}.`
     );
   }
 
-  async function handleBookingCheckout(booking: BookingRow) {
+  async function handleBookingCheckout(booking: { id: string }) {
     await runWorkflowMutation(
       () => checkoutBookingAction(booking.id),
       "Borrowing checked out."
     );
   }
 
-  async function handleBookingReturn(booking: BookingRow) {
+  async function handleBookingReturn(booking: { id: string }) {
     await runWorkflowMutation(
       () => returnBookingAction(booking.id),
       "Borrowing returned."
     );
   }
 
-  async function handleBookingCancel(booking: BookingRow) {
+  async function handleBookingCancel(booking: { id: string }) {
     await runWorkflowMutation(
       () => cancelBookingAction(booking.id),
       "Borrowing cancelled."
@@ -703,7 +715,13 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           {navigation.map((item) => {
             const Icon = item.icon;
             return (
-              <button className={activeSection === item.key ? "active" : ""} key={item.label} onClick={() => setActiveSection(item.key)} type="button">
+              <button
+                aria-current={activeSection === item.key ? "page" : undefined}
+                className={activeSection === item.key ? "active" : ""}
+                key={item.label}
+                onClick={() => handleSectionChange(item.key)}
+                type="button"
+              >
                 <Icon size={17} />
                 {item.label}
               </button>
@@ -806,10 +824,15 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
                 </thead>
                 <tbody>
                   {data.assets.map((asset) => (
-                    <tr className={asset.id === selectedAsset?.id ? "selected-row" : ""} key={asset.id}>
+                    <tr aria-selected={asset.id === selectedAsset?.id} className={asset.id === selectedAsset?.id ? "selected-row" : ""} key={asset.id}>
                       <td>
-                        <strong>{asset.name}</strong>
-                        <p className="muted">{asset.categoryName}</p>
+                        <div className="asset-title-row">
+                          <AssetThumb asset={asset} />
+                          <div>
+                            <strong>{asset.name}</strong>
+                            <p className="muted">{asset.categoryName}</p>
+                          </div>
+                        </div>
                       </td>
                       <td>{asset.propertyNumber}</td>
                       <td>{asset.locationName}</td>
@@ -868,14 +891,20 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
         ) : null}
 
         {activeSection === "monitor" ? (
-          <BorrowingMonitorPanel
+          <BorrowingCalendar
+            actionsDisabled={isMutatingWorkflow}
             assets={data.assets}
             disabled={isLoadingMonitor}
             filters={monitorFilters}
             locations={data.locations}
             message={monitorMessage}
+            onApprove={(booking: BorrowingCalendarActionTarget) => void handleBookingDecision(booking, "approved")}
+            onCancel={(booking: BorrowingCalendarActionTarget) => void handleBookingCancel(booking)}
             onChangeFilters={setMonitorFilters}
+            onCheckout={(booking: BorrowingCalendarActionTarget) => void handleBookingCheckout(booking)}
             onRefresh={() => void loadBorrowingMonitor()}
+            onReject={(booking: BorrowingCalendarActionTarget) => void handleBookingDecision(booking, "rejected")}
+            onReturn={(booking: BorrowingCalendarActionTarget) => void handleBookingReturn(booking)}
             rows={monitorRows}
           />
         ) : null}
@@ -1088,46 +1117,51 @@ function AssetForm({
   onChange: (form: AssetFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const errorId = (field: keyof AssetFormState) => errors[field] ? `${field}-error` : undefined;
+
   return (
     <form className="asset-form" onSubmit={onSubmit}>
       <div className="field">
         <label htmlFor="asset-name">Asset name</label>
-        <input id="asset-name" onChange={(event) => onChange({ ...form, name: event.target.value })} value={form.name} />
-        {errors.name ? <span className="field-error">{errors.name}</span> : null}
+        <input aria-describedby={errorId("name")} aria-invalid={Boolean(errors.name)} id="asset-name" name="name" onChange={(event) => onChange({ ...form, name: event.target.value })} value={form.name} />
+        {errors.name ? <span className="field-error" id={errorId("name")}>{errors.name}</span> : null}
       </div>
       <div className="field">
-        <label htmlFor="property-number">Property number</label>
-        <input id="property-number" onChange={(event) => onChange({ ...form, propertyNumber: event.target.value })} value={form.propertyNumber} />
-        {errors.propertyNumber ? <span className="field-error">{errors.propertyNumber}</span> : null}
-      </div>
-      <div className="field">
-        <label htmlFor="serial-number">Serial number</label>
-        <input id="serial-number" onChange={(event) => onChange({ ...form, serialNumber: event.target.value })} value={form.serialNumber} />
-        {errors.serialNumber ? <span className="field-error">{errors.serialNumber}</span> : null}
+        <label htmlFor="asset-image">Asset image</label>
+        <input
+          accept="image/jpeg,image/png,image/webp"
+          aria-describedby={errorId("imageFile")}
+          aria-invalid={Boolean(errors.imageFile)}
+          id="asset-image"
+          name="imageFile"
+          onChange={() => onChange({ ...form })}
+          type="file"
+        />
+        {errors.imageFile ? <span className="field-error" id={errorId("imageFile")}>{errors.imageFile}</span> : null}
       </div>
       <div className="field">
         <label htmlFor="category">Category</label>
-        <select id="category" onChange={(event) => onChange({ ...form, categoryId: event.target.value })} required value={form.categoryId}>
+        <select aria-describedby={errorId("categoryId")} aria-invalid={Boolean(errors.categoryId)} id="category" name="categoryId" onChange={(event) => onChange({ ...form, categoryId: event.target.value })} required value={form.categoryId}>
           <option value="">Select category</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>{category.name}</option>
           ))}
         </select>
-        {errors.categoryId ? <span className="field-error">{errors.categoryId}</span> : null}
+        {errors.categoryId ? <span className="field-error" id={errorId("categoryId")}>{errors.categoryId}</span> : null}
       </div>
       <div className="field">
         <label htmlFor="location">Location</label>
-        <select id="location" onChange={(event) => onChange({ ...form, locationId: event.target.value })} required value={form.locationId}>
+        <select aria-describedby={errorId("locationId")} aria-invalid={Boolean(errors.locationId)} id="location" name="locationId" onChange={(event) => onChange({ ...form, locationId: event.target.value })} required value={form.locationId}>
           <option value="">Select location</option>
           {locations.map((location) => (
             <option key={location.id} value={location.id}>{location.name}</option>
           ))}
         </select>
-        {errors.locationId ? <span className="field-error">{errors.locationId}</span> : null}
+        {errors.locationId ? <span className="field-error" id={errorId("locationId")}>{errors.locationId}</span> : null}
       </div>
       <div className="field">
         <label htmlFor="condition">Condition</label>
-        <select id="condition" onChange={(event) => onChange({ ...form, condition: event.target.value as AssetCondition })} value={form.condition}>
+        <select id="condition" name="condition" onChange={(event) => onChange({ ...form, condition: event.target.value as AssetCondition })} value={form.condition}>
           {assetConditions.map((condition) => (
             <option key={condition} value={condition}>{formatLabel(condition)}</option>
           ))}
@@ -1135,7 +1169,7 @@ function AssetForm({
       </div>
       <div className="field">
         <label htmlFor="status">Status</label>
-        <select id="status" onChange={(event) => onChange({ ...form, status: event.target.value as AssetStatus })} value={form.status}>
+        <select id="status" name="status" onChange={(event) => onChange({ ...form, status: event.target.value as AssetStatus })} value={form.status}>
           {assetStatuses.map((status) => (
             <option key={status} value={status}>{formatLabel(status)}</option>
           ))}
@@ -1143,7 +1177,7 @@ function AssetForm({
       </div>
       <div className="field span-2">
         <label htmlFor="notes">Notes</label>
-        <textarea id="notes" onChange={(event) => onChange({ ...form, notes: event.target.value })} rows={3} value={form.notes} />
+        <textarea id="notes" name="notes" onChange={(event) => onChange({ ...form, notes: event.target.value })} rows={3} value={form.notes} />
       </div>
       <div className="form-actions">
         <button className="button primary" disabled={isSaving} type="submit">
@@ -1167,20 +1201,43 @@ function QrPreview({ asset }: { asset: AssetView | null }) {
         {payload ? <QRCodeSVG value={payload} size={190} level="M" includeMargin /> : <EmptyState label="No active QR code." />}
       </div>
       <div className="form-grid">
-        <div>
-          <h3>{asset?.name ?? "Select an asset"}</h3>
-          <p className="muted">{asset?.propertyNumber ?? "No asset selected"}</p>
+        <div className="asset-preview-card">
+          <AssetThumb asset={asset} large />
+          <div>
+            <h3>{asset?.name ?? "Select an asset"}</h3>
+            <p className="muted">{asset ? `${asset.propertyNumber} · ${asset.categoryName}` : "No asset selected"}</p>
+          </div>
         </div>
         <div className="field">
-          <label>QR payload</label>
-          <input readOnly value={payload} />
+          <label htmlFor="qr-payload">QR payload</label>
+          <input id="qr-payload" readOnly value={payload} />
         </div>
         <div className="field">
-          <label>Mobile asset link</label>
-          <input readOnly value={mobileDeepLink} />
+          <label htmlFor="qr-mobile-link">Mobile asset link</label>
+          <input id="qr-mobile-link" readOnly value={mobileDeepLink} />
         </div>
       </div>
     </>
+  );
+}
+
+function AssetThumb({ asset, large = false }: { asset: AssetView | null; large?: boolean }) {
+  const [didImageFail, setDidImageFail] = useState(false);
+  const imageUrl = asset?.primaryImageUrl ?? null;
+  const showImage = Boolean(imageUrl && !didImageFail);
+
+  useEffect(() => {
+    setDidImageFail(false);
+  }, [imageUrl]);
+
+  return (
+    <div className={`asset-thumb ${large ? "large" : ""} ${showImage ? "" : "fallback"}`} aria-hidden={!asset}>
+      {showImage && imageUrl ? (
+        <img alt={`${asset?.name ?? "LABTRACK asset"} image`} onError={() => setDidImageFail(true)} src={imageUrl} />
+      ) : (
+        <span>{asset ? getAssetInitials(asset.name) : "LT"}</span>
+      )}
+    </div>
   );
 }
 
@@ -1264,128 +1321,6 @@ function BookingAdminPanel({
         }) : <EmptyState label="No borrowing requests found." />}
       </div>
     </div>
-  );
-}
-
-function BorrowingMonitorPanel({
-  assets,
-  disabled,
-  filters,
-  locations,
-  message,
-  onChangeFilters,
-  onRefresh,
-  rows
-}: {
-  assets: AssetView[];
-  disabled: boolean;
-  filters: MonitorFilterState;
-  locations: LocationRow[];
-  message: string | null;
-  onChangeFilters: (filters: MonitorFilterState) => void;
-  onRefresh: () => void;
-  rows: BorrowingMonitorRow[];
-}) {
-  return (
-    <section className="grid">
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Calendar-based borrowing monitor</h2>
-            <p className="muted">Filter room and equipment borrowing by date, resource, location, and status.</p>
-          </div>
-          <button className="button secondary" disabled={disabled} onClick={onRefresh} type="button">
-            <RefreshCw size={15} />
-            {disabled ? "Loading" : "Refresh"}
-          </button>
-        </div>
-        <div className="panel-body">
-          <div className="filter-grid">
-            <div className="field">
-              <label htmlFor="monitor-from">From</label>
-              <input id="monitor-from" onChange={(event) => onChangeFilters({ ...filters, from: event.target.value })} type="datetime-local" value={filters.from} />
-            </div>
-            <div className="field">
-              <label htmlFor="monitor-to">To</label>
-              <input id="monitor-to" onChange={(event) => onChangeFilters({ ...filters, to: event.target.value })} type="datetime-local" value={filters.to} />
-            </div>
-            <div className="field">
-              <label htmlFor="monitor-location">Room/Lab</label>
-              <select id="monitor-location" onChange={(event) => onChangeFilters({ ...filters, locationId: event.target.value })} value={filters.locationId}>
-                <option value="">All rooms and labs</option>
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>{location.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="monitor-resource">Resource</label>
-              <select id="monitor-resource" onChange={(event) => onChangeFilters({ ...filters, resourceId: event.target.value })} value={filters.resourceId}>
-                <option value="">All resources</option>
-                {locations.map((location) => (
-                  <option key={`room-${location.id}`} value={location.id}>Room: {location.name}</option>
-                ))}
-                {assets.map((asset) => (
-                  <option key={`asset-${asset.id}`} value={asset.id}>Equipment: {asset.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="monitor-status">Status</label>
-              <select id="monitor-status" onChange={(event) => onChangeFilters({ ...filters, status: event.target.value as MonitorStatusFilter })} value={filters.status}>
-                {monitorStatusOptions.map((status) => (
-                  <option key={status} value={status}>{status === "all" ? "All statuses" : formatLabel(status)}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {message ? <Notice tone="warning">{message}</Notice> : null}
-        </div>
-        <div className="panel-body timeline">
-          {rows.length ? rows.map((row) => (
-            <article className="timeline-item" key={row.id}>
-              <div className="topbar compact">
-                <div>
-                  <h3>{formatMonitorResource(row, assets, locations)}</h3>
-                  <p className="muted">{row.borrower_name ?? row.borrower_email ?? "Unknown borrower"}</p>
-                </div>
-                <div className="actions">
-                  <StatusBadge status={row.status} />
-                  <span className={`badge ${getConflictTone(row.status)}`}>{getConflictLabel(row.status)}</span>
-                </div>
-              </div>
-              <p className="muted">{formatDateTime(row.requested_start_at)} - {formatDateTime(row.requested_end_at)}</p>
-              <p className="muted">{row.purpose}</p>
-            </article>
-          )) : <EmptyState label={disabled ? "Loading borrowing schedules." : "No borrowing schedules found."} />}
-        </div>
-      </div>
-
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Availability rules</h2>
-            <p className="muted">Pending overlaps are tentative; approved and checked-out records block the resource.</p>
-          </div>
-        </div>
-        <div className="panel-body timeline">
-          <article className="timeline-item">
-            <div className="topbar compact">
-              <h3>Tentative</h3>
-              <span className="badge warning">Pending</span>
-            </div>
-            <p className="muted">Visible as busy for planning, but custodians can still approve another request when policy allows.</p>
-          </article>
-          <article className="timeline-item">
-            <div className="topbar compact">
-              <h3>Unavailable</h3>
-              <span className="badge danger">Conflict</span>
-            </div>
-            <p className="muted">Approved and checked-out borrowings are hard conflicts until returned or cancelled.</p>
-          </article>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -1896,7 +1831,7 @@ function CatalogPanel({
   );
 }
 
-function createDefaultMonitorFilters(): MonitorFilterState {
+function createDefaultMonitorFilters(): BorrowingCalendarFilters {
   const from = new Date();
   from.setMinutes(0, 0, 0);
   const to = new Date(from);
@@ -1938,8 +1873,21 @@ function toFormErrors(issues: Array<{ path: PropertyKey[]; message: string }>): 
   }, {});
 }
 
+function parseAdminSection(value: string | null): AdminSection | null {
+  if (!value) {
+    return null;
+  }
+
+  return adminSectionKeys.has(value as AdminSection) ? value as AdminSection : null;
+}
+
 function formatLabel(value: string) {
   return formatStatusLabel(value);
+}
+
+function getAssetInitials(name: string) {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part[0]?.toUpperCase()).join("") || "LT";
 }
 
 function formatDateTime(value: string) {
@@ -1969,48 +1917,12 @@ function toIsoFromDateTimeInput(value: string) {
   return date.toISOString();
 }
 
-function formatMonitorResource(row: BorrowingMonitorRow, assets: AssetView[], locations: LocationRow[]) {
-  if (row.resource_type === "room" && row.room_id) {
-    return locations.find((location) => location.id === row.room_id)?.name ?? "Unknown room";
-  }
-
-  if (row.asset_id) {
-    return assets.find((asset) => asset.id === row.asset_id)?.name ?? "Unknown equipment";
-  }
-
-  return "Unknown resource";
-}
-
 function formatBookingResource(booking: BookingRow, assets: AssetView[], locations: LocationRow[]) {
   if (booking.resource_type === "room") {
     return locations.find((location) => location.id === booking.location_id)?.name ?? "Unknown room";
   }
 
   return assets.find((asset) => asset.id === booking.asset_id)?.name ?? "Unknown equipment";
-}
-
-function getConflictLabel(status: BookingStatus) {
-  if (status === "pending") {
-    return "Tentative";
-  }
-
-  if (status === "approved" || status === "checked_out") {
-    return "Unavailable";
-  }
-
-  return "Closed";
-}
-
-function getConflictTone(status: BookingStatus) {
-  if (status === "pending") {
-    return "warning";
-  }
-
-  if (status === "approved" || status === "checked_out") {
-    return "danger";
-  }
-
-  return "success";
 }
 
 function formatMetricValue(row: UsageAnalyticsRow) {

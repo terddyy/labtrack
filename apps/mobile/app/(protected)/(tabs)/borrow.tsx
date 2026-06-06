@@ -1,7 +1,8 @@
 import type { AvailabilityState, ResourceType } from "@labtrack/shared";
+import { useEffect, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { BookingSchedulePicker } from "@/components/booking-schedule-picker";
-import { Badge, Button, Card, EmptyState, Field, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Notice, ScreenScrollView, SectionTitle, SkeletonCard } from "@/components/ui";
 import { colors, shadows, spacing } from "@/constants/theme";
 import { useBookings } from "@/lib/use-bookings";
 import { useBorrowableResources } from "@/lib/use-borrowable-resources";
@@ -27,7 +28,7 @@ export default function BorrowScreen() {
   const history = useBookings();
 
   return (
-    <ScreenScrollView>
+    <ScreenScrollView includeTopInset>
       <Card style={styles.heroCard}>
         <View style={styles.heroHeaderRow}>
           <View style={styles.heroCopy}>
@@ -80,23 +81,6 @@ export default function BorrowScreen() {
         />
       </Card>
 
-      {!browser.resources.length && !browser.isLoading ? (
-        <EmptyState body="Try another date, duration, filter, or search term." title="No resources found" />
-      ) : null}
-
-      {browser.resources.length ? (
-        <View style={styles.resourceGrid}>
-          {browser.resources.map((resource) => (
-            <ResourceCard
-              key={`${resource.resourceType}-${resource.id}`}
-              onPress={() => browser.selectResource(resource)}
-              resource={resource}
-              selected={browser.selectedResource?.id === resource.id && browser.selectedResource.resourceType === resource.resourceType}
-            />
-          ))}
-        </View>
-      ) : null}
-
       {browser.selectedResource ? (
         <Card style={styles.panelCard}>
           <SectionTitle
@@ -117,6 +101,30 @@ export default function BorrowScreen() {
         </Card>
       ) : null}
 
+      {!browser.hasLoaded && browser.isLoading ? (
+        <>
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={4} />
+        </>
+      ) : null}
+
+      {!browser.resources.length && browser.hasLoaded && !browser.isLoading ? (
+        <EmptyState body="Try another date, duration, filter, or search term." title="No resources found" />
+      ) : null}
+
+      {browser.resources.length ? (
+        <View style={styles.resourceGrid}>
+          {browser.resources.map((resource) => (
+            <ResourceCard
+              key={`${resource.resourceType}-${resource.id}`}
+              onPress={() => browser.selectResource(resource)}
+              resource={resource}
+              selected={browser.selectedResource?.id === resource.id && browser.selectedResource.resourceType === resource.resourceType}
+            />
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.sectionBlock}>
         <View style={styles.headerRow}>
           <SectionTitle title="My borrowing history" caption="Track requests, approvals, checkout, and return status." />
@@ -125,7 +133,8 @@ export default function BorrowScreen() {
           </Button>
         </View>
         {history.error ? <Notice tone="danger">{history.error}</Notice> : null}
-        {!history.bookings.length && !history.isLoading ? (
+        {!history.hasLoaded && history.isLoading ? <SkeletonCard lines={3} /> : null}
+        {!history.bookings.length && history.hasLoaded && !history.isLoading ? (
           <EmptyState body="Approved, rejected, checked-out, and returned borrowing requests will appear here." title="No borrowings yet" />
         ) : null}
         {history.bookings.map((booking) => (
@@ -174,7 +183,12 @@ function FilterChip({ label, onPress, selected }: { label: string; onPress: () =
 }
 
 function ResourceCard({ onPress, resource, selected }: { onPress: () => void; resource: MobileBorrowingResource; selected: boolean }) {
-  const imageUri = getResourceImageUri(resource);
+  const [didImageFail, setDidImageFail] = useState(false);
+  const imageUri = getResourceImageUri(resource, didImageFail);
+
+  useEffect(() => {
+    setDidImageFail(false);
+  }, [resource.primaryImageUrl]);
 
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.resourceGridItem, pressed ? styles.pressed : null]}>
@@ -182,6 +196,7 @@ function ResourceCard({ onPress, resource, selected }: { onPress: () => void; re
         <Image
           accessibilityIgnoresInvertColors
           accessibilityLabel={`${resource.name} image`}
+          onError={() => setDidImageFail(true)}
           resizeMode="cover"
           source={{ uri: imageUri }}
           style={styles.resourceImage}
@@ -246,8 +261,8 @@ function formatReference(value: string | null) {
   return value.slice(0, 8).toUpperCase();
 }
 
-function getResourceImageUri(resource: MobileBorrowingResource) {
-  if (resource.primaryImageUrl && /^https?:\/\//i.test(resource.primaryImageUrl)) {
+function getResourceImageUri(resource: MobileBorrowingResource, forceFallback = false) {
+  if (!forceFallback && resource.primaryImageUrl && /^https?:\/\//i.test(resource.primaryImageUrl)) {
     return resource.primaryImageUrl;
   }
 
@@ -428,7 +443,9 @@ const styles = StyleSheet.create({
     gap: 12
   },
   resourceGridItem: {
-    width: "48%"
+    flexBasis: "47%",
+    flexGrow: 1,
+    minWidth: 150
   },
   resourceImage: {
     aspectRatio: 1.08,

@@ -37,6 +37,24 @@ type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof getSupabaseSer
 type RegistrationSettingsRow = {
   restrict_signup_to_allowed_domains: boolean;
 };
+type SupabaseReadResult<T> = {
+  data: T | null;
+  error: { message: string } | null;
+};
+type SupabaseCountResult = {
+  count: number | null;
+  error: { message: string } | null;
+};
+
+const ASSET_IMAGE_BUCKET = "asset-images";
+const ASSET_IMAGE_SIGNED_URL_TTL_SECONDS = 60 * 60;
+const ASSET_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const ASSET_IMAGE_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ASSET_IMAGE_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp"
+};
 
 const emptyDashboardData: DashboardData = {
   categories: [],
@@ -133,99 +151,106 @@ export async function getAdminAccess(): Promise<AdminAccessState> {
 export async function getAdminDashboardData(): Promise<DashboardData> {
   const supabase = await requireAuthorizedAdminClient();
   const [
-    categoriesResult,
-    locationsResult,
-    assetsResult,
-    bookingsResult,
-    defectsResult,
-    profilesResult,
-    registrationSettingsResult,
-    emailDomainsResult,
-    threadsResult,
-    assetCountResult,
-    activeQrCountResult,
-    pendingBookingsCountResult,
-    openDefectsCountResult
+    categories,
+    locations,
+    assetRows,
+    bookings,
+    defects,
+    profiles,
+    registrationSettings,
+    emailDomains,
+    ticketThreads,
+    assetCount,
+    activeQrCount,
+    pendingBookingsCount,
+    openDefectsCount
   ] = await Promise.all([
-    supabase.from("asset_categories").select("id,name").order("name"),
-    supabase.from("locations").select("id,name").order("name"),
-    callRpc(supabase, "listAdminAssets", { p_limit: 500, p_offset: 0 }),
-    supabase
-      .from("bookings")
-      .select("id,resource_type,asset_id,location_id,instructor_id,purpose,status,requested_start_at,requested_end_at,decision_notes")
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("defect_reports")
-      .select("id,asset_id,instructor_id,title,description,status,resolution_notes,created_at")
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("profiles")
-      .select("id,email,full_name,role,department,is_active")
-      .order("full_name"),
-    supabase
-      .from("registration_settings")
-      .select("restrict_signup_to_allowed_domains")
-      .eq("id", true)
-      .maybeSingle(),
-    supabase
-      .from("university_email_domains")
-      .select("id,domain,is_allowed,notes,created_at")
-      .order("domain"),
-    supabase
-      .from("ticket_threads")
-      .select("id,subject_type,booking_id,defect_report_id,created_at")
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase.from("assets").select("id", { count: "exact", head: true }),
-    supabase.from("asset_qr_codes").select("id", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending"),
-    supabase.from("defect_reports").select("id", { count: "exact", head: true }).not("status", "in", "(resolved,rejected)")
+    readDashboardQuery<CategoryRow[]>("asset_categories.list", supabase.from("asset_categories").select("id,name").order("name"), []),
+    readDashboardQuery<LocationRow[]>("locations.list", supabase.from("locations").select("id,name").order("name"), []),
+    readDashboardValue<AdminAssetRowDto[]>("rpc.listAdminAssets", () => callRpc(supabase, "listAdminAssets", { p_limit: 500, p_offset: 0 }), []),
+    readDashboardQuery<DashboardData["bookings"]>(
+      "bookings.recent",
+      supabase
+        .from("bookings")
+        .select("id,resource_type,asset_id,location_id,instructor_id,purpose,status,requested_start_at,requested_end_at,decision_notes")
+        .order("created_at", { ascending: false })
+        .limit(50),
+      []
+    ),
+    readDashboardQuery<DefectRow[]>(
+      "defect_reports.recent",
+      supabase
+        .from("defect_reports")
+        .select("id,asset_id,instructor_id,title,description,status,resolution_notes,created_at")
+        .order("created_at", { ascending: false })
+        .limit(50),
+      []
+    ),
+    readDashboardQuery<ProfileRow[]>(
+      "profiles.list",
+      supabase
+        .from("profiles")
+        .select("id,email,full_name,role,department,is_active")
+        .order("full_name"),
+      []
+    ),
+    readDashboardQuery<RegistrationSettingsRow | null>(
+      "registration_settings.current",
+      supabase
+        .from("registration_settings")
+        .select("restrict_signup_to_allowed_domains")
+        .eq("id", true)
+        .maybeSingle(),
+      null
+    ),
+    readDashboardQuery<EmailDomainRule[]>(
+      "university_email_domains.list",
+      supabase
+        .from("university_email_domains")
+        .select("id,domain,is_allowed,notes,created_at")
+        .order("domain"),
+      []
+    ),
+    readDashboardQuery<DashboardData["ticketThreads"]>(
+      "ticket_threads.recent",
+      supabase
+        .from("ticket_threads")
+        .select("id,subject_type,booking_id,defect_report_id,created_at")
+        .order("created_at", { ascending: false })
+        .limit(50),
+      []
+    ),
+    readDashboardCount("assets.count", supabase.from("assets").select("id", { count: "exact", head: true })),
+    readDashboardCount("asset_qr_codes.active_count", supabase.from("asset_qr_codes").select("id", { count: "exact", head: true }).eq("is_active", true)),
+    readDashboardCount("bookings.pending_count", supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending")),
+    readDashboardCount("defect_reports.open_count", supabase.from("defect_reports").select("id", { count: "exact", head: true }).not("status", "in", "(resolved,rejected)"))
   ]);
 
-  const error = [
-    categoriesResult.error,
-    locationsResult.error,
-    bookingsResult.error,
-    defectsResult.error,
-    profilesResult.error,
-    registrationSettingsResult.error,
-    emailDomainsResult.error,
-    threadsResult.error,
-    assetCountResult.error,
-    activeQrCountResult.error,
-    pendingBookingsCountResult.error,
-    openDefectsCountResult.error
-  ].find(Boolean);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const assets = assetsResult.map(toAssetView);
-  const bookings = (bookingsResult.data ?? []) as DashboardData["bookings"];
-  const defects = (defectsResult.data ?? []) as DefectRow[];
+  const assets = await readDashboardValue<AssetView[]>(
+    "asset_images.signed_urls",
+    () => Promise.all(assetRows.map((row) => toAssetView(row, supabase))),
+    []
+  );
   const fallbackCounters = getDashboardCounters({ assets, bookings, defects });
 
   return {
-    categories: (categoriesResult.data ?? []) as CategoryRow[],
-    locations: (locationsResult.data ?? []) as LocationRow[],
+    categories,
+    locations,
     assets,
     bookings,
     defects,
-    profiles: (profilesResult.data ?? []) as ProfileRow[],
+    profiles,
     registrationPolicy: toRegistrationPolicy(
-      registrationSettingsResult.data as RegistrationSettingsRow | null,
-      (emailDomainsResult.data ?? []) as EmailDomainRule[]
+      registrationSettings,
+      emailDomains
     ),
-    ticketThreads: (threadsResult.data ?? []) as DashboardData["ticketThreads"],
+    ticketThreads,
     counters: {
       ...fallbackCounters,
-      registeredAssets: assetCountResult.count ?? fallbackCounters.registeredAssets,
-      activeQrCodes: activeQrCountResult.count ?? fallbackCounters.activeQrCodes,
-      pendingBookings: pendingBookingsCountResult.count ?? fallbackCounters.pendingBookings,
-      openDefects: openDefectsCountResult.count ?? fallbackCounters.openDefects
+      registeredAssets: assetCount ?? fallbackCounters.registeredAssets,
+      activeQrCodes: activeQrCount ?? fallbackCounters.activeQrCodes,
+      pendingBookings: pendingBookingsCount ?? fallbackCounters.pendingBookings,
+      openDefects: openDefectsCount ?? fallbackCounters.openDefects
     }
   };
 }
@@ -298,9 +323,12 @@ export async function getPrintableReportData(input: PrintableReportFilters): Pro
 export async function createAsset(input: AssetFormState) {
   const supabase = await requireAuthorizedAdminClient();
   const profile = await requireAuthorizedAdminProfile();
+  const imageError = validateAssetImageFile(input.imageFile);
+  const assetId = crypto.randomUUID();
+  const identifiers = createAssetIdentifiers(assetId);
   const normalized = {
-    propertyNumber: input.propertyNumber.trim(),
-    serialNumber: input.serialNumber.trim() || null,
+    propertyNumber: identifiers.propertyNumber,
+    serialNumber: identifiers.serialNumber,
     name: input.name.trim(),
     categoryId: input.categoryId,
     locationId: input.locationId,
@@ -313,27 +341,50 @@ export async function createAsset(input: AssetFormState) {
     return { formErrors: validation.error.issues };
   }
 
-  const { data, error } = await supabase
-    .from("assets")
-    .insert({
-      property_number: validation.data.propertyNumber,
-      serial_number: validation.data.serialNumber ?? null,
-      name: validation.data.name,
-      category_id: validation.data.categoryId,
-      location_id: validation.data.locationId,
-      condition: validation.data.condition,
-      status: validation.data.status,
-      notes: input.notes.trim() || null,
-      created_by: profile.id
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
+  if (imageError) {
+    return { formErrors: [imageError] };
   }
 
-  return { id: (data as { id: string }).id };
+  let assetWasInserted = false;
+  let uploadedImagePath: string | null = null;
+
+  try {
+    const { error } = await supabase
+      .from("assets")
+      .insert({
+        id: assetId,
+        property_number: validation.data.propertyNumber,
+        serial_number: validation.data.serialNumber ?? null,
+        name: validation.data.name,
+        category_id: validation.data.categoryId,
+        location_id: validation.data.locationId,
+        condition: validation.data.condition,
+        status: validation.data.status,
+        notes: input.notes.trim() || null,
+        created_by: profile.id
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    assetWasInserted = true;
+
+    if (input.imageFile) {
+      uploadedImagePath = await uploadAssetPrimaryImage({
+        altText: `${validation.data.name} image`,
+        assetId,
+        file: input.imageFile,
+        profileId: profile.id,
+        supabase
+      });
+    }
+  } catch (error) {
+    await cleanupFailedAssetCreate({ assetId, assetWasInserted, imagePath: uploadedImagePath, supabase });
+    throw error;
+  }
+
+  return { id: assetId };
 }
 
 export async function generateAssetQr(assetId: string) {
@@ -578,6 +629,74 @@ function toProfile(row: ProfileRow): Profile {
   };
 }
 
+async function readDashboardQuery<T>(
+  operation: string,
+  query: PromiseLike<SupabaseReadResult<T>>,
+  fallback: T
+): Promise<T> {
+  try {
+    const { data, error } = await query;
+
+    if (error) {
+      logDashboardReadFailure(operation, error);
+      return fallback;
+    }
+
+    return data ?? fallback;
+  } catch (error) {
+    logDashboardReadFailure(operation, error);
+    return fallback;
+  }
+}
+
+async function readDashboardValue<T>(
+  operation: string,
+  load: () => Promise<T>,
+  fallback: T
+): Promise<T> {
+  try {
+    return await load();
+  } catch (error) {
+    logDashboardReadFailure(operation, error);
+    return fallback;
+  }
+}
+
+async function readDashboardCount(operation: string, query: PromiseLike<SupabaseCountResult>) {
+  try {
+    const { count, error } = await query;
+
+    if (error) {
+      logDashboardReadFailure(operation, error);
+      return null;
+    }
+
+    return count;
+  } catch (error) {
+    logDashboardReadFailure(operation, error);
+    return null;
+  }
+}
+
+function logDashboardReadFailure(operation: string, error: unknown) {
+  console.error("[LABTRACK admin] Supabase dashboard read failed", {
+    operation,
+    message: getErrorMessage(error)
+  });
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+
+  return "Unknown Supabase read error.";
+}
+
 function toRegistrationPolicy(settingsRow: RegistrationSettingsRow | null, allowedDomains: EmailDomainRule[]): RegistrationPolicy {
   return {
     restrictSignupToAllowedDomains: settingsRow?.restrict_signup_to_allowed_domains ?? true,
@@ -599,7 +718,92 @@ function normalizeStatuses(statuses: BorrowingMonitorFilters["statuses"]): Booki
   return statuses?.length ? statuses : null;
 }
 
-function toAssetView(row: AdminAssetRowDto): AssetView {
+function validateAssetImageFile(file: File | null) {
+  if (!file) {
+    return null;
+  }
+
+  if (!ASSET_IMAGE_CONTENT_TYPES.has(file.type)) {
+    return {
+      path: ["imageFile"],
+      message: "Upload a JPEG, PNG, or WebP image."
+    };
+  }
+
+  if (file.size > ASSET_IMAGE_MAX_BYTES) {
+    return {
+      path: ["imageFile"],
+      message: "Asset image must be 5 MB or smaller."
+    };
+  }
+
+  return null;
+}
+
+async function uploadAssetPrimaryImage({
+  altText,
+  assetId,
+  file,
+  profileId,
+  supabase
+}: {
+  altText: string;
+  assetId: string;
+  file: File;
+  profileId: string;
+  supabase: SupabaseServerClient;
+}) {
+  const storagePath = createAssetImageStoragePath(assetId, file);
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from(ASSET_IMAGE_BUCKET)
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      contentType: file.type,
+      upsert: false
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const uploadedPath = uploadData.path || storagePath;
+  const { error: imageError } = await supabase.from("asset_images").insert({
+    asset_id: assetId,
+    storage_path: uploadedPath,
+    alt_text: altText,
+    is_primary: true,
+    uploaded_by: profileId
+  });
+
+  if (imageError) {
+    await supabase.storage.from(ASSET_IMAGE_BUCKET).remove([uploadedPath]);
+    throw new Error(imageError.message);
+  }
+
+  return uploadedPath;
+}
+
+async function cleanupFailedAssetCreate({
+  assetId,
+  assetWasInserted,
+  imagePath,
+  supabase
+}: {
+  assetId: string;
+  assetWasInserted: boolean;
+  imagePath: string | null;
+  supabase: SupabaseServerClient;
+}) {
+  if (imagePath) {
+    await supabase.storage.from(ASSET_IMAGE_BUCKET).remove([imagePath]);
+  }
+
+  if (assetWasInserted) {
+    await supabase.from("assets").delete().eq("id", assetId);
+  }
+}
+
+async function toAssetView(row: AdminAssetRowDto, supabase: SupabaseServerClient): Promise<AssetView> {
   return {
     id: row.id,
     propertyNumber: row.property_number,
@@ -612,6 +816,7 @@ function toAssetView(row: AdminAssetRowDto): AssetView {
     condition: row.condition,
     status: row.status,
     notes: row.notes,
+    primaryImageUrl: await createSignedAssetImageUrl(row.primary_image_url, supabase),
     activeQr: row.active_qr_code_id && row.active_qr_code && row.active_qr_generated_at
       ? {
           id: row.active_qr_code_id,
@@ -621,6 +826,41 @@ function toAssetView(row: AdminAssetRowDto): AssetView {
         }
       : null
   };
+}
+
+async function createSignedAssetImageUrl(storagePath: string | null, supabase: SupabaseServerClient) {
+  if (!storagePath) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(storagePath)) {
+    return storagePath;
+  }
+
+  const { data, error } = await supabase.storage
+    .from(ASSET_IMAGE_BUCKET)
+    .createSignedUrl(storagePath, ASSET_IMAGE_SIGNED_URL_TTL_SECONDS);
+
+  if (error) {
+    return null;
+  }
+
+  return data.signedUrl;
+}
+
+function createAssetIdentifiers(assetId: string) {
+  const compactId = assetId.replace(/-/g, "").toUpperCase();
+
+  return {
+    propertyNumber: `PSU-CCS-${new Date().getUTCFullYear()}-${compactId.slice(0, 8)}`,
+    serialNumber: `LT-${compactId.slice(8, 20)}`
+  };
+}
+
+function createAssetImageStoragePath(assetId: string, file: File) {
+  const extension = ASSET_IMAGE_EXTENSIONS[file.type] ?? "bin";
+
+  return `${assetId}/primary-${Date.now()}.${extension}`;
 }
 
 function createAssetQrCode(propertyNumber: string) {

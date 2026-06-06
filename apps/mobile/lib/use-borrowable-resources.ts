@@ -23,6 +23,7 @@ export function useBorrowableResources() {
   const [schedule, setSchedule] = useState<MobileResourceScheduleEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const requestIdRef = useRef(0);
@@ -54,7 +55,7 @@ export function useBorrowableResources() {
           return nextResources.find((resource) => resource.id === current.id && resource.resourceType === current.resourceType) ?? current;
         }
 
-        return nextResources[0] ?? null;
+        return null;
       });
     } catch (loadError) {
       if (requestIdRef.current === requestId) {
@@ -62,6 +63,7 @@ export function useBorrowableResources() {
       }
     } finally {
       if (requestIdRef.current === requestId) {
+        setHasLoaded(true);
         setIsLoading(false);
       }
     }
@@ -150,6 +152,7 @@ export function useBorrowableResources() {
     canSubmit,
     error,
     filter,
+    hasLoaded,
     isLoading,
     isSubmitting,
     message,
@@ -171,6 +174,7 @@ export function useBorrowableResources() {
     canSubmit,
     error,
     filter,
+    hasLoaded,
     isLoading,
     isSubmitting,
     message,

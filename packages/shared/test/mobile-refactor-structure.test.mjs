@@ -64,3 +64,24 @@ test("mobile API uses bounded list reads and server-side dashboard counts", () =
   assert.match(apiSource, /select\("id", \{ count: "exact", head: true \}\)/);
   assert.match(dashboardHookSource, /getDashboardSummary/);
 });
+
+test("mobile Supabase client follows React Native auth lifecycle requirements", () => {
+  const supabaseSource = readFileSync(path.join(mobileRoot, "lib", "supabase.ts"), "utf8");
+  const authSource = readFileSync(path.join(mobileRoot, "lib", "auth.ts"), "utf8");
+  const packageJson = readFileSync(path.join(mobileRoot, "package.json"), "utf8");
+
+  assert.match(supabaseSource, /react-native-url-polyfill\/auto/);
+  assert.match(supabaseSource, /AppState\.addEventListener/);
+  assert.match(supabaseSource, /startAutoRefresh/);
+  assert.match(supabaseSource, /stopAutoRefresh/);
+  assert.match(authSource, /onAuthStateChange/);
+  assert.match(packageJson, /react-native-url-polyfill/);
+});
+
+test("mobile home surfaces hidden data and push registration failures", () => {
+  const homeSource = readFileSync(path.join(protectedRoot, "(tabs)", "index.tsx"), "utf8");
+
+  assert.match(homeSource, /bookingQueue\.error/);
+  assert.match(homeSource, /defects\.error/);
+  assert.match(homeSource, /registerForPushNotifications\(\)\.catch/);
+});

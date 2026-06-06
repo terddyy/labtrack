@@ -33,6 +33,14 @@ export type Booking = {
 
 export type ResourceType = "asset" | "room";
 export type AvailabilityState = "available" | "tentative" | "busy" | "unavailable";
+export type BorrowerQrPickupState =
+  | "ready"
+  | "waiting_approval"
+  | "not_ready"
+  | "reserved_by_other"
+  | "already_checked_out"
+  | "no_reservation"
+  | "unavailable";
 export type ReportType =
   | "asset_management_summary"
   | "borrowing_transactions"
@@ -145,6 +153,7 @@ export type AdminAssetRowDto = {
   active_qr_code_id: string | null;
   active_qr_code: string | null;
   active_qr_generated_at: string | null;
+  primary_image_url: string | null;
 };
 
 export type InstructorAssetLookupDto = {
@@ -161,6 +170,7 @@ export type InstructorAssetLookupDto = {
   qr_code_id: string;
   active_qr_code: string;
   qr_generated_at: string;
+  primary_image_url: string | null;
 };
 
 export type BookingRpcResultDto = {
@@ -287,6 +297,20 @@ export type BorrowingRowDto = {
   status: BookingStatus;
   created_at: string;
   updated_at: string;
+};
+
+export type BorrowerQrPickupRowDto = {
+  state: BorrowerQrPickupState;
+  borrowing_id: string | null;
+  asset_id: string | null;
+  borrower_id: string | null;
+  borrower_name: string | null;
+  borrower_email: string | null;
+  status: BookingStatus | null;
+  requested_start_at: string | null;
+  requested_end_at: string | null;
+  purpose: string | null;
+  message: string;
 };
 
 export type UsageAnalyticsRowDto = {

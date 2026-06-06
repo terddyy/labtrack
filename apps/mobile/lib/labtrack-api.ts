@@ -7,6 +7,8 @@ import {
   type AssetCondition,
   type AssetStatus,
   type AvailabilityState,
+  type BorrowerQrPickupRowDto,
+  type BorrowerQrPickupState,
   type BorrowingResourceRowDto,
   type BorrowingRowDto,
   type BookingStatus,
@@ -99,6 +101,8 @@ export type MobileDashboardSummary = {
 
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 100;
+const ASSET_IMAGE_BUCKET = "asset-images";
+const ASSET_IMAGE_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 export type MobileAsset = {
   id: string;
@@ -109,9 +113,10 @@ export type MobileAsset = {
   locationName: string;
   condition: AssetCondition;
   status: AssetStatus;
+  primaryImageUrl: string | null;
   activeQrCode: string;
   qrGeneratedAt: string;
-  };
+};
 
 export type MobileBorrowingResource = {
   id: string;
@@ -157,6 +162,20 @@ export type MobileBorrowing = {
   status: BookingStatus;
   createdAt: string;
   updatedAt: string;
+};
+
+export type MobileBorrowerQrPickup = {
+  state: BorrowerQrPickupState;
+  borrowingId: string | null;
+  assetId: string | null;
+  borrowerId: string | null;
+  borrowerName: string | null;
+  borrowerEmail: string | null;
+  status: BookingStatus | null;
+  requestedStartAt: string | null;
+  requestedEndAt: string | null;
+  purpose: string | null;
+  message: string;
 };
 
 export type MobileBooking = {
@@ -247,6 +266,8 @@ export function createLabtrackMobileApi(client: LabtrackMobileClient) {
     listResourceSchedule: (input: ListResourceScheduleOptions) => listResourceSchedule(input, client),
     createBorrowing: (input: CreateBorrowingOptions) => createBorrowing(input, client),
     checkoutBorrowing: (id: string, notes?: string | null) => checkoutBorrowing(id, notes, client),
+    getBorrowerQrPickup: (qrCode: string) => getBorrowerQrPickup(qrCode, client),
+    checkoutBorrowingByQr: (qrCode: string, borrowingId: string, notes?: string | null) => checkoutBorrowingByQr(qrCode, borrowingId, notes, client),
     getBorrowingMonitor: (input: BorrowingMonitorOptions) => getBorrowingMonitor(input, client),
     returnBorrowing: (id: string, notes?: string | null) => returnBorrowing(id, notes, client),
     listMyBookings: (options?: MobileListOptions) => listMyBookings(options, client),
@@ -388,7 +409,8 @@ export async function resolveAssetByQrCode(code: string, client = requireClient(
     return null;
   }
 
-  return toAsset(row);
+  const primaryImageUrl = await createSignedAssetImageUrl(row.primary_image_url, client);
+  return toAsset(row, primaryImageUrl);
 }
 
 export async function listBorrowableResources(input: ListBorrowableResourcesOptions, client = requireClient()) {
@@ -400,7 +422,7 @@ export async function listBorrowableResources(input: ListBorrowableResourcesOpti
     p_query: input.query?.trim() || null
   });
 
-  return data.map(toBorrowingResource);
+  return Promise.all(data.map(async (row) => toBorrowingResource(row, await createSignedAssetImageUrl(row.primary_image_url, client))));
 }
 
 export async function listResourceSchedule(input: ListResourceScheduleOptions, client = requireClient()) {
@@ -428,6 +450,19 @@ export async function createBorrowing(input: CreateBorrowingOptions, client = re
 
 export async function checkoutBorrowing(id: string, notes: string | null = null, client = requireClient()) {
   return toBorrowing(firstBorrowingRow(await callRpc(client, "checkoutBorrowing", { p_borrowing_id: id, p_notes: notes })));
+}
+
+export async function getBorrowerQrPickup(qrCode: string, client = requireClient()) {
+  const data = await callRpc(client, "getBorrowerQrPickup", { p_qr_code: qrCode });
+  return data[0] ? toBorrowerQrPickup(data[0]) : null;
+}
+
+export async function checkoutBorrowingByQr(qrCode: string, borrowingId: string, notes: string | null = null, client = requireClient()) {
+  return toBorrowing(firstBorrowingRow(await callRpc(client, "checkoutBorrowingByQr", {
+    p_borrowing_id: borrowingId,
+    p_notes: notes,
+    p_qr_code: qrCode
+  })));
 }
 
 export async function getBorrowingMonitor(input: BorrowingMonitorOptions, client = requireClient()) {
@@ -553,6 +588,12 @@ export async function createDefectReport(input: { assetId: string; title: string
 }
 
 export async function uploadDefectPhoto(reportId: string, uri: string, client = requireClient()) {
+  const userId = await getCurrentUserId(client);
+
+  if (!userId) {
+    throw new Error("Sign in before uploading defect photos.");
+  }
+
   const response = await fetch(uri);
   const blob = await response.blob();
   const fileName = `${reportId}/${Date.now()}.jpg`;
@@ -560,12 +601,6 @@ export async function uploadDefectPhoto(reportId: string, uri: string, client = 
 
   if (uploadError) {
     throw uploadError;
-  }
-
-  const userId = await getCurrentUserId(client);
-
-  if (!userId) {
-    throw new Error("Sign in before uploading defect photos.");
   }
 
   const { error } = await client.from("defect_photos").insert({
@@ -697,7 +732,28 @@ function normalizeListOptions(options: MobileListOptions) {
   return { limit, offset };
 }
 
-function toAsset(row: InstructorAssetLookupDto): MobileAsset {
+async function createSignedAssetImageUrl(storagePath: string | null, client: LabtrackMobileClient) {
+  if (!storagePath) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(storagePath)) {
+    return storagePath;
+  }
+
+  const { data, error } = await client.storage
+    .from(ASSET_IMAGE_BUCKET)
+    .createSignedUrl(storagePath, ASSET_IMAGE_SIGNED_URL_TTL_SECONDS);
+
+  if (error) {
+    console.warn("LABTRACK asset image signed URL failed.", { storagePath, message: error.message });
+    return null;
+  }
+
+  return data.signedUrl;
+}
+
+function toAsset(row: InstructorAssetLookupDto, primaryImageUrl: string | null): MobileAsset {
   return {
     id: row.asset_id,
     propertyNumber: row.property_number,
@@ -707,12 +763,13 @@ function toAsset(row: InstructorAssetLookupDto): MobileAsset {
     locationName: row.location_name,
     condition: row.condition,
     status: row.status,
+    primaryImageUrl,
     activeQrCode: row.active_qr_code,
     qrGeneratedAt: row.qr_generated_at
   };
 }
 
-function toBorrowingResource(row: BorrowingResourceRowDto): MobileBorrowingResource {
+function toBorrowingResource(row: BorrowingResourceRowDto, primaryImageUrl: string | null): MobileBorrowingResource {
   return {
     id: row.id,
     resourceType: row.resource_type,
@@ -724,7 +781,7 @@ function toBorrowingResource(row: BorrowingResourceRowDto): MobileBorrowingResou
     status: row.status,
     availability: row.availability,
     nextAvailableAt: row.next_available_at,
-    primaryImageUrl: row.primary_image_url,
+    primaryImageUrl,
     isActive: row.is_active,
     isArchived: row.is_archived
   };
@@ -771,6 +828,22 @@ function toBorrowing(row: BorrowingRowDto): MobileBorrowing {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+function toBorrowerQrPickup(row: BorrowerQrPickupRowDto): MobileBorrowerQrPickup {
+  return {
+    state: row.state,
+    borrowingId: row.borrowing_id,
+    assetId: row.asset_id,
+    borrowerId: row.borrower_id,
+    borrowerName: row.borrower_name,
+    borrowerEmail: row.borrower_email,
+    status: row.status,
+    requestedStartAt: row.requested_start_at,
+    requestedEndAt: row.requested_end_at,
+    purpose: row.purpose,
+    message: row.message
   };
 }
 

@@ -48,7 +48,7 @@ export function useScanner() {
     scanLockedRef.current = true;
     setError(null);
     setIsLocked(true);
-    router.replace({ pathname: "/asset/[payload]", params: { payload: encodeURIComponent(result.data) } });
+    router.push({ pathname: "/asset/[payload]", params: { payload: encodeURIComponent(result.data) } });
   }, []);
 
   return {

@@ -69,7 +69,7 @@ export default function ScanScreen() {
     const canAskAgain = permission.canAskAgain;
 
     return (
-      <ScreenScrollView contentContainerStyle={styles.permissionContent}>
+      <ScreenScrollView contentContainerStyle={styles.permissionContent} includeTopInset>
         <Card>
           <SectionTitle title="Camera permission required" caption="LABTRACK needs camera access to scan equipment QR labels." />
           <Button onPress={canAskAgain ? requestPermission : () => void Linking.openSettings()}>

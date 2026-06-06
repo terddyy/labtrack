@@ -1,6 +1,7 @@
 import { createContext, createElement, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Profile } from "@labtrack/shared";
 import { formatApiError, getCurrentProfile, hasSupabaseConfig, signOut } from "@/lib/labtrack-api";
+import { subscribeToSupabaseAppStateRefresh, supabase } from "@/lib/supabase";
 
 export type AuthState =
   | { status: "missing-config"; profile: null; error: null }
@@ -11,7 +12,7 @@ export type AuthState =
   | { status: "error"; profile: null; error: string };
 
 export type CurrentProfile = AuthState & {
-  refresh: () => Promise<void>;
+  refresh: (options?: { showLoading?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -25,7 +26,7 @@ function useCurrentProfileState(): CurrentProfile {
       : { status: "missing-config", profile: null, error: null }
   ));
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options: { showLoading?: boolean } = {}) => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
@@ -34,7 +35,9 @@ function useCurrentProfileState(): CurrentProfile {
       return;
     }
 
-    setState({ status: "loading", profile: null, error: null });
+    if (options.showLoading) {
+      setState({ status: "loading", profile: null, error: null });
+    }
 
     try {
       const profile = await getCurrentProfile();
@@ -49,7 +52,13 @@ function useCurrentProfileState(): CurrentProfile {
       }
     } catch (error) {
       if (requestIdRef.current === requestId) {
-        setState({ status: "error", profile: null, error: formatApiError(error) });
+        setState((current) => {
+          if (!options.showLoading && (current.status === "ready" || current.status === "inactive")) {
+            return current;
+          }
+
+          return { status: "error", profile: null, error: formatApiError(error) };
+        });
       }
     }
   }, []);
@@ -61,8 +70,26 @@ function useCurrentProfileState(): CurrentProfile {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    void refresh({ showLoading: true });
   }, [refresh]);
+
+  useEffect(() => {
+    if (!supabase) {
+      return undefined;
+    }
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange(() => {
+      void refresh();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [refresh]);
+
+  useEffect(() => subscribeToSupabaseAppStateRefresh(), []);
 
   return { ...state, refresh, signOut: signOutAndRefresh };
 }
