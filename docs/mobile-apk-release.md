@@ -69,3 +69,5 @@ LABTRACK-v0.1.1-b2-production-YYYYMMDDTHHMMSSZ-<buildid>.apk
 ```
 
 Each APK has a sibling `.json` metadata file containing the EAS build ID, artifact URL, file size, SHA256 hash, app version, and Android version code. The build output directory is intentionally gitignored.
+
+If the local EAS CLI connection drops after starting a cloud build, the helper checks recent Android builds and downloads only a finished artifact that matches the current profile, app version, Android version code, git commit, and build start time.

@@ -156,7 +156,7 @@ function runEas(args, options = {}) {
   return run(npx, [...easCli, ...args], options);
 }
 
-function parseBuildResult(stdout) {
+function parseEasJson(stdout) {
   const text = stdout.trim();
   const firstArray = text.indexOf("[");
   const firstObject = text.indexOf("{");
@@ -169,8 +169,70 @@ function parseBuildResult(stdout) {
   const endArray = text.lastIndexOf("]");
   const endObject = text.lastIndexOf("}");
   const end = Math.max(endArray, endObject) + 1;
-  const parsed = JSON.parse(text.slice(start, end));
+  return JSON.parse(text.slice(start, end));
+}
+
+function parseBuildResult(stdout) {
+  const parsed = parseEasJson(stdout);
   return Array.isArray(parsed) ? parsed[0] : parsed;
+}
+
+function currentGitCommitHash() {
+  const result = run("git", ["rev-parse", "HEAD"], { allowFailure: true });
+  return result.status === 0 ? result.stdout.trim() : undefined;
+}
+
+function failureDetails(result) {
+  return result.error?.message || result.stderr.trim() || result.stdout.trim() || `exit code ${result.status ?? "unknown"}`;
+}
+
+function matchesExpectedBuild(build, appConfig, startedAt, gitCommitHash) {
+  const artifactUrl = build.artifacts?.buildUrl ?? build.artifactUrl;
+  const createdAt = Date.parse(build.createdAt ?? "");
+  const startedAtWithSlack = startedAt.getTime() - 60_000;
+
+  return (
+    build.platform === "ANDROID" &&
+    build.buildProfile === profile &&
+    build.appVersion === appConfig.version &&
+    String(build.appBuildVersion) === String(appConfig.android?.versionCode) &&
+    Boolean(artifactUrl) &&
+    (!gitCommitHash || build.gitCommitHash === gitCommitHash) &&
+    Number.isFinite(createdAt) &&
+    createdAt >= startedAtWithSlack
+  );
+}
+
+function recoverFinishedBuild(buildEnv, appConfig, startedAt, failedBuildResult) {
+  console.warn(`EAS build wait failed (${failureDetails(failedBuildResult)}). Checking recent EAS builds for a matching artifact.`);
+
+  const gitCommitHash = currentGitCommitHash();
+  const stdout = runEas(
+    ["build:list", "-p", "android", "--limit", "10", "--json", "--non-interactive"],
+    { env: buildEnv, capture: true },
+  );
+  const builds = parseEasJson(stdout);
+  const matches = builds.filter((build) => matchesExpectedBuild(build, appConfig, startedAt, gitCommitHash));
+  const finished = matches.find((build) => build.status === "FINISHED");
+
+  if (finished) {
+    console.warn(`Recovered finished EAS build ${finished.id}.`);
+    return finished;
+  }
+
+  const latestMatch = matches[0];
+  if (latestMatch) {
+    throw new Error(
+      `EAS build command failed and matching build ${latestMatch.id} is ${latestMatch.status}. ` +
+      "Check EAS build status before rerunning. " +
+      `Original error: ${failureDetails(failedBuildResult)}`,
+    );
+  }
+
+  throw new Error(
+    "EAS build command failed and no matching recent build artifact was found. " +
+    `Original error: ${failureDetails(failedBuildResult)}`,
+  );
 }
 
 function validateZipEnd(filePath) {
@@ -336,11 +398,14 @@ async function main() {
     }
   }
 
-  const stdout = runEas(
+  const buildStartedAt = new Date();
+  const buildResult = runEas(
     ["build", "-p", "android", "--profile", profile, "--non-interactive", "--wait", "--json"],
-    { env: buildEnv, capture: true },
+    { env: buildEnv, allowFailure: true },
   );
-  const build = parseBuildResult(stdout);
+  const build = buildResult.status === 0
+    ? parseBuildResult(buildResult.stdout)
+    : recoverFinishedBuild(buildEnv, appConfig, buildStartedAt, buildResult);
   const artifactUrl = build.artifacts?.buildUrl ?? build.artifactUrl;
   if (!artifactUrl) {
     throw new Error("EAS build completed but did not return an APK artifact URL.");
