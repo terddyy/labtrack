@@ -1,6 +1,6 @@
 {
   "name": "@labtrack/mobile",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -9,9 +9,14 @@
     "start:dev-client:clear": "expo start --dev-client --clear",
     "android": "expo run:android",
     "assets:generate": "node ./scripts/generate-app-assets.mjs",
+    "version:android": "node ./scripts/version-android-release.mjs",
+    "version:android:patch": "node ./scripts/version-android-release.mjs --bump patch",
+    "version:android:minor": "node ./scripts/version-android-release.mjs --bump minor",
+    "version:android:major": "node ./scripts/version-android-release.mjs --bump major",
     "build:android:development": "node ./scripts/build-android-apk.mjs --profile development",
     "build:android:dev-client": "node ./scripts/build-android-apk.mjs --profile development",
     "build:android:preview": "node ./scripts/build-android-apk.mjs --profile preview",
+    "build:android:production": "node ./scripts/build-android-apk.mjs --profile production",
     "build:android": "node ./scripts/build-android-apk.mjs --profile preview",
     "eas-build-post-install": "cd ../.. && npm run build -w @labtrack/shared",
     "typecheck": "tsc -p tsconfig.json --noEmit"

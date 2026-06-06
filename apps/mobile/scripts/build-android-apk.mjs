@@ -22,10 +22,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const mobileRoot = path.resolve(__dirname, "..");
 const profile = getArg("--profile") ?? "preview";
 const shouldSyncEasEnv = !process.argv.includes("--no-sync-eas-env");
+const allowProductionQuickLogin = process.argv.includes("--allow-production-quick-login");
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+const easCli = ["--yes", "eas-cli@latest"];
 
-const envDefaults = {
-  EXPO_PUBLIC_ENABLE_QUICK_LOGIN: "true",
+const baseEnvDefaults = {
+  EXPO_PUBLIC_ENABLE_QUICK_LOGIN: profile === "production" ? "false" : "true",
+};
+
+const quickLoginEnvDefaults = {
   EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL: "superadmin@pampangastateu.edu.ph",
   EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD: "demo123",
   EXPO_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL: "custodian@pampangastateu.edu.ph",
@@ -34,10 +39,13 @@ const envDefaults = {
   EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_PASSWORD: "demo123",
 };
 
-const easEnvKeys = [
+const baseEasEnvKeys = [
   "EXPO_PUBLIC_SUPABASE_URL",
   "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "EXPO_PUBLIC_ENABLE_QUICK_LOGIN",
+];
+
+const quickLoginEasEnvKeys = [
   "EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL",
   "EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD",
   "EXPO_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL",
@@ -77,25 +85,75 @@ function readEnvFile(filePath) {
     }, {});
 }
 
+function isEnabled(value) {
+  return /^(1|true|yes)$/i.test(String(value ?? "").trim());
+}
+
+function visibilityForEnvKey(key) {
+  return key.includes("PASSWORD") ? "sensitive" : "plaintext";
+}
+
+function syncAndroidBuildGradleVersion(appConfig) {
+  const buildGradlePath = path.join(mobileRoot, "android", "app", "build.gradle");
+  if (!existsSync(buildGradlePath)) {
+    return;
+  }
+
+  const version = appConfig.version;
+  const versionCode = appConfig.android?.versionCode;
+  if (!version || !Number.isInteger(versionCode)) {
+    throw new Error("apps/mobile/app.json must define expo.version and expo.android.versionCode.");
+  }
+
+  const contents = readFileSync(buildGradlePath, "utf8");
+  if (!/versionCode\s+\d+/.test(contents) || !/versionName\s+"[^"]+"/.test(contents)) {
+    throw new Error("Expected android/app/build.gradle to define versionCode and versionName.");
+  }
+
+  const updated = contents
+    .replace(/versionCode\s+\d+/, `versionCode ${versionCode}`)
+    .replace(/versionName\s+"[^"]+"/, `versionName "${version}"`);
+
+  if (updated !== contents) {
+    writeFileSync(buildGradlePath, updated);
+    console.log(`Synced native Android version to ${version} (${versionCode}).`);
+  }
+}
+
 function run(command, args, options = {}) {
   const needsWindowsShell = process.platform === "win32" && command.endsWith(".cmd");
+  const capture = options.capture || options.allowFailure;
   const result = spawnSync(command, args, {
     cwd: mobileRoot,
     env: options.env,
     encoding: "utf8",
     shell: needsWindowsShell,
-    stdio: options.capture ? ["ignore", "pipe", "inherit"] : "inherit",
+    stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
   });
+
+  if (options.allowFailure) {
+    return {
+      status: result.status,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? "",
+      error: result.error,
+    };
+  }
 
   if (result.error) {
     throw new Error(`${command} ${args.join(" ")} failed: ${result.error.message}`);
   }
 
   if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(" ")} failed with exit code ${result.status ?? "unknown"}`);
+    const details = result.stderr?.trim() ? `\n${result.stderr.trim()}` : "";
+    throw new Error(`${command} ${args.join(" ")} failed with exit code ${result.status ?? "unknown"}${details}`);
   }
 
   return result.stdout ?? "";
+}
+
+function runEas(args, options = {}) {
+  return run(npx, [...easCli, ...args], options);
 }
 
 function parseBuildResult(stdout) {
@@ -142,6 +200,42 @@ function validateZipEnd(filePath) {
 
 function sha256(filePath) {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex").toUpperCase();
+}
+
+function isMissingEasEnvError(result) {
+  const text = `${result.stdout}\n${result.stderr}`.toLowerCase();
+  return (
+    text.includes("not found") ||
+    text.includes("does not exist") ||
+    text.includes("no environment variable") ||
+    text.includes("couldn't find") ||
+    text.includes("could not find")
+  );
+}
+
+function deleteEasEnvKey(key, buildEnv) {
+  const result = runEas([
+    "env:delete",
+    profile,
+    "--variable-name",
+    key,
+    "--scope",
+    "project",
+    "--non-interactive",
+  ], { env: buildEnv, allowFailure: true });
+
+  if (result.status === 0) {
+    console.log(`Deleted stale EAS environment variable ${key}.`);
+    return;
+  }
+
+  if (isMissingEasEnvError(result)) {
+    console.log(`No stale EAS environment variable found for ${key}.`);
+    return;
+  }
+
+  const details = result.error?.message || result.stderr.trim() || result.stdout.trim() || "unknown error";
+  throw new Error(`Failed to delete stale EAS environment variable ${key}: ${details}`);
 }
 
 function download(url, targetPath) {
@@ -191,20 +285,41 @@ function download(url, targetPath) {
 async function main() {
   const appConfig = JSON.parse(readFileSync(path.join(mobileRoot, "app.json"), "utf8")).expo;
   const dotenv = readEnvFile(path.join(mobileRoot, ".env"));
-  const buildEnv = { ...process.env, ...envDefaults, ...dotenv };
+  const profileDefaults = profile === "production"
+    ? baseEnvDefaults
+    : { ...baseEnvDefaults, ...quickLoginEnvDefaults };
+  const buildEnv = { ...profileDefaults, ...dotenv, ...process.env };
+
+  if (profile === "production" && !allowProductionQuickLogin) {
+    buildEnv.EXPO_PUBLIC_ENABLE_QUICK_LOGIN = "false";
+  }
+
+  const quickLoginEnabled = isEnabled(buildEnv.EXPO_PUBLIC_ENABLE_QUICK_LOGIN);
+  const easEnvKeys = quickLoginEnabled
+    ? [...baseEasEnvKeys, ...quickLoginEasEnvKeys]
+    : baseEasEnvKeys;
   const missing = easEnvKeys.filter((key) => !buildEnv[key]);
 
   if (missing.length > 0) {
     throw new Error(`Missing mobile build environment variables: ${missing.join(", ")}`);
   }
 
+  syncAndroidBuildGradleVersion(appConfig);
   run("node", ["./scripts/generate-app-assets.mjs"], { env: buildEnv });
 
   if (shouldSyncEasEnv) {
     console.log(`Syncing ${easEnvKeys.length} EAS environment variables for ${profile}.`);
+    if (!quickLoginEnabled) {
+      console.log("Quick login is disabled for this build profile.");
+      if (profile === "production") {
+        console.log("Removing stale production quick-login EAS variables if they exist.");
+        for (const key of quickLoginEasEnvKeys) {
+          deleteEasEnvKey(key, buildEnv);
+        }
+      }
+    }
     for (const key of easEnvKeys) {
-      run(npx, [
-        "eas",
+      runEas([
         "env:create",
         profile,
         "--name",
@@ -212,18 +327,17 @@ async function main() {
         "--value",
         buildEnv[key],
         "--visibility",
-        "plaintext",
+        visibilityForEnvKey(key),
         "--scope",
         "project",
         "--force",
         "--non-interactive",
-      ]);
+      ], { env: buildEnv });
     }
   }
 
-  const stdout = run(
-    npx,
-    ["eas", "build", "-p", "android", "--profile", profile, "--non-interactive", "--wait", "--json"],
+  const stdout = runEas(
+    ["build", "-p", "android", "--profile", profile, "--non-interactive", "--wait", "--json"],
     { env: buildEnv, capture: true },
   );
   const build = parseBuildResult(stdout);

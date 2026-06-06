@@ -17,6 +17,10 @@
     "build:mobile:android:development": "npm run build:android:development -w @labtrack/mobile",
     "build:mobile:android:dev-client": "npm run build:android:dev-client -w @labtrack/mobile",
     "build:mobile:android:preview": "npm run build:android:preview -w @labtrack/mobile",
+    "build:mobile:android:production": "npm run build:android:production -w @labtrack/mobile",
+    "version:mobile:android:patch": "npm run version:android:patch -w @labtrack/mobile",
+    "version:mobile:android:minor": "npm run version:android:minor -w @labtrack/mobile",
+    "version:mobile:android:major": "npm run version:android:major -w @labtrack/mobile",
     "test": "npm run test -w @labtrack/shared",
     "typecheck": "npm run typecheck -w @labtrack/shared && npm run typecheck -w @labtrack/web && npm run typecheck -w @labtrack/mobile"
   },

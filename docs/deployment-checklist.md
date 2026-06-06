@@ -26,5 +26,5 @@
   - `EXPO_PUBLIC_SUPABASE_URL`
   - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - Replace `apps/mobile/app.json` `extra.eas.projectId` with the real EAS project ID from `eas init` or the Expo dashboard.
-- Build an Android app with EAS or local Android tooling.
+- Follow `docs/mobile-apk-release.md` for production APK versioning and EAS cloud builds.
 - Test on a physical Android device for camera scanning and Expo push-token registration.

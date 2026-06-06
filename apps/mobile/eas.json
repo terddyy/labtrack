@@ -4,34 +4,39 @@
     "appVersionSource": "local"
   },
   "build": {
-      "development": {
-        "developmentClient": true,
-        "distribution": "internal",
-        "credentialsSource": "local",
-        "env": {
-          "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
-        },
-        "android": {
-          "buildType": "apk"
-        }
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "credentialsSource": "local",
+      "environment": "development",
+      "env": {
+        "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
       },
-      "preview": {
-        "distribution": "internal",
-        "credentialsSource": "local",
-        "env": {
-          "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
-        },
-        "android": {
-          "buildType": "apk"
-        }
-      },
-      "production": {
-        "env": {
-          "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
-        },
-        "android": {
-          "buildType": "apk"
-        }
+      "android": {
+        "buildType": "apk"
       }
+    },
+    "preview": {
+      "distribution": "internal",
+      "credentialsSource": "local",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "distribution": "internal",
+      "autoIncrement": false,
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "false"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
   }
 }
