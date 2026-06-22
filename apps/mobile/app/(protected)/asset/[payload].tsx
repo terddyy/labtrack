@@ -18,6 +18,8 @@ import {
 } from "@/lib/labtrack-api";
 import { useAssetWorkflow } from "@/lib/use-asset-workflow";
 
+type QrTransactionType = "borrow" | "defect" | null;
+
 export default function AssetDetailsScreen() {
   const auth = useCurrentProfile();
   const { payload } = useLocalSearchParams<{ payload?: string }>();
@@ -51,6 +53,7 @@ export default function AssetDetailsScreen() {
   const [isLoadingPickup, setIsLoadingPickup] = useState(false);
   const [isConfirmingPickup, setIsConfirmingPickup] = useState(false);
   const [didAssetImageFail, setDidAssetImageFail] = useState(false);
+  const [selectedQrTransaction, setSelectedQrTransaction] = useState<QrTransactionType>(null);
 
   const loadHandoffs = useCallback(async () => {
     if (!asset || !isCustodian) {
@@ -105,6 +108,10 @@ export default function AssetDetailsScreen() {
   useEffect(() => {
     setDidAssetImageFail(false);
   }, [asset?.primaryImageUrl]);
+
+  useEffect(() => {
+    setSelectedQrTransaction(null);
+  }, [asset?.id]);
 
   async function runHandoff(id: string, action: "checkout" | "return") {
     setHandoffMutationId(id);
@@ -284,47 +291,72 @@ export default function AssetDetailsScreen() {
         </Card>
       ) : null}
 
-      <Card style={styles.formCard}>
-        <SectionTitle title="Request borrowing" caption="Submit the schedule and purpose. A custodian will approve or reject the request." />
-        {bookingMessage ? <Notice tone={bookingMessage.includes("submitted") ? "success" : "warning"}>{bookingMessage}</Notice> : null}
-        <Field
-          label="Purpose"
-          multiline
-          onChangeText={setBookingPurpose}
-          placeholder="Class, lab activity, or equipment use"
-          value={bookingPurpose}
-        />
-        <BookingSchedulePicker
-          disabled={isSubmittingBooking}
-          now={bookingValidationNow}
-          onRangeChange={setBookingRange}
-          range={bookingRange}
-        />
-        <Button disabled={isSubmittingBooking || !isAvailable || !isBookingRangeValid} loading={isSubmittingBooking} onPress={submitBooking}>
-          Submit borrowing request
-        </Button>
-      </Card>
+      {isBorrower && !selectedQrTransaction ? (
+        <Card style={styles.formCard}>
+          <SectionTitle
+            title="Choose transaction"
+            caption="Select what you want to do with this scanned item. Only one form will appear."
+          />
+          <Button onPress={() => setSelectedQrTransaction("defect")} variant="secondary">
+            Report defect
+          </Button>
+          <Button disabled={!isAvailable} onPress={() => setSelectedQrTransaction("borrow")}>
+            Borrow item
+          </Button>
+        </Card>
+      ) : null}
 
-      <Card style={styles.formCard}>
-        <SectionTitle title="Report defect" caption="Use this when the item is damaged, missing parts, or not working as expected." />
-        {defectMessage ? <Notice tone={defectMessage.includes("submitted") ? "success" : "warning"}>{defectMessage}</Notice> : null}
-        <Field
-          label="Issue title"
-          onChangeText={(title) => setDefectForm((form) => ({ ...form, title }))}
-          placeholder="Short issue summary"
-          value={defectForm.title}
-        />
-        <Field
-          label="Description"
-          multiline
-          onChangeText={(description) => setDefectForm((form) => ({ ...form, description }))}
-          placeholder="Describe the defect, missing part, or failure"
-          value={defectForm.description}
-        />
-        <Button disabled={isSubmittingDefect} loading={isSubmittingDefect} onPress={submitDefect} variant="secondary">
-          Submit defect report
-        </Button>
-      </Card>
+      {isBorrower && selectedQrTransaction === "borrow" ? (
+        <Card style={styles.formCard}>
+          <SectionTitle title="Request borrowing" caption="Submit the schedule and purpose. A custodian will approve or reject the request." />
+          {bookingMessage ? <Notice tone={bookingMessage.includes("submitted") ? "success" : "warning"}>{bookingMessage}</Notice> : null}
+          <Field
+            label="Purpose"
+            multiline
+            onChangeText={setBookingPurpose}
+            placeholder="Class, lab activity, or equipment use"
+            value={bookingPurpose}
+          />
+          <BookingSchedulePicker
+            disabled={isSubmittingBooking}
+            now={bookingValidationNow}
+            onRangeChange={setBookingRange}
+            range={bookingRange}
+          />
+          <Button disabled={isSubmittingBooking || !isAvailable || !isBookingRangeValid} loading={isSubmittingBooking} onPress={submitBooking}>
+            Submit borrowing request
+          </Button>
+          <Button fullWidth={false} onPress={() => setSelectedQrTransaction(null)} variant="secondary">
+            Change transaction
+          </Button>
+        </Card>
+      ) : null}
+
+      {isBorrower && selectedQrTransaction === "defect" ? (
+        <Card style={styles.formCard}>
+          <SectionTitle title="Report defect" caption="Use this when the item is damaged, missing parts, or not working as expected." />
+          {defectMessage ? <Notice tone={defectMessage.includes("submitted") ? "success" : "warning"}>{defectMessage}</Notice> : null}
+          <Field
+            label="Issue title"
+            onChangeText={(title) => setDefectForm((form) => ({ ...form, title }))}
+            placeholder="Short issue summary"
+            value={defectForm.title}
+          />
+          <Field
+            label="Description"
+            multiline
+            onChangeText={(description) => setDefectForm((form) => ({ ...form, description }))}
+            placeholder="Describe the defect, missing part, or failure"
+            value={defectForm.description}
+          />
+          <Button disabled={isSubmittingDefect} loading={isSubmittingDefect} onPress={submitDefect} variant="secondary">
+            Submit defect report
+          </Button>
+          <Button fullWidth={false} onPress={() => setSelectedQrTransaction(null)} variant="secondary">
+            Change transaction
+          </Button>
+        </Card>
+      ) : null}
     </ScreenScrollView>
   );
 }

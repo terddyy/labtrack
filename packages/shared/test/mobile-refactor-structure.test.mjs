@@ -85,3 +85,12 @@ test("mobile home surfaces hidden data and push registration failures", () => {
   assert.match(homeSource, /defects\.error/);
   assert.match(homeSource, /registerForPushNotifications\(\)\.catch/);
 });
+
+test("mobile asset QR screen separates borrow and defect flows behind transaction choice", () => {
+  const assetSource = readFileSync(path.join(protectedRoot, "asset", "[payload].tsx"), "utf8");
+
+  assert.match(assetSource, /selectedQrTransaction/);
+  assert.match(assetSource, /Choose transaction/);
+  assert.match(assetSource, /selectedQrTransaction === "borrow"/);
+  assert.match(assetSource, /selectedQrTransaction === "defect"/);
+});
