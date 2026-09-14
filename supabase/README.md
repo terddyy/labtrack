@@ -10,19 +10,28 @@ supabase start
 supabase db reset
 ```
 
-## Weekly keepalive cron
+## Database keepalive cron
 
-Migration `202605310002_weekly_keepalive_cron.sql` enables `pg_cron` and schedules `labtrack-weekly-keepalive` every Friday at 09:00 UTC:
+Migration `202605310002_weekly_keepalive_cron.sql` enables `pg_cron` and creates a private audit table. Migration `20260721110000_reschedule_keepalive_every_two_days.sql` schedules `labtrack-keepalive` every 2 days at 09:00 UTC:
 
 ```sql
 select cron.schedule(
-  'labtrack-weekly-keepalive',
-  '0 9 * * 5',
-  $$ insert into app_private.supabase_keepalive_events (note) values ('weekly Friday keepalive activity'); $$
+  'labtrack-keepalive',
+  '0 9 */2 * *',
+  $$ insert into app_private.supabase_keepalive_events (note) values ('scheduled keepalive activity'); $$
 );
 ```
 
-Each run inserts one private audit row into `app_private.supabase_keepalive_events`.
+Each run inserts one row into `app_private.supabase_keepalive_events`. The `app_private` schema is revoked from client roles, so this activity is invisible to end users.
+
+`pg_cron` runs inside Postgres, so it does not count as project activity for Supabase's inactivity pause. Migration `20260915090000_external_keepalive_ping.sql` adds `public.run_keepalive_ping()` (service_role only), which inserts a keepalive row and deletes it again. The pg_cron job now calls it too.
+
+The external ping runs from `.github/workflows/supabase-keepalive.yml` every 2 days at 09:00 UTC (or manually via **Run workflow**). Add these repository secrets in GitHub → Settings → Secrets and variables → Actions:
+
+- `SUPABASE_URL` — e.g. `https://<project-ref>.supabase.co`
+- `SUPABASE_SERVICE_ROLE_KEY` — the project's service role key
+
+GitHub disables scheduled workflows after 60 days without repository activity; re-enable it from the Actions tab if that happens.
 
 ## First Super Admin
 
