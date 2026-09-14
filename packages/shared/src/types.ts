@@ -111,7 +111,7 @@ export type TicketMessage = {
   createdAt: string;
 };
 
-export type TicketSubjectType = "booking" | "defect_report";
+export type TicketSubjectType = "booking" | "defect_report" | "general";
 
 export type ProfileRowDto = {
   id: string;
@@ -232,6 +232,8 @@ export type TicketThreadRowDto = {
   subject_type: TicketSubjectType;
   booking_id: string | null;
   defect_report_id: string | null;
+  requester_id?: string | null;
+  subject?: string | null;
   created_at: string;
 };
 

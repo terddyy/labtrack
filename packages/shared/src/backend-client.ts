@@ -39,6 +39,7 @@ import {
   resourceScheduleEntryRowDtoSchema,
   returnBookingInputSchema,
   sendTicketMessageInputSchema,
+  createGeneralTicketInputSchema,
   ticketMessageRowDtoSchema,
   ticketThreadRowDtoSchema,
   triageDefectReportInputSchema,
@@ -81,6 +82,7 @@ export const backendRpcInputSchemas = {
   triageDefectReport: triageDefectReportInputSchema,
   ensureTicketThread: ensureTicketThreadInputSchema,
   sendTicketMessage: sendTicketMessageInputSchema,
+  createGeneralTicket: createGeneralTicketInputSchema,
   markNotificationRead: markNotificationReadInputSchema,
   resetMyActivityData: resetMyActivityDataInputSchema
 } as const satisfies Record<BackendRpcKey, z.ZodType>;
@@ -111,6 +113,7 @@ export const backendRpcReturnSchemas = {
   triageDefectReport: z.array(defectReportRpcResultDtoSchema),
   ensureTicketThread: ticketThreadRowDtoSchema,
   sendTicketMessage: ticketMessageRowDtoSchema,
+  createGeneralTicket: ticketThreadRowDtoSchema,
   markNotificationRead: notificationRowDtoSchema,
   resetMyActivityData: resetMyActivityDataResultSchema
 } as const satisfies Record<BackendRpcKey, z.ZodType>;

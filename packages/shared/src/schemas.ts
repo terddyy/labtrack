@@ -270,10 +270,10 @@ export const triageDefectReportInputSchema = z.object({
   p_notes: lifecycleNotesSchema
 });
 
-export const ticketSubjectTypeSchema = z.enum(["booking", "defect_report"]);
+export const ticketSubjectTypeSchema = z.enum(["booking", "defect_report", "general"]);
 
 export const ensureTicketThreadInputSchema = z.object({
-  p_subject_type: ticketSubjectTypeSchema,
+  p_subject_type: z.enum(["booking", "defect_report"]),
   p_booking_id: idSchema.nullable().optional(),
   p_defect_report_id: idSchema.nullable().optional()
 }).refine((value) => {
@@ -290,6 +290,12 @@ export const ensureTicketThreadInputSchema = z.object({
 export const sendTicketMessageInputSchema = z.object({
   p_thread_id: idSchema,
   p_body: z.string().trim().min(1).max(2000)
+});
+
+export const createGeneralTicketInputSchema = z.object({
+  p_subject: z.string().trim().min(1).max(120),
+  p_body: z.string().trim().min(1).max(2000),
+  p_requester_id: idSchema.nullable().optional()
 });
 
 export const markNotificationReadInputSchema = z.object({
@@ -424,6 +430,8 @@ export const ticketThreadRowDtoSchema = z.object({
   subject_type: ticketSubjectTypeSchema,
   booking_id: idSchema.nullable(),
   defect_report_id: idSchema.nullable(),
+  requester_id: idSchema.nullable().optional(),
+  subject: z.string().nullable().optional(),
   created_at: timestampSchema
 });
 
@@ -562,6 +570,7 @@ export type CreateDefectReportInput = z.infer<typeof createDefectReportInputSche
 export type TriageDefectReportInput = z.infer<typeof triageDefectReportInputSchema>;
 export type EnsureTicketThreadInput = z.infer<typeof ensureTicketThreadInputSchema>;
 export type SendTicketMessageInput = z.infer<typeof sendTicketMessageInputSchema>;
+export type CreateGeneralTicketInput = z.infer<typeof createGeneralTicketInputSchema>;
 export type MarkNotificationReadInput = z.infer<typeof markNotificationReadInputSchema>;
 export type ResetMyActivityDataInput = z.infer<typeof resetMyActivityDataInputSchema>;
 export type ResetMyActivityDataResult = z.infer<typeof resetMyActivityDataResultSchema>;

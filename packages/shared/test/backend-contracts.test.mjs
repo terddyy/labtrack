@@ -22,7 +22,9 @@ const restoredAdminAssetsMigration = readFileSync(restoredAdminAssetsMigrationPa
 const assetImageReadModelsMigration = readFileSync(assetImageReadModelsMigrationPath, "utf8");
 const borrowerQrPickupMigration = readFileSync(borrowerQrPickupMigrationPath, "utf8");
 const resetMyActivityDataMigration = readFileSync(resetMyActivityDataMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}`;
+const generalTicketMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260916090100_general_ticket_threads.sql", import.meta.url));
+const generalTicketMigration = readFileSync(generalTicketMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
