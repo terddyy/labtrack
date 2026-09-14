@@ -19,6 +19,7 @@ import {
   createAsset,
   createAllowedEmailDomain,
   createCategory,
+  createGeneralTicket,
   createLocation,
   decideBooking,
   deleteAsset,
@@ -195,6 +196,23 @@ export async function sendTicketMessageAction(threadId: string, body: string) {
 
     await sendTicketMessage(parseId(threadId), trimmedBody);
     return null;
+  });
+}
+
+export async function createGeneralTicketAction(requesterId: string, subject: string, body: string) {
+  return toActionResult(async () => {
+    const trimmedSubject = typeof subject === "string" ? subject.trim() : "";
+    const trimmedBody = typeof body === "string" ? body.trim() : "";
+
+    if (!trimmedSubject || trimmedSubject.length > 120) {
+      throw new Error("Subject must be between 1 and 120 characters.");
+    }
+
+    if (!trimmedBody || trimmedBody.length > 2000) {
+      throw new Error("Message must be between 1 and 2000 characters.");
+    }
+
+    return createGeneralTicket(parseId(requesterId), trimmedSubject, trimmedBody);
   });
 }
 

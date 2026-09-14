@@ -1,20 +1,107 @@
 "use client";
 
-import { ClipboardList, MessagesSquare, RefreshCw, SendHorizontal, Wrench } from "lucide-react";
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { getRoleDisplayLabel } from "@labtrack/shared";
+import { ClipboardList, MessageSquarePlus, MessagesSquare, RefreshCw, SendHorizontal, Wrench, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
 import { formatLabel, formatShortDate } from "@/lib/admin/format";
 import { EmptyState, Initials } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { ProfileRow, TicketMessageRow, TicketThreadRow } from "@/lib/admin/types";
+
+const threadIcons: Record<TicketThreadRow["subject_type"], LucideIcon> = {
+  booking: ClipboardList,
+  defect_report: Wrench,
+  general: MessagesSquare
+};
+
+function NewTicketDialog({
+  disabled,
+  onCreate,
+  profiles
+}: {
+  disabled: boolean;
+  onCreate: (input: { requesterId: string; subject: string; body: string }) => Promise<boolean>;
+  profiles: ProfileRow[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [requesterId, setRequesterId] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const canSubmit = !disabled && Boolean(requesterId) && Boolean(subject.trim()) && Boolean(body.trim());
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (canSubmit && (await onCreate({ requesterId, subject, body }))) {
+      setOpen(false);
+      setRequesterId("");
+      setSubject("");
+      setBody("");
+    }
+  }
+
+  return (
+    <Dialog onOpenChange={setOpen} open={open}>
+      <DialogTrigger asChild>
+        <Button size="sm" type="button" variant="outline">
+          <MessageSquarePlus className="size-3.5" />
+          New
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>New message</DialogTitle>
+          <DialogDescription>Start a conversation with a user that is not tied to a borrowing request or defect report.</DialogDescription>
+        </DialogHeader>
+        <form className="grid gap-4" onSubmit={(event) => void handleSubmit(event)}>
+          <div className="grid gap-1.5">
+            <Label htmlFor="ticket-recipient">To</Label>
+            <Select onValueChange={setRequesterId} value={requesterId || undefined}>
+              <SelectTrigger className="w-full" id="ticket-recipient">
+                <SelectValue placeholder="Select a user" />
+              </SelectTrigger>
+              <SelectContent>
+                {profiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.full_name} · {getRoleDisplayLabel(profile.role)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="ticket-subject">Subject</Label>
+            <Input id="ticket-subject" maxLength={120} onChange={(event) => setSubject(event.target.value)} value={subject} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="ticket-body">Message</Label>
+            <Textarea id="ticket-body" maxLength={2000} onChange={(event) => setBody(event.target.value)} rows={4} value={body} />
+          </div>
+          <div className="flex justify-end">
+            <Button disabled={!canSubmit} type="submit">
+              Send
+              <SendHorizontal className="size-3.5" />
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export function TicketAdminPanel({
   currentProfileId,
   disabled,
   messages,
   onBodyChange,
+  onCreateTicket,
   onRefresh,
   onSelectThread,
   onSend,
@@ -27,6 +114,7 @@ export function TicketAdminPanel({
   disabled: boolean;
   messages: TicketMessageRow[];
   onBodyChange: (body: string) => void;
+  onCreateTicket: (input: { requesterId: string; subject: string; body: string }) => Promise<boolean>;
   onRefresh: () => void;
   onSelectThread: (threadId: string) => void;
   onSend: () => void;
@@ -53,15 +141,18 @@ export function TicketAdminPanel({
   return (
     <section className="grid min-h-[560px] overflow-hidden rounded-xl border bg-card md:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="flex flex-col border-b md:border-r md:border-b-0">
-        <header className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Threads</h2>
-          <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground tabular">{threads.length}</span>
+        <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">Threads</h2>
+            <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground tabular">{threads.length}</span>
+          </div>
+          <NewTicketDialog disabled={disabled} onCreate={onCreateTicket} profiles={profiles.filter((profile) => profile.is_active && profile.id !== currentProfileId)} />
         </header>
         {threads.length ? (
           <ul className="flex-1 overflow-y-auto p-2">
             {threads.map((thread) => {
               const isActive = thread.id === selectedThreadId;
-              const Icon = thread.subject_type === "booking" ? ClipboardList : Wrench;
+              const Icon = threadIcons[thread.subject_type];
               const requester = profiles.find((profile) => profile.id === thread.requester_id);
               return (
                 <li key={thread.id}>

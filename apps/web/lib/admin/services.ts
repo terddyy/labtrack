@@ -52,7 +52,8 @@ type SupabaseCountResult = {
   error: { message: string } | null;
 };
 type EmbeddedOne<T> = T | T[] | null;
-type TicketThreadQueryRow = Omit<TicketThreadRow, "requester_id" | "subject_title"> & {
+type TicketThreadQueryRow = Omit<TicketThreadRow, "subject_title"> & {
+  subject: string | null;
   booking: EmbeddedOne<{ instructor_id: string; purpose: string }>;
   defect_report: EmbeddedOne<{ instructor_id: string; title: string }>;
 };
@@ -231,7 +232,7 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
       "ticket_threads.recent",
       supabase
         .from("ticket_threads")
-        .select("id,subject_type,booking_id,defect_report_id,created_at,booking:bookings(instructor_id,purpose),defect_report:defect_reports(instructor_id,title)")
+        .select("id,subject_type,booking_id,defect_report_id,requester_id,subject,created_at,booking:bookings(instructor_id,purpose),defect_report:defect_reports(instructor_id,title)")
         .order("created_at", { ascending: false })
         .limit(50),
       []
@@ -472,6 +473,17 @@ export async function sendTicketMessage(threadId: string, body: string) {
     p_thread_id: threadId,
     p_body: body
   });
+}
+
+export async function createGeneralTicket(requesterId: string, subject: string, body: string) {
+  const supabase = await requireAuthorizedAdminClient();
+  const thread = await callRpc(supabase, "createGeneralTicket", {
+    p_subject: subject,
+    p_body: body,
+    p_requester_id: requesterId
+  });
+
+  return thread.id;
 }
 
 export async function updateProfileAccess(profileId: string, updates: ProfileAccessUpdates) {
@@ -876,8 +888,8 @@ function toTicketThreadRow(row: TicketThreadQueryRow): TicketThreadRow {
     booking_id: row.booking_id,
     defect_report_id: row.defect_report_id,
     created_at: row.created_at,
-    requester_id: booking?.instructor_id ?? defect?.instructor_id ?? null,
-    subject_title: booking?.purpose ?? defect?.title ?? null
+    requester_id: row.requester_id ?? booking?.instructor_id ?? defect?.instructor_id ?? null,
+    subject_title: row.subject ?? booking?.purpose ?? defect?.title ?? null
   };
 }
 

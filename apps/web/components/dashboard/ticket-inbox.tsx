@@ -35,7 +35,7 @@ export function TicketInbox({
         <ul className="divide-y">
           {threads.slice(0, 6).map((thread) => {
             const requester = profiles.find((profile) => profile.id === thread.requester_id);
-            const Icon = thread.subject_type === "booking" ? ClipboardList : Wrench;
+            const Icon = thread.subject_type === "booking" ? ClipboardList : thread.subject_type === "general" ? MessagesSquare : Wrench;
             return (
               <li key={thread.id}>
                 <button

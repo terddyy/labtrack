@@ -37,6 +37,7 @@ import {
   createAllowedEmailDomainAction,
   createAssetAction,
   createCategoryAction,
+  createGeneralTicketAction,
   createLocationAction,
   decideBookingAction,
   generateAssetQrAction,
@@ -663,6 +664,25 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     setIsMutatingWorkflow(false);
   }
 
+  async function handleCreateGeneralTicket(input: { requesterId: string; subject: string; body: string }) {
+    setIsMutatingWorkflow(true);
+    setDashboardMessage(null);
+
+    const result = await createGeneralTicketAction(input.requesterId, input.subject, input.body);
+
+    if (result.error || !result.data) {
+      setDashboardMessage({ text: result.error ?? "Unable to start the conversation.", tone: "warning" });
+      setIsMutatingWorkflow(false);
+      return false;
+    }
+
+    await loadDashboardData();
+    setSelectedThreadId(result.data);
+    setDashboardMessage({ text: "Message sent.", tone: "success" });
+    setIsMutatingWorkflow(false);
+    return true;
+  }
+
   async function handleProfileUpdate(profile: ProfileRow, updates: Partial<Pick<ProfileRow, "role" | "is_active">>) {
     if (authorizedProfile?.role !== "super_admin") {
       return;
@@ -981,6 +1001,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           profiles={data.profiles}
           messages={threadMessages}
           onBodyChange={setTicketBody}
+          onCreateTicket={handleCreateGeneralTicket}
           onRefresh={() => void loadThreadMessages(selectedThreadId)}
           onSelectThread={(threadId) => setSelectedThreadId(threadId)}
           onSend={() => void handleSendTicketMessage()}

@@ -87,7 +87,7 @@ export type DefectRow = {
 
 export type TicketThreadRow = {
   id: string;
-  subject_type: "booking" | "defect_report";
+  subject_type: "booking" | "defect_report" | "general";
   booking_id: string | null;
   defect_report_id: string | null;
   created_at: string;
