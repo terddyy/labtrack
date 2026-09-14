@@ -1,33 +1,101 @@
+import { formatStatusLabel, getDefectStatusTone, isOpenDefectStatus } from "@labtrack/shared";
+import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Badge, Button, Card, EmptyState, Notice, ScreenFlatList, SkeletonCard } from "@/components/ui";
-import { colors } from "@/constants/theme";
+import {
+  Badge,
+  Card,
+  ConsoleHeader,
+  EmptyState,
+  HeaderIconButton,
+  IconTile,
+  Notice,
+  ReadoutStrip,
+  ScreenFlatList,
+  SegmentedControl,
+  SkeletonCard,
+  formatReference,
+  formatRelativeTime,
+  type Tone
+} from "@/components/ui";
+import { colors, fonts, typography } from "@/constants/theme";
 import { useDefectReports } from "@/lib/use-defect-reports";
+import type { MobileDefectReport } from "@/lib/labtrack-api";
+
+type ReportFilter = "all" | "open" | "closed";
+
+const reportFilters: Array<{ label: string; value: ReportFilter }> = [
+  { label: "All", value: "all" },
+  { label: "Open", value: "open" },
+  { label: "Closed", value: "closed" }
+];
 
 export default function ReportsScreen() {
   const { error, hasLoaded, isLoading, refresh, reports } = useDefectReports();
+  const [filter, setFilter] = useState<ReportFilter>("all");
+  const openCount = useMemo(() => reports.filter((report) => isOpenDefectStatus(report.status)).length, [reports]);
+  const resolvedCount = useMemo(() => reports.filter((report) => report.status === "resolved").length, [reports]);
+  const visibleReports = useMemo(
+    () =>
+      reports.filter((report) => {
+        if (filter === "open") {
+          return isOpenDefectStatus(report.status);
+        }
+
+        if (filter === "closed") {
+          return !isOpenDefectStatus(report.status);
+        }
+
+        return true;
+      }),
+    [filter, reports]
+  );
 
   return (
     <ScreenFlatList
-      data={reports}
-      empty={hasLoaded && !isLoading ? <EmptyState body="Submitted equipment issues and resolution notes will appear here." title="No defect reports yet" /> : null}
+      data={visibleReports}
+      empty={
+        hasLoaded && !isLoading ? (
+          <EmptyState
+            body={
+              filter === "open"
+                ? "No open incidents right now. Switch to All to review earlier reports."
+                : filter === "closed"
+                  ? "Resolved and rejected reports will appear here after custodians close them."
+                  : "Submitted equipment issues and resolution notes will appear here."
+            }
+            icon="wrench"
+            title={
+              filter === "open" ? "No open defect reports" : filter === "closed" ? "No closed defect reports" : "No defect reports yet"
+            }
+          />
+        ) : null
+      }
       header={(
+        <ConsoleHeader
+          eyebrow="Incident desk"
+          inset={false}
+          right={<HeaderIconButton accessibilityLabel="Refresh defect reports" icon="refresh" loading={isLoading} onPress={refresh} />}
+          title="Defect reports"
+        >
+          <ReadoutStrip
+            items={[
+              { label: "Open", tone: openCount ? "warning" : "neutral", value: openCount },
+              { label: "Resolved", tone: resolvedCount ? "success" : "neutral", value: resolvedCount },
+              { label: "Total", value: reports.length }
+            ]}
+          />
+        </ConsoleHeader>
+      )}
+      includeHeaderInset
+      keyExtractor={(report) => report.id}
+      listHeader={(
         <>
-          <Card style={styles.heroCard}>
-            <View style={styles.heroCopy}>
-              <Text style={styles.heroKicker}>Incident Desk</Text>
-              <Text style={styles.heroTitle}>Clean defect triage for every lab.</Text>
-              <Text style={styles.heroCaption}>Severity, asset reference, report time, and resolution state are kept scannable.</Text>
-            </View>
-            <View style={styles.heroActions}>
-              <View style={styles.heroMetric}>
-                <Text style={styles.heroMetricValue}>{reports.length}</Text>
-                <Text style={styles.heroMetricLabel}>reports</Text>
-              </View>
-              <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
-                Refresh
-              </Button>
-            </View>
-          </Card>
+          <SegmentedControl
+            counts={{ all: reports.length, closed: reports.length - openCount, open: openCount }}
+            onChange={setFilter}
+            options={reportFilters}
+            value={filter}
+          />
           {error ? <Notice tone="danger">{error}</Notice> : null}
           {!hasLoaded && isLoading ? (
             <>
@@ -37,156 +105,83 @@ export default function ReportsScreen() {
           ) : null}
         </>
       )}
-      keyExtractor={(report) => report.id}
-      renderItem={({ item: report }) => (
-        <Card style={styles.reportCard}>
-          <View style={styles.reportTopRow}>
-            <View style={styles.reportHeaderMain}>
-              <View style={[styles.severityIcon, report.status === "resolved" ? styles.severityResolved : styles.severityOpen]}>
-                <Text style={styles.severityText}>{report.status === "resolved" ? "OK" : "!"}</Text>
-              </View>
-              <View style={styles.reportCopy}>
-                <Text style={styles.cardTitle}>{report.title}</Text>
-                <Text numberOfLines={2} style={styles.metaText}>
-                  Asset {formatReference(report.assetId)} • Reported {formatRelative(report.createdAt)}
-                </Text>
-              </View>
-            </View>
-            <Badge label={report.status} tone={report.status === "resolved" ? "success" : report.status === "rejected" ? "danger" : "warning"} />
-          </View>
-          <Text style={styles.bodyText}>{report.description}</Text>
-          {report.resolutionNotes ? <Notice tone={report.status === "resolved" ? "success" : "neutral"}>{report.resolutionNotes}</Notice> : null}
-        </Card>
-      )}
+      renderItem={({ item: report }) => <ReportCard report={report} />}
     />
   );
 }
 
-function formatReference(value: string) {
-  return value.slice(0, 8).toUpperCase();
+function ReportCard({ report }: { report: MobileDefectReport }) {
+  const tone = getDefectStatusTone(report.status) as Tone;
+  const icon = report.status === "resolved" ? "check" : report.status === "rejected" ? "close" : "wrench";
+
+  return (
+    <Card style={styles.card}>
+      <View style={styles.topRow}>
+        <IconTile icon={icon} size={38} tone={tone} />
+        <View style={styles.copy}>
+          <Text numberOfLines={2} style={styles.title}>{report.title}</Text>
+          <Text numberOfLines={1} style={styles.meta}>
+            ASSET {formatReference(report.assetId)} · {formatRelativeTime(report.createdAt).toUpperCase()}
+          </Text>
+        </View>
+        <Badge label={formatStatusLabel(report.status)} tone={tone} />
+      </View>
+      <Text numberOfLines={4} style={styles.body}>{report.description}</Text>
+      {report.resolutionNotes ? (
+        <View style={styles.resolution}>
+          <Text style={styles.resolutionLabel}>CUSTODIAN NOTE</Text>
+          <Text style={styles.resolutionText}>{report.resolutionNotes}</Text>
+        </View>
+      ) : null}
+    </Card>
+  );
 }
 
 const styles = StyleSheet.create({
-  bodyText: {
+  body: {
     color: colors.muted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20
+    ...typography.body
   },
-  cardTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-    lineHeight: 23
+  card: {
+    gap: 10,
+    padding: 14
   },
-  heroCaption: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18
-  },
-  heroActions: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10
-  },
-  heroCard: {
-    backgroundColor: colors.warningMuted,
-    borderColor: "rgba(255,255,255,0.84)",
-    gap: 14,
-    padding: 18
-  },
-  heroCopy: {
-    gap: 7,
-    minWidth: 0
-  },
-  heroKicker: {
-    color: colors.warning,
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase"
-  },
-  heroMetric: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    flexDirection: "row",
-    gap: 7,
-    minHeight: 52,
-    justifyContent: "center",
-    paddingHorizontal: 14
-  },
-  heroMetricLabel: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: "800"
-  },
-  heroMetricValue: {
-    color: colors.warning,
-    fontSize: 22,
-    fontVariant: ["tabular-nums"],
-    fontWeight: "900",
-    lineHeight: 26
-  },
-  heroTitle: {
-    color: colors.text,
-    fontSize: 21,
-    fontWeight: "900",
-    lineHeight: 26
-  },
-  metaText: {
-    color: colors.muted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20
-  },
-  reportCard: {
-    gap: 14
-  },
-  reportCopy: {
+  copy: {
     flex: 1,
-    gap: 4,
+    gap: 3,
     minWidth: 0
   },
-  reportHeaderMain: {
+  meta: {
+    color: colors.subtle,
+    fontFamily: fonts.mono,
+    fontSize: 10.5
+  },
+  resolution: {
+    backgroundColor: colors.surfaceGlass,
+    borderLeftColor: colors.borderStrong,
+    borderLeftWidth: 2,
+    borderRadius: 6,
+    gap: 3,
+    paddingHorizontal: 11,
+    paddingVertical: 9
+  },
+  resolutionLabel: {
+    color: colors.subtle,
+    ...typography.eyebrow,
+    fontSize: 9.5
+  },
+  resolutionText: {
+    color: colors.text,
+    fontSize: 13.5,
+    lineHeight: 19
+  },
+  title: {
+    color: colors.text,
+    ...typography.headline
+  },
+  topRow: {
     alignItems: "flex-start",
-    alignSelf: "stretch",
     flexDirection: "row",
-    gap: 12
-  },
-  reportTopRow: {
-    alignItems: "flex-start",
-    flexDirection: "column",
-    gap: 12
-  },
-  severityIcon: {
-    alignItems: "center",
-    borderRadius: 16,
-    height: 48,
-    justifyContent: "center",
-    width: 48
-  },
-  severityOpen: {
-    backgroundColor: colors.danger
-  },
-  severityResolved: {
-    backgroundColor: colors.success
-  },
-  severityText: {
-    color: colors.surface,
-    fontSize: 24,
-    fontWeight: "900"
+    gap: 11
   }
 });
-
-function formatRelative(value: string) {
-  const diffMs = Date.now() - new Date(value).getTime();
-  const diffHours = Math.max(1, Math.round(diffMs / (60 * 60 * 1000)));
-
-  if (diffHours < 24) {
-    return `${diffHours}h ago`;
-  }
-
-  return `${Math.round(diffHours / 24)}d ago`;
-}

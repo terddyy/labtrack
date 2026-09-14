@@ -7,18 +7,20 @@ export default function ProtectedLayout() {
       screenOptions={{
         contentStyle: { backgroundColor: colors.background },
         headerBackTitle: "Back",
-        headerTintColor: colors.primaryDark,
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors.background },
+        headerStyle: { backgroundColor: colors.ink },
+        headerTintColor: colors.inkText,
+        // Each screen renders its own ConsoleHeader title directly below this bar.
+        headerTitle: "",
         headerTitleAlign: "center",
-        headerTitleStyle: { color: colors.text, fontSize: 17, fontWeight: "900" }
+        headerTitleStyle: { color: colors.inkText, fontSize: 16, fontWeight: "600" }
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "LABTRACK" }} />
-      <Stack.Screen name="asset/[payload]" options={{ title: "Asset Details" }} />
+      <Stack.Screen name="asset/[payload]" options={{ title: "Asset" }} />
       <Stack.Screen name="reports" options={{ title: "Defect Reports" }} />
-      <Stack.Screen name="ticket" options={{ title: "Tickets" }} />
-      <Stack.Screen name="ticket/[threadId]" options={{ title: "Ticket Chat" }} />
+      <Stack.Screen name="ticket" options={{ title: "Support" }} />
+      <Stack.Screen name="ticket/[threadId]" options={{ headerTitle: "Conversation", title: "Conversation" }} />
     </Stack>
   );
 }

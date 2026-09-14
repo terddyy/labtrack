@@ -1,10 +1,13 @@
 import { Stack } from "expo-router";
+import { StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useCurrentProfile } from "@/lib/auth";
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      {/* Every screen opens on an ink header, so the status bar stays light. */}
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent />
       <AuthProvider>
         <RootNavigator />
       </AuthProvider>

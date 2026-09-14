@@ -1,33 +1,69 @@
-import { StyleSheet, Text, View } from "react-native";
-import { Badge, Button, Card, EmptyState, Notice, ScreenFlatList, SkeletonCard } from "@/components/ui";
-import { colors } from "@/constants/theme";
+import { useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { AppIcon, type AppIconName } from "@/components/icons";
+import {
+  ConsoleHeader,
+  EmptyState,
+  HeaderIconButton,
+  Notice,
+  ScreenFlatList,
+  SegmentedControl,
+  SkeletonCard,
+  formatRelativeTime
+} from "@/components/ui";
+import { colors, fonts, spacing } from "@/constants/theme";
 import { useNotifications } from "@/lib/use-notifications";
+import type { MobileNotification } from "@/lib/labtrack-api";
+
+type NotificationFilter = "all" | "unread";
+
+const notificationFilters: Array<{ label: string; value: NotificationFilter }> = [
+  { label: "All", value: "all" },
+  { label: "Unread", value: "unread" }
+];
 
 export default function NotificationsScreen() {
   const { error, hasLoaded, isLoading, markRead, notifications, readingId, refresh } = useNotifications();
+  const [filter, setFilter] = useState<NotificationFilter>("all");
+  const unreadCount = useMemo(() => notifications.filter((notification) => !notification.readAt).length, [notifications]);
+  const visibleNotifications = useMemo(
+    () => (filter === "unread" ? notifications.filter((notification) => !notification.readAt) : notifications),
+    [filter, notifications]
+  );
 
   return (
     <ScreenFlatList
-      data={notifications}
-      empty={hasLoaded && !isLoading ? <EmptyState body="New borrow decisions, defect updates, and ticket replies will appear here." title="No notifications yet" /> : null}
+      data={visibleNotifications}
+      empty={
+        hasLoaded && !isLoading ? (
+          <EmptyState
+            body={
+              filter === "unread"
+                ? "You're caught up. Switch to All to review earlier updates."
+                : "New borrow decisions, defect updates, and ticket replies will appear here."
+            }
+            icon={filter === "unread" ? "check" : "bell"}
+            title={filter === "unread" ? "No unread notifications" : "No notifications yet"}
+          />
+        ) : null
+      }
       header={(
+        <ConsoleHeader
+          caption={unreadCount ? `${unreadCount} unread of ${notifications.length}` : `All caught up · ${notifications.length} total`}
+          eyebrow="Inbox · Decisions & replies"
+          right={<HeaderIconButton accessibilityLabel="Refresh notifications" icon="refresh" loading={isLoading} onPress={refresh} />}
+          title="Alerts"
+        />
+      )}
+      keyExtractor={(notification) => notification.id}
+      listHeader={(
         <>
-          <Card style={styles.heroCard}>
-            <View style={styles.heroCopy}>
-              <Text style={styles.heroKicker}>Notification Center</Text>
-              <Text style={styles.heroTitle}>Updates that need attention.</Text>
-              <Text style={styles.heroCaption}>Borrow decisions, defect changes, and ticket replies stay organized here.</Text>
-            </View>
-            <View style={styles.heroActions}>
-              <View style={styles.unreadPill}>
-                <Text style={styles.unreadValue}>{notifications.filter((notification) => !notification.readAt).length}</Text>
-                <Text style={styles.unreadLabel}>unread</Text>
-              </View>
-              <Button disabled={isLoading} fullWidth={false} loading={isLoading} onPress={refresh} variant="secondary">
-                Refresh
-              </Button>
-            </View>
-          </Card>
+          <SegmentedControl
+            counts={{ all: notifications.length, unread: unreadCount }}
+            onChange={setFilter}
+            options={notificationFilters}
+            value={filter}
+          />
           {error ? <Notice tone="danger">{error}</Notice> : null}
           {!hasLoaded && isLoading ? (
             <>
@@ -37,121 +73,132 @@ export default function NotificationsScreen() {
           ) : null}
         </>
       )}
-      includeTopInset
-      keyExtractor={(notification) => notification.id}
       renderItem={({ item: notification }) => (
-        <Card style={[styles.notificationCard, !notification.readAt ? styles.unreadCard : null]}>
-          <View style={styles.cardHeader}>
-            <Badge label={notification.readAt ? "read" : "unread"} tone={notification.readAt ? "neutral" : "warning"} />
-            <Text style={styles.dateText}>{new Date(notification.createdAt).toLocaleString()}</Text>
-          </View>
-          <Text style={styles.cardTitle}>{notification.title}</Text>
-          <Text style={styles.bodyText}>{notification.body}</Text>
-          {!notification.readAt ? (
-            <Button
-              disabled={Boolean(readingId)}
-              loading={readingId === notification.id}
-              onPress={() => void markRead(notification.id)}
-              variant="secondary"
-            >
-              Mark read
-            </Button>
-          ) : null}
-        </Card>
+        <NotificationCard
+          disabled={Boolean(readingId)}
+          notification={notification}
+          onMarkRead={() => void markRead(notification.id)}
+          reading={readingId === notification.id}
+        />
       )}
     />
   );
 }
 
+function getNotificationIcon(notification: MobileNotification): AppIconName {
+  const text = `${notification.title} ${notification.body}`.toLowerCase();
+  if (text.includes("defect") || text.includes("repair")) return "wrench";
+  if (text.includes("ticket") || text.includes("message") || text.includes("reply")) return "message";
+  if (text.includes("borrow") || text.includes("booking") || text.includes("reservation")) return "borrow";
+  return "bell";
+}
+
+function NotificationCard({
+  disabled,
+  notification,
+  onMarkRead,
+  reading
+}: {
+  disabled: boolean;
+  notification: MobileNotification;
+  onMarkRead: () => void;
+  reading: boolean;
+}) {
+  const isUnread = !notification.readAt;
+
+  return (
+    <Pressable
+      accessibilityHint={isUnread ? "Marks this notification as read" : undefined}
+      accessibilityRole="button"
+      accessibilityState={{ busy: reading, disabled: !isUnread || disabled }}
+      disabled={!isUnread || disabled}
+      onPress={isUnread ? onMarkRead : undefined}
+      style={({ pressed }) => [styles.card, isUnread ? styles.cardUnread : null, pressed ? styles.pressed : null]}
+    >
+      <View style={[styles.icon, isUnread ? styles.iconUnread : null]}>
+        <AppIcon color={isUnread ? colors.primary : colors.subtle} name={getNotificationIcon(notification)} size={18} />
+      </View>
+      <View style={styles.copy}>
+        <View style={styles.titleRow}>
+          <Text numberOfLines={2} style={[styles.title, isUnread ? styles.titleUnread : null]}>
+            {notification.title}
+          </Text>
+          <Text style={styles.time}>{formatRelativeTime(notification.createdAt).toUpperCase()}</Text>
+        </View>
+        <Text numberOfLines={3} style={styles.body}>
+          {notification.body}
+        </Text>
+        {isUnread ? (
+          <Text style={styles.markRead}>{reading ? "Marking as read…" : "Tap to mark as read"}</Text>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  bodyText: {
+  body: {
     color: colors.muted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20
+    fontSize: 13.5,
+    lineHeight: 19
   },
-  cardHeader: {
+  card: {
     alignItems: "flex-start",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: spacing.radius,
+    borderWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    justifyContent: "space-between"
+    gap: 12,
+    padding: 14
   },
-  cardTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-    lineHeight: 23
+  cardUnread: {
+    borderColor: "rgba(59, 91, 219, 0.28)"
   },
-  dateText: {
-    color: colors.muted,
-    flexShrink: 1,
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 17,
-    textAlign: "left"
-  },
-  heroCaption: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18
-  },
-  heroActions: {
-    alignItems: "center",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10
-  },
-  heroCard: {
-    backgroundColor: colors.blueMuted,
-    borderColor: "rgba(255,255,255,0.84)",
-    gap: 14,
-    padding: 18
-  },
-  heroCopy: {
-    gap: 7,
+  copy: {
+    flex: 1,
+    gap: 4,
     minWidth: 0
   },
-  heroKicker: {
-    color: colors.blue,
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase"
-  },
-  heroTitle: {
-    color: colors.text,
-    fontSize: 21,
-    fontWeight: "900",
-    lineHeight: 26
-  },
-  notificationCard: {
-    gap: 12
-  },
-  unreadPill: {
+  icon: {
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    flexDirection: "row",
-    gap: 7,
-    minHeight: 52,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 12,
+    height: 38,
     justifyContent: "center",
-    paddingHorizontal: 14
+    width: 38
   },
-  unreadLabel: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: "800"
+  iconUnread: {
+    backgroundColor: colors.primaryMuted
   },
-  unreadValue: {
-    color: colors.blue,
-    fontSize: 22,
-    fontVariant: ["tabular-nums"],
-    fontWeight: "900",
-    lineHeight: 26
+  markRead: {
+    color: colors.primary,
+    fontSize: 12.5,
+    fontWeight: "600",
+    marginTop: 4
   },
-  unreadCard: {
-    borderColor: colors.warning,
-    borderWidth: 2
+  pressed: {
+    opacity: 0.85
+  },
+  time: {
+    color: colors.subtle,
+    flexShrink: 0,
+    fontFamily: fonts.mono,
+    fontSize: 10.5,
+    lineHeight: 19
+  },
+  title: {
+    color: colors.text,
+    flex: 1,
+    fontSize: 14.5,
+    fontWeight: "500",
+    lineHeight: 19
+  },
+  titleRow: {
+    flexDirection: "row",
+    gap: 10
+  },
+  titleUnread: {
+    fontWeight: "700"
   }
 });

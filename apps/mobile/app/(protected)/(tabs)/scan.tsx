@@ -1,12 +1,25 @@
 import { CameraView, type BarcodeScanningResult, type BarcodeSettings } from "expo-camera";
-import { memo } from "react";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { memo, useEffect, useRef } from "react";
+import { Animated, Easing, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, Card, ScreenScrollView, SectionTitle } from "@/components/ui";
-import { colors, shadows } from "@/constants/theme";
+import { FrostLayer } from "@/components/glass";
+import { AppIcon } from "@/components/icons";
+import { Button, Card, ConsoleHeader, ScreenScrollView, SectionTitle } from "@/components/ui";
+import { colors, fonts, typography } from "@/constants/theme";
+import { useOnboardingFlag } from "@/lib/use-onboarding-flags";
 import { useScanner } from "@/lib/use-scanner";
 
 const QR_SCANNER_SETTINGS: BarcodeSettings = { barcodeTypes: ["qr"] };
+const RETICLE_SIZE = 244;
+const SCAN_MASK_COLOR = "rgba(10, 12, 18, 0.62)";
+
+const COACH_STEPS = [
+  "Align the QR inside the frame",
+  "Choose Report defect or Borrow item",
+  "Fill only that form",
+  "Wait for approval",
+  "Scan again at the office to confirm pickup"
+];
 
 const ScannerCamera = memo(function ScannerCamera({ onScan }: { onScan: (result: BarcodeScanningResult) => void }) {
   return (
@@ -20,38 +33,115 @@ const ScannerCamera = memo(function ScannerCamera({ onScan }: { onScan: (result:
   );
 });
 
+function ScanLine({ active }: { active: boolean }) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!active) {
+      progress.stopAnimation();
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(progress, { duration: 1800, easing: Easing.inOut(Easing.quad), toValue: 1, useNativeDriver: true }),
+        Animated.timing(progress, { duration: 1800, easing: Easing.inOut(Easing.quad), toValue: 0, useNativeDriver: true })
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, progress]);
+
+  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [18, RETICLE_SIZE - 20] });
+
+  return <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]} />;
+}
+
 const ScannerOverlay = memo(function ScannerOverlay({
   bottomInset,
   error,
   isLocked,
+  onDismissCoach,
+  showCoach,
   topInset
 }: {
   bottomInset: number;
   error: string | null;
   isLocked: boolean;
+  onDismissCoach?: () => void;
+  showCoach: boolean;
   topInset: number;
 }) {
-  const caption = isLocked ? "Opening asset..." : error ?? "Only LABTRACK asset QR codes will open asset actions.";
+  const hasError = Boolean(error) && !isLocked;
+  const statusLabel = isLocked ? "OPENING ASSET" : hasError ? "CODE REJECTED" : "READY";
+  const statusColor = isLocked ? colors.inkAccent : hasError ? "#FF8A7A" : colors.mint;
 
   return (
     <>
-      <View pointerEvents="none" style={[styles.scanHeader, { top: Math.max(topInset + 18, 28) }]}>
-        <Text style={styles.scanHeaderTitle}>LABTRACK Scan</Text>
-        <Text style={styles.scanHeaderCaption}>Camera is ready</Text>
+      <View pointerEvents="none" style={styles.scanMask}>
+        <View style={styles.scanMaskBand} />
+        <View style={styles.scanMaskMiddle}>
+          <View style={styles.scanMaskSide} />
+          <View style={styles.scanMaskHole} />
+          <View style={styles.scanMaskSide} />
+        </View>
+        <View style={styles.scanMaskBand} />
       </View>
-      <View pointerEvents="none" style={styles.reticleWrap}>
-        <View style={styles.reticle}>
-          <View style={[styles.reticleCorner, styles.reticleTopLeft]} />
-          <View style={[styles.reticleCorner, styles.reticleTopRight]} />
-          <View style={[styles.reticleCorner, styles.reticleBottomLeft]} />
-          <View style={[styles.reticleCorner, styles.reticleBottomRight]} />
+
+      <View pointerEvents="none" style={[styles.topBar, { top: Math.max(topInset + 12, 24) }]}>
+        <View style={styles.chip}>
+          <FrostLayer style={StyleSheet.absoluteFill} />
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={styles.chipText}>SCANNER · {statusLabel}</Text>
         </View>
       </View>
-      <View pointerEvents="none" style={[styles.overlay, { bottom: Math.max(bottomInset + 104, 118) }]}>
-        <Card style={styles.overlayCard}>
-          <Text style={styles.title}>Align the equipment QR code inside the soft frame.</Text>
-          <Text style={[styles.caption, error && !isLocked ? styles.errorText : null]}>{caption}</Text>
-        </Card>
+
+      {showCoach ? (
+        <View style={[styles.coachWrap, { top: Math.max(topInset + 64, 76) }]}>
+          <View style={styles.smokedCard}>
+            <FrostLayer style={StyleSheet.absoluteFill} />
+            <Text style={styles.coachEyebrow}>HOW SCANNING WORKS</Text>
+            {COACH_STEPS.map((step, index) => (
+              <View key={step} style={styles.coachRow}>
+                <Text style={styles.coachIndex}>{String(index + 1).padStart(2, "0")}</Text>
+                <Text style={styles.coachBody}>{step}</Text>
+              </View>
+            ))}
+            {onDismissCoach ? (
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={onDismissCoach} style={styles.coachDismiss}>
+                <Text style={styles.coachDismissText}>Got it</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      <View pointerEvents="none" style={styles.reticleWrap}>
+        <View style={styles.reticle}>
+          <View style={[styles.reticleCorner, styles.reticleTopLeft, hasError ? styles.reticleError : null]} />
+          <View style={[styles.reticleCorner, styles.reticleTopRight, hasError ? styles.reticleError : null]} />
+          <View style={[styles.reticleCorner, styles.reticleBottomLeft, hasError ? styles.reticleError : null]} />
+          <View style={[styles.reticleCorner, styles.reticleBottomRight, hasError ? styles.reticleError : null]} />
+          <ScanLine active={!isLocked && !hasError} />
+        </View>
+      </View>
+
+      <View pointerEvents="none" style={[styles.bottomWrap, { bottom: Math.max(bottomInset + 108, 122) }]}>
+        <View style={styles.smokedCard}>
+          <FrostLayer style={StyleSheet.absoluteFill} />
+          <View style={styles.instructionRow}>
+            <View style={styles.instructionIcon}>
+              <AppIcon color={colors.inkText} name={hasError ? "alert" : "scan"} size={18} />
+            </View>
+            <View style={styles.instructionCopy}>
+              <Text style={styles.instructionTitle}>
+                {isLocked ? "Hang tight…" : hasError ? "That code didn't work" : "Point at an equipment label"}
+              </Text>
+              <Text style={[styles.instructionCaption, hasError ? styles.errorText : null]}>
+                {isLocked ? "LABTRACK is opening the asset." : error ?? "Only LABTRACK asset QR codes open asset actions."}
+              </Text>
+            </View>
+          </View>
+        </View>
       </View>
     </>
   );
@@ -60,6 +150,8 @@ const ScannerOverlay = memo(function ScannerOverlay({
 export default function ScanScreen() {
   const insets = useSafeAreaInsets();
   const { error, handleScan, isCameraActive, isLocked, permission, requestPermission } = useScanner();
+  const scanOnboarding = useOnboardingFlag("scan");
+  const showCoach = scanOnboarding.isReady && !scanOnboarding.hasSeen;
 
   if (!permission) {
     return <View style={styles.screen} />;
@@ -69,10 +161,16 @@ export default function ScanScreen() {
     const canAskAgain = permission.canAskAgain;
 
     return (
-      <ScreenScrollView contentContainerStyle={styles.permissionContent} includeTopInset>
-        <Card>
-          <SectionTitle title="Camera permission required" caption="LABTRACK needs camera access to scan equipment QR labels." />
-          <Button onPress={canAskAgain ? requestPermission : () => void Linking.openSettings()}>
+      <ScreenScrollView header={<ConsoleHeader caption="Point your camera at a LABTRACK equipment label." eyebrow="Scanner · Offline" title="Scan" />}>
+        <Card style={styles.permissionCard}>
+          <View style={styles.permissionIcon}>
+            <AppIcon color={colors.primary} name="camera" size={26} />
+          </View>
+          <SectionTitle
+            caption="LABTRACK needs camera access to scan equipment QR labels. Nothing is recorded or stored."
+            title="Camera permission required"
+          />
+          <Button icon={canAskAgain ? "camera" : "settings"} onPress={canAskAgain ? requestPermission : () => void Linking.openSettings()}>
             {canAskAgain ? "Grant permission" : "Open settings"}
           </Button>
         </Card>
@@ -83,47 +181,131 @@ export default function ScanScreen() {
   return (
     <View style={styles.screen}>
       {isCameraActive ? <ScannerCamera onScan={handleScan} /> : <View style={styles.camera} />}
-      <ScannerOverlay bottomInset={insets.bottom} error={error} isLocked={isLocked} topInset={insets.top} />
+      <ScannerOverlay
+        bottomInset={insets.bottom}
+        error={error}
+        isLocked={isLocked}
+        onDismissCoach={showCoach ? () => void scanOnboarding.markSeen() : undefined}
+        showCoach={showCoach}
+        topInset={insets.top}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  bottomWrap: {
+    left: 16,
+    position: "absolute",
+    right: 16
+  },
   camera: {
     flex: 1
   },
-  caption: {
-    color: colors.muted,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20
+  chip: {
+    alignItems: "center",
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: 8,
+    overflow: "hidden",
+    paddingHorizontal: 14,
+    paddingVertical: 8
+  },
+  chipText: {
+    color: colors.inkText,
+    ...typography.eyebrow
+  },
+  coachBody: {
+    color: colors.inkText,
+    flex: 1,
+    fontSize: 13.5,
+    lineHeight: 19
+  },
+  coachDismiss: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7
+  },
+  coachDismissText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600"
+  },
+  coachEyebrow: {
+    color: colors.inkMuted,
+    marginBottom: 2,
+    ...typography.eyebrow
+  },
+  coachIndex: {
+    color: colors.inkAccent,
+    fontFamily: fonts.mono,
+    fontSize: 12,
+    lineHeight: 19
+  },
+  coachRow: {
+    flexDirection: "row",
+    gap: 10
+  },
+  coachWrap: {
+    left: 16,
+    position: "absolute",
+    right: 16,
+    zIndex: 2
   },
   errorText: {
-    color: colors.danger
+    color: "#FF8A7A"
   },
-  overlay: {
-    left: 20,
-    position: "absolute",
-    right: 20
+  instructionCaption: {
+    color: colors.inkMuted,
+    fontSize: 13,
+    lineHeight: 18
   },
-  overlayCard: {
-    backgroundColor: colors.surface,
-    borderColor: "rgba(255,255,255,0.82)",
-    gap: 8,
-    padding: 18
+  instructionCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0
   },
-  permissionContent: {
-    flexGrow: 1,
-    justifyContent: "center"
+  instructionIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 12,
+    height: 40,
+    justifyContent: "center",
+    width: 40
   },
-  screen: {
-    backgroundColor: "#111827",
-    flex: 1
+  instructionRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12
+  },
+  instructionTitle: {
+    color: colors.inkText,
+    fontSize: 15.5,
+    fontWeight: "600"
+  },
+  permissionCard: {
+    alignItems: "flex-start",
+    gap: 16,
+    padding: 20
+  },
+  permissionIcon: {
+    alignItems: "center",
+    backgroundColor: colors.primaryMuted,
+    borderRadius: 16,
+    height: 52,
+    justifyContent: "center",
+    width: 52
   },
   reticle: {
-    height: 238,
+    height: RETICLE_SIZE,
+    overflow: "hidden",
     position: "relative",
-    width: 238
+    width: RETICLE_SIZE
   },
   reticleBottomLeft: {
     borderRightWidth: 0,
@@ -139,11 +321,14 @@ const styles = StyleSheet.create({
   },
   reticleCorner: {
     borderColor: colors.mint,
-    borderRadius: 10,
-    borderWidth: 5,
-    height: 56,
+    borderRadius: 4,
+    borderWidth: 3,
+    height: 44,
     position: "absolute",
-    width: 56
+    width: 44
+  },
+  reticleError: {
+    borderColor: "#FF8A7A"
   },
   reticleTopLeft: {
     borderBottomWidth: 0,
@@ -166,35 +351,56 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0
   },
-  scanHeader: {
-    alignItems: "center",
-    alignSelf: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
-    borderColor: "rgba(255,255,255,0.86)",
-    borderRadius: 24,
-    borderWidth: 1,
-    left: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+  scanLine: {
+    backgroundColor: colors.mint,
+    boxShadow: "0 0 12px rgba(99, 230, 190, 0.9)",
+    height: 2,
+    left: 16,
+    opacity: 0.85,
     position: "absolute",
-    right: 20,
-    ...shadows.floating
+    right: 16,
+    top: 0
   },
-  scanHeaderCaption: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: "800"
+  scanMask: {
+    ...StyleSheet.absoluteFill
   },
-  scanHeaderTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-    lineHeight: 23
+  scanMaskBand: {
+    backgroundColor: SCAN_MASK_COLOR,
+    flex: 1
   },
-  title: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-    lineHeight: 23
+  scanMaskHole: {
+    backgroundColor: "transparent",
+    height: RETICLE_SIZE,
+    width: RETICLE_SIZE
+  },
+  scanMaskMiddle: {
+    flexDirection: "row"
+  },
+  scanMaskSide: {
+    backgroundColor: SCAN_MASK_COLOR,
+    flex: 1
+  },
+  screen: {
+    backgroundColor: colors.ink,
+    flex: 1
+  },
+  smokedCard: {
+    borderColor: "rgba(255,255,255,0.1)",
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    overflow: "hidden",
+    padding: 14
+  },
+  statusDot: {
+    borderRadius: 3.5,
+    height: 7,
+    width: 7
+  },
+  topBar: {
+    alignItems: "center",
+    left: 0,
+    position: "absolute",
+    right: 0
   }
 });

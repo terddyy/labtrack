@@ -1,4 +1,11 @@
-import { bookingRequestSchema, createDefaultBookingRange, defectReportSchema, isFutureBookingRange, parseQrPayload } from "@labtrack/shared";
+import {
+  bookingRequestSchema,
+  createBookingRange,
+  createDefaultBookingRange,
+  defectReportSchema,
+  isFutureBookingRange,
+  parseQrPayload
+} from "@labtrack/shared";
 import { useEffect, useMemo, useState } from "react";
 import {
   createBorrowing,
@@ -7,6 +14,8 @@ import {
   resolveAssetByPayload,
   type MobileAsset
 } from "@/lib/labtrack-api";
+
+const SAME_DAY_DURATION_MINUTES = 90;
 
 export function useAssetWorkflow(payload?: string) {
   const rawPayload = useMemo(() => safeDecode(payload ?? ""), [payload]);
@@ -126,6 +135,53 @@ export function useAssetWorkflow(payload?: string) {
     }
   }
 
+  async function submitSameDayBorrowing() {
+    if (!asset) {
+      return;
+    }
+
+    if (asset.status !== "available") {
+      setBookingMessage("This asset is not currently available for borrowing requests.");
+      return;
+    }
+
+    // ponytail: start ~1 min ahead so zeroed seconds are not in the past; upgrade: server clock sync
+    const startAt = new Date(Date.now() + 60_000);
+    const range = createBookingRange(startAt, SAME_DAY_DURATION_MINUTES);
+    const input = {
+      assetId: asset.id,
+      requestedStartAt: range.requestedStartAt,
+      requestedEndAt: range.requestedEndAt,
+      purpose: bookingPurpose.trim()
+    };
+    const validation = bookingRequestSchema.safeParse(input);
+
+    if (!validation.success) {
+      setBookingMessage(validation.error.issues[0]?.message ?? "Borrow request is invalid.");
+      return;
+    }
+
+    setIsSubmittingBooking(true);
+    setBookingMessage(null);
+
+    try {
+      await createBorrowing({
+        purpose: validation.data.purpose,
+        resourceId: asset.id,
+        resourceType: "asset",
+        requestedEndAt: validation.data.requestedEndAt,
+        requestedStartAt: validation.data.requestedStartAt
+      });
+      setBookingPurpose("");
+      setBookingRange(createDefaultBookingRange(new Date()));
+      setBookingMessage("Same-day borrowing request submitted.");
+    } catch (submitError) {
+      setBookingMessage(formatApiError(submitError));
+    } finally {
+      setIsSubmittingBooking(false);
+    }
+  }
+
   async function submitDefect() {
     if (!asset) {
       return;
@@ -175,7 +231,8 @@ export function useAssetWorkflow(payload?: string) {
     setBookingRange,
     setDefectForm,
     submitBooking,
-    submitDefect
+    submitDefect,
+    submitSameDayBorrowing
   };
 }
 

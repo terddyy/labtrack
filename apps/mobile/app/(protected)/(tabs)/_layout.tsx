@@ -1,288 +1,199 @@
 import { Tabs } from "expo-router";
-import { Platform, StyleSheet, View, type ColorValue } from "react-native";
-import { colors } from "@/constants/theme";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppIcon, type AppIconName } from "@/components/icons";
+import { colors, shadows, spacing } from "@/constants/theme";
 
-type TabIconName = "home" | "borrow" | "scan" | "notifications" | "profile";
+const TAB_ICONS: Record<string, AppIconName> = {
+  index: "home",
+  borrow: "borrow",
+  scan: "scan",
+  notifications: "notifications",
+  profile: "profile"
+};
+
+type TabBarProps = {
+  state: {
+    index: number;
+    routes: Array<{ key: string; name: string; params?: object }>;
+  };
+  descriptors: Record<string, { options: { title?: string } }>;
+  navigation: {
+    emit: (event: { type: string; target: string; canPreventDefault?: boolean }) => { defaultPrevented: boolean };
+    navigate: (name: string, params?: object) => void;
+  };
+};
 
 export default function TabLayout() {
   return (
     <Tabs
+      tabBar={(props) => <ConsoleDock {...(props as TabBarProps)} />}
       screenOptions={{
         headerShown: false,
-        headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
-        headerTitleAlign: "center",
-        headerTitleStyle: { color: colors.text, fontSize: 17, fontWeight: "900" },
-        tabBarActiveTintColor: colors.primary,
-        tabBarHideOnKeyboard: true,
-        tabBarInactiveTintColor: colors.iconMuted,
-        tabBarItemStyle: styles.tabItem,
-        tabBarLabelStyle: styles.tabLabel,
-        tabBarStyle: styles.tabBar
+        tabBarHideOnKeyboard: true
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          headerTitle: "Dashboard",
-          title: "Home",
-          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name="home" />
-        }}
-      />
-      <Tabs.Screen
-        name="borrow"
-        options={{
-          headerTitle: "Borrow Items",
-          title: "Borrow",
-          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name="borrow" />
-        }}
-      />
-      <Tabs.Screen
-        name="scan"
-        options={{
-          title: "Scan",
-          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name="scan" />
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          headerTitle: "Notifications",
-          title: "Alerts",
-          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name="notifications" />
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          headerTitle: "Profile",
-          title: "Profile",
-          tabBarIcon: ({ color, focused }) => <TabIcon color={color} focused={focused} name="profile" />
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Home" }} />
+      <Tabs.Screen name="borrow" options={{ title: "Borrow" }} />
+      <Tabs.Screen name="scan" options={{ title: "Scan" }} />
+      <Tabs.Screen name="notifications" options={{ title: "Alerts" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }
 
-function TabIcon({ color, focused, name }: { color: ColorValue; focused: boolean; name: TabIconName }) {
-  const isScan = name === "scan";
+/** Ink dock with a raised scan key — the primary action of the app. */
+function ConsoleDock({ state, descriptors, navigation }: TabBarProps) {
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.iconShell, isScan ? styles.scanShell : null, isScan && focused ? styles.scanShellActive : null, focused ? styles.iconShellActive : null]}>
-      {name === "home" ? <HomeGlyph color={color} /> : null}
-      {name === "borrow" ? <BorrowGlyph color={color} /> : null}
-      {name === "scan" ? <ScanGlyph color={focused ? colors.surface : colors.primary} /> : null}
-      {name === "notifications" ? <NotificationGlyph color={color} /> : null}
-      {name === "profile" ? <ProfileGlyph color={color} /> : null}
-    </View>
-  );
-}
+    <View
+      pointerEvents="box-none"
+      style={[
+        styles.dockWrap,
+        {
+          bottom: Math.max(insets.bottom, 8) + spacing.tabBarInset,
+          paddingHorizontal: spacing.tabBarHorizontal
+        }
+      ]}
+    >
+      <View style={styles.dock}>
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const focused = state.index === index;
+          const label = typeof options.title === "string" ? options.title : route.name;
+          const isScan = route.name === "scan";
+          const iconName = TAB_ICONS[route.name] ?? "home";
 
-function HomeGlyph({ color }: { color: ColorValue }) {
-  return (
-    <View style={styles.glyphCanvas}>
-      <View style={[styles.homeRoof, { borderBottomColor: color }]} />
-      <View style={[styles.homeBody, { borderColor: color }]} />
-    </View>
-  );
-}
+          const onPress = () => {
+            const event = navigation.emit({
+              type: "tabPress",
+              target: route.key,
+              canPreventDefault: true
+            });
+            if (!focused && !event.defaultPrevented) {
+              navigation.navigate(route.name, route.params);
+            }
+          };
 
-function BorrowGlyph({ color }: { color: ColorValue }) {
-  return (
-    <View style={styles.glyphCanvas}>
-      <View style={[styles.borrowHandle, { borderColor: color }]} />
-      <View style={[styles.borrowBody, { borderColor: color }]}>
-        <View style={[styles.borrowLine, { backgroundColor: color }]} />
+          return (
+            <Pressable
+              accessibilityLabel={label}
+              accessibilityRole="button"
+              accessibilityState={{ selected: focused }}
+              hitSlop={6}
+              key={route.key}
+              onLongPress={() => navigation.emit({ type: "tabLongPress", target: route.key })}
+              onPress={onPress}
+              style={({ pressed }) => [styles.tabItem, pressed ? styles.tabPressed : null]}
+            >
+              {isScan ? (
+                <View style={[styles.scanKey, focused ? styles.scanKeyActive : null]}>
+                  <View style={styles.scanKeyCornerTL} />
+                  <View style={styles.scanKeyCornerBR} />
+                  <AppIcon color="#FFFFFF" focused name="scan" size={24} />
+                </View>
+              ) : (
+                <>
+                  <View style={[styles.indicator, focused ? styles.indicatorActive : null]} />
+                  <AppIcon color={focused ? colors.inkText : colors.inkMuted} focused={focused} name={iconName} size={21} />
+                  <Text numberOfLines={1} style={[styles.tabLabel, focused ? styles.tabLabelActive : null]}>
+                    {label}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
 }
 
-function ScanGlyph({ color }: { color: ColorValue }) {
-  return (
-    <View style={styles.scanCanvas}>
-      <View style={[styles.scanCorner, styles.scanTopLeft, { borderColor: color }]} />
-      <View style={[styles.scanCorner, styles.scanTopRight, { borderColor: color }]} />
-      <View style={[styles.scanCorner, styles.scanBottomLeft, { borderColor: color }]} />
-      <View style={[styles.scanCorner, styles.scanBottomRight, { borderColor: color }]} />
-      <View style={[styles.scanDot, { backgroundColor: color }]} />
-    </View>
-  );
-}
-
-function NotificationGlyph({ color }: { color: ColorValue }) {
-  return (
-    <View style={styles.glyphCanvas}>
-      <View style={[styles.bellBody, { borderColor: color }]} />
-      <View style={[styles.bellBase, { backgroundColor: color }]} />
-      <View style={[styles.bellClapper, { backgroundColor: color }]} />
-    </View>
-  );
-}
-
-function ProfileGlyph({ color }: { color: ColorValue }) {
-  return (
-    <View style={styles.glyphCanvas}>
-      <View style={[styles.profileHead, { borderColor: color }]} />
-      <View style={[styles.profileBody, { borderColor: color }]} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  bellBase: {
-    borderRadius: 999,
-    height: 3,
-    marginTop: -1,
-    width: 16
-  },
-  bellBody: {
-    borderRadius: 8,
-    borderWidth: 2,
-    height: 15,
-    width: 15
-  },
-  bellClapper: {
-    borderRadius: 999,
-    height: 4,
-    marginTop: 1,
-    width: 4
-  },
-  borrowBody: {
+  dock: {
     alignItems: "center",
-    borderRadius: 3,
-    borderWidth: 2,
-    height: 15,
-    justifyContent: "center",
-    width: 18
+    alignSelf: "center",
+    backgroundColor: colors.ink,
+    borderColor: colors.inkBorder,
+    borderRadius: spacing.navRadius,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    height: 64,
+    maxWidth: 480,
+    paddingHorizontal: 6,
+    width: "100%",
+    ...shadows.floating,
+    ...Platform.select({ ios: { borderCurve: "continuous" } })
   },
-  borrowHandle: {
-    borderBottomWidth: 0,
-    borderRadius: 5,
-    borderWidth: 2,
-    height: 6,
-    marginBottom: -1,
-    width: 10
-  },
-  borrowLine: {
-    borderRadius: 999,
-    height: 2,
-    width: 8
-  },
-  glyphCanvas: {
-    alignItems: "center",
-    height: 24,
-    justifyContent: "center",
-    width: 24
-  },
-  homeBody: {
-    borderRadius: 2,
-    borderTopWidth: 0,
-    borderWidth: 2,
-    height: 12,
-    marginTop: -1,
-    width: 15
-  },
-  homeRoof: {
-    borderBottomWidth: 8,
-    borderLeftColor: "transparent",
-    borderLeftWidth: 9,
-    borderRightColor: "transparent",
-    borderRightWidth: 9,
-    height: 0,
-    width: 0
-  },
-  iconShell: {
-    alignItems: "center",
-    height: 34,
-    justifyContent: "center",
-    width: 44
-  },
-  iconShellActive: {
-    opacity: 1
-  },
-  profileBody: {
-    borderRadius: 8,
-    borderWidth: 2,
-    height: 9,
-    marginTop: 1,
-    width: 18
-  },
-  profileHead: {
-    borderRadius: 999,
-    borderWidth: 2,
-    height: 10,
-    width: 10
-  },
-  scanBottomLeft: {
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    bottom: 0,
-    left: 0
-  },
-  scanBottomRight: {
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    bottom: 0,
+  dockWrap: {
+    left: 0,
+    position: "absolute",
     right: 0
   },
-  scanCanvas: {
-    height: 25,
-    position: "relative",
-    width: 25
+  indicator: {
+    borderRadius: 2,
+    height: 3,
+    marginBottom: 4,
+    width: 14
   },
-  scanCorner: {
-    borderRadius: 3,
-    borderWidth: 3,
-    height: 10,
+  indicatorActive: {
+    backgroundColor: colors.inkAccent
+  },
+  scanKey: {
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderColor: colors.ink,
+    borderRadius: 22,
+    borderWidth: 4,
+    height: 62,
+    justifyContent: "center",
+    marginTop: -26,
+    width: 62,
+    ...shadows.accent
+  },
+  scanKeyActive: {
+    backgroundColor: "#4C6CF0"
+  },
+  scanKeyCornerBR: {
+    borderBottomWidth: 2,
+    borderColor: "rgba(255,255,255,0.55)",
+    borderRightWidth: 2,
+    bottom: 9,
+    height: 8,
     position: "absolute",
-    width: 10
+    right: 9,
+    width: 8
   },
-  scanDot: {
-    borderRadius: 999,
-    height: 5,
-    left: 10,
+  scanKeyCornerTL: {
+    borderColor: "rgba(255,255,255,0.55)",
+    borderLeftWidth: 2,
+    borderTopWidth: 2,
+    height: 8,
+    left: 9,
     position: "absolute",
-    top: 10,
-    width: 5
-  },
-  scanShell: {
-    backgroundColor: colors.primaryMuted,
-    borderRadius: 16,
-    height: 38,
-    width: 48
-  },
-  scanShellActive: {
-    backgroundColor: colors.primary
-  },
-  scanTopLeft: {
-    borderBottomWidth: 0,
-    borderRightWidth: 0,
-    left: 0,
-    top: 0
-  },
-  scanTopRight: {
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    right: 0,
-    top: 0
-  },
-  tabBar: {
-    backgroundColor: colors.surface,
-    borderTopColor: colors.border,
-    borderTopWidth: 1,
-    height: Platform.select({ android: 76, default: 84 }),
-    paddingBottom: Platform.select({ android: 10, default: 18 }),
-    paddingHorizontal: 8,
-    paddingTop: 10
+    top: 9,
+    width: 8
   },
   tabItem: {
-    minWidth: 0
+    alignItems: "center",
+    flex: 1,
+    height: "100%",
+    justifyContent: "center",
+    minWidth: 0,
+    paddingBottom: 4
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: "800",
+    color: colors.inkMuted,
+    fontSize: 10.5,
+    fontWeight: "500",
     marginTop: 3
+  },
+  tabLabelActive: {
+    color: colors.inkText,
+    fontWeight: "600"
+  },
+  tabPressed: {
+    opacity: 0.7
   }
 });

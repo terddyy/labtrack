@@ -276,6 +276,7 @@ export function createLabtrackMobileApi(client: LabtrackMobileClient) {
     listTicketMessages: (threadId: string, options?: MobileListOptions) => listTicketMessages(threadId, options, client),
     listTicketThreads: (options?: MobileListOptions) => listTicketThreads(options, client),
     markNotificationRead: (id: string) => markNotificationRead(id, client),
+    resetMyActivityData: () => resetMyActivityData(client),
     resolveAssetByPayload: (payload: string) => resolveAssetByPayload(payload, client),
     resolveAssetByQrCode: (code: string) => resolveAssetByQrCode(code, client),
     sendTicketMessage: (threadId: string, body: string) => sendTicketMessage(threadId, body, client),
@@ -675,6 +676,10 @@ export async function listNotifications(options: MobileListOptions = {}, client 
 
 export async function markNotificationRead(id: string, client = requireClient()) {
   await callRpc(client, "markNotificationRead", { p_notification_id: id });
+}
+
+export async function resetMyActivityData(client = requireClient()) {
+  return callRpc(client, "resetMyActivityData", {});
 }
 
 export async function upsertPushToken(token: string, client = requireClient()) {

@@ -1,14 +1,43 @@
-import type { AvailabilityState, ResourceType } from "@labtrack/shared";
-import { useEffect, useState } from "react";
+import { formatStatusLabel, getBookingStatusTone, type AvailabilityState, type ResourceType } from "@labtrack/shared";
+import { useEffect, useMemo, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { BookingSchedulePicker } from "@/components/booking-schedule-picker";
-import { Badge, Button, Card, EmptyState, Field, Notice, ScreenScrollView, SectionTitle, SkeletonCard } from "@/components/ui";
-import { colors, shadows, spacing } from "@/constants/theme";
+import { AppIcon } from "@/components/icons";
+import {
+  Badge,
+  Button,
+  Card,
+  ConsoleHeader,
+  EmptyState,
+  Field,
+  HeaderIconButton,
+  IconTile,
+  ListRow,
+  Notice,
+  ScreenScrollView,
+  SearchField,
+  SectionHeader,
+  SegmentedControl,
+  SkeletonCard,
+  formatReference,
+  type Tone
+} from "@/components/ui";
+import { WorkflowStepper, type WorkflowStep } from "@/components/workflow-stepper";
+import { colors, fonts, spacing, typography } from "@/constants/theme";
 import { useBookings } from "@/lib/use-bookings";
 import { useBorrowableResources } from "@/lib/use-borrowable-resources";
+import { useOnboardingFlag } from "@/lib/use-onboarding-flags";
 import type { MobileBorrowingResource, MobileResourceScheduleEntry } from "@/lib/labtrack-api";
 
 type ResourceFilter = "all" | ResourceType;
+
+const BORROW_STEPS: WorkflowStep[] = [
+  { id: "browse", label: "Browse", caption: "Find equipment or rooms with photos and details." },
+  { id: "select", label: "Select", caption: "Tap the item you want to reserve." },
+  { id: "request", label: "Schedule", caption: "Fill the reservation form after choosing." },
+  { id: "wait", label: "Approval", caption: "Track status in History below." },
+  { id: "pickup", label: "Pick up", caption: "Scan the item QR at the custodian office." }
+];
 
 const resourceFilters: Array<{ label: string; value: ResourceFilter }> = [
   { label: "All", value: "all" },
@@ -24,220 +53,224 @@ const FALLBACK_RESOURCE_IMAGES = {
 } as const;
 
 export default function BorrowScreen() {
-  const browser = useBorrowableResources();
   const history = useBookings();
+  const browser = useBorrowableResources({ onSubmitted: history.refresh });
+  const borrowOnboarding = useOnboardingFlag("borrow");
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const visibleHistory = showAllHistory ? history.bookings : history.bookings.slice(0, 4);
+  const pendingCount = history.bookings.filter((booking) => booking.status === "pending").length;
+
+  const borrowStep = useMemo(() => {
+    if (browser.message?.includes("submitted")) {
+      return 3;
+    }
+
+    if (browser.selectedResource) {
+      return 2;
+    }
+
+    return 0;
+  }, [browser.message, browser.selectedResource]);
 
   return (
-    <ScreenScrollView includeTopInset>
-      <Card style={styles.heroCard}>
-        <View style={styles.heroHeaderRow}>
-          <View style={styles.heroCopy}>
-            <Text style={styles.heroKicker}>Borrowing Desk</Text>
-            <Text style={styles.heroTitle}>Reserve lab assets with fewer taps.</Text>
-            <Text style={styles.heroCaption}>Choose a schedule, confirm availability, and submit requests without leaving the handoff queue.</Text>
-          </View>
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricValue}>{browser.resources.length}</Text>
-            <Text style={styles.heroMetricLabel}>available now</Text>
-          </View>
-        </View>
-        <Button disabled={browser.isLoading} fullWidth={false} loading={browser.isLoading} onPress={browser.refresh} variant="secondary">
-          Refresh
-        </Button>
+    <ScreenScrollView
+      header={(
+        <ConsoleHeader
+          caption={`${browser.resources.length} resources · ${pendingCount} awaiting approval`}
+          eyebrow="Reserve · Equipment & rooms"
+          right={(
+            <HeaderIconButton
+              accessibilityLabel="Refresh resources"
+              icon="refresh"
+              loading={browser.isLoading}
+              onPress={() => {
+                browser.refresh();
+                history.refresh();
+              }}
+            />
+          )}
+          title="Borrow"
+        />
+      )}
+    >
+      <Card style={styles.browseCard}>
+        <SearchField onChangeText={browser.setQuery} placeholder="Equipment, room, or property no." value={browser.query} />
+        <SegmentedControl onChange={browser.setFilter} options={resourceFilters} value={browser.filter} />
       </Card>
+
+      <WorkflowStepper
+        currentStep={borrowStep}
+        onDismiss={borrowOnboarding.isReady && !borrowOnboarding.hasSeen ? () => void borrowOnboarding.markSeen() : undefined}
+        steps={BORROW_STEPS}
+        title="Reservation workflow"
+      />
 
       {browser.error ? <Notice tone="danger">{browser.error}</Notice> : null}
       {browser.message ? <Notice tone="success">{browser.message}</Notice> : null}
 
-      <Card style={styles.panelCard}>
-        <SectionTitle title="Schedule" caption="Borrowing is limited to 1 hour 30 minutes through 3 hours." />
-        <BookingSchedulePicker
-          disabled={browser.isSubmitting}
-          now={browser.validationNow}
-          onRangeChange={browser.setRange}
-          range={browser.range}
-        />
-      </Card>
-
-      <Card style={styles.panelCard}>
-        <SectionTitle title="Browse resources" caption="Pending requests appear as tentative. Approved or checked-out borrowings are busy." />
-        <View style={styles.filterRow}>
-          {resourceFilters.map((filter) => (
-            <FilterChip
-              key={filter.value}
-              label={filter.label}
-              onPress={() => browser.setFilter(filter.value)}
-              selected={browser.filter === filter.value}
-            />
-          ))}
-        </View>
-        <Field
-          autoCapitalize="none"
-          label="Search"
-          onChangeText={browser.setQuery}
-          placeholder="Equipment, room, or property number"
-          returnKeyType="search"
-          value={browser.query}
-        />
-      </Card>
-
       {browser.selectedResource ? (
-        <Card style={styles.panelCard}>
-          <SectionTitle
-            title="Borrow request"
-            caption={`${browser.selectedResource.resourceType === "room" ? "Room" : "Equipment"} selected: ${browser.selectedResource.name}`}
+        <Card style={styles.requestCard} tint="blue">
+          <View style={styles.requestHeader}>
+            <Text style={styles.cardEyebrow}>REQUEST RESERVATION</Text>
+            <Text numberOfLines={2} style={styles.requestTitle}>{browser.selectedResource.name}</Text>
+          </View>
+          <BookingSchedulePicker
+            compact
+            disabled={browser.isSubmitting}
+            now={browser.validationNow}
+            onRangeChange={browser.setRange}
+            range={browser.range}
           />
           <Field
             label="Purpose"
             multiline
             onChangeText={browser.setPurpose}
-            placeholder="Class session, laboratory activity, or setup requirement"
+            placeholder="Class session, lab activity, or setup requirement"
             value={browser.purpose}
           />
           <SchedulePreview entries={browser.schedule} />
-          <Button disabled={!browser.canSubmit || browser.isSubmitting} loading={browser.isSubmitting} onPress={browser.submit}>
-            Submit borrowing request
+          {browser.submitBlockReason ? <Notice tone="warning">{browser.submitBlockReason}</Notice> : null}
+          <Button disabled={!browser.canSubmit || browser.isSubmitting} icon="send" loading={browser.isSubmitting} onPress={browser.submit}>
+            Submit request
           </Button>
         </Card>
       ) : null}
 
+      <SectionHeader count={browser.resources.length} title="Resources" />
+
       {!browser.hasLoaded && browser.isLoading ? (
         <>
-          <SkeletonCard lines={4} />
-          <SkeletonCard lines={4} />
+          <SkeletonCard lines={3} />
+          <SkeletonCard lines={3} />
         </>
       ) : null}
 
       {!browser.resources.length && browser.hasLoaded && !browser.isLoading ? (
-        <EmptyState body="Try another date, duration, filter, or search term." title="No resources found" />
+        <EmptyState body="Try another filter or search term, then set your schedule after selecting an item." icon="search" title="No resources found" />
       ) : null}
 
-      {browser.resources.length ? (
-        <View style={styles.resourceGrid}>
-          {browser.resources.map((resource) => (
-            <ResourceCard
-              key={`${resource.resourceType}-${resource.id}`}
-              onPress={() => browser.selectResource(resource)}
-              resource={resource}
-              selected={browser.selectedResource?.id === resource.id && browser.selectedResource.resourceType === resource.resourceType}
-            />
-          ))}
-        </View>
-      ) : null}
+      {browser.resources.map((resource) => (
+        <ResourceCard
+          key={`${resource.resourceType}-${resource.id}`}
+          onPress={() => browser.selectResource(resource)}
+          resource={resource}
+          selected={browser.selectedResource?.id === resource.id && browser.selectedResource.resourceType === resource.resourceType}
+        />
+      ))}
 
-      <View style={styles.sectionBlock}>
-        <View style={styles.headerRow}>
-          <SectionTitle title="My borrowing history" caption="Track requests, approvals, checkout, and return status." />
-          <Button disabled={history.isLoading} fullWidth={false} loading={history.isLoading} onPress={history.refresh} variant="secondary">
-            Refresh
-          </Button>
-        </View>
-        {history.error ? <Notice tone="danger">{history.error}</Notice> : null}
-        {!history.hasLoaded && history.isLoading ? <SkeletonCard lines={3} /> : null}
-        {!history.bookings.length && history.hasLoaded && !history.isLoading ? (
-          <EmptyState body="Approved, rejected, checked-out, and returned borrowing requests will appear here." title="No borrowings yet" />
-        ) : null}
-        {history.bookings.map((booking) => (
-          <Card key={booking.id} style={styles.historyCard}>
-            <View style={styles.cardHeader}>
-              <Badge label={booking.status} tone={booking.status === "approved" || booking.status === "returned" ? "success" : booking.status === "rejected" || booking.status === "cancelled" ? "danger" : "warning"} />
-              <Text style={styles.dateText}>{formatDate(booking.requestedStartAt)}</Text>
+      <SectionHeader
+        actionLabel={history.bookings.length > 4 ? (showAllHistory ? "Show less" : "Show all") : undefined}
+        count={history.bookings.length}
+        onAction={() => setShowAllHistory((current) => !current)}
+        title="History"
+      />
+      {history.error ? <Notice tone="danger">{history.error}</Notice> : null}
+      {!history.hasLoaded && history.isLoading ? <SkeletonCard lines={3} /> : null}
+      {!history.bookings.length && history.hasLoaded && !history.isLoading ? (
+        <EmptyState body="Approved, rejected, and returned requests appear here." icon="clock" title="No borrowings yet" />
+      ) : null}
+      {visibleHistory.length ? (
+        <Card style={styles.groupCard}>
+          {visibleHistory.map((booking, index) => (
+            <View key={booking.id} style={index > 0 ? styles.historyDivider : null}>
+              <ListRow
+                leading={<IconTile icon={booking.resourceType === "room" ? "room" : "laptop"} size={36} />}
+                meta={`${formatReference(booking.resourceType === "room" ? booking.roomId : booking.assetId)} · ${formatDate(booking.requestedStartAt).toUpperCase()}`}
+                title={booking.purpose}
+                trailing={<Badge label={formatStatusLabel(booking.status)} tone={getBookingStatusTone(booking.status) as Tone} />}
+              />
+              {booking.decisionNotes ? <Text numberOfLines={2} style={styles.decisionNotes}>“{booking.decisionNotes}”</Text> : null}
+              {booking.status === "pending" ? (
+                <View style={styles.historyActions}>
+                  <Button
+                    disabled={Boolean(history.cancellingId)}
+                    fullWidth={false}
+                    loading={history.cancellingId === booking.id}
+                    onPress={() => void history.cancel(booking.id)}
+                    size="small"
+                    variant="danger"
+                  >
+                    Cancel request
+                  </Button>
+                </View>
+              ) : null}
             </View>
-            <Text style={styles.cardTitle}>{booking.purpose}</Text>
-            <Text numberOfLines={1} style={styles.metaText}>
-              {booking.resourceType === "room" ? "Room" : "Equipment"} ref: {formatReference(booking.resourceType === "room" ? booking.roomId : booking.assetId)}
-            </Text>
-            <Text style={styles.metaText}>
-              {formatDate(booking.requestedStartAt)} - {formatDate(booking.requestedEndAt)}
-            </Text>
-            {booking.decisionNotes ? <Text style={styles.bodyText}>{booking.decisionNotes}</Text> : null}
-            {booking.status === "pending" ? (
-              <Button
-                disabled={Boolean(history.cancellingId)}
-                loading={history.cancellingId === booking.id}
-                onPress={() => void history.cancel(booking.id)}
-                variant="secondary"
-              >
-                Cancel pending request
-              </Button>
-            ) : null}
-          </Card>
-        ))}
-      </View>
+          ))}
+        </Card>
+      ) : null}
     </ScreenScrollView>
-  );
-}
-
-function FilterChip({ label, onPress, selected }: { label: string; onPress: () => void; selected: boolean }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      hitSlop={8}
-      onPress={onPress}
-      style={({ pressed }) => [styles.filterChip, selected ? styles.filterChipSelected : null, pressed ? styles.pressed : null]}
-    >
-      <Text style={[styles.filterChipText, selected ? styles.filterChipTextSelected : null]}>{label}</Text>
-    </Pressable>
   );
 }
 
 function ResourceCard({ onPress, resource, selected }: { onPress: () => void; resource: MobileBorrowingResource; selected: boolean }) {
   const [didImageFail, setDidImageFail] = useState(false);
   const imageUri = getResourceImageUri(resource, didImageFail);
+  const location = [resource.categoryName, resource.locationName].filter(Boolean).join(" · ") || "No location recorded";
 
   useEffect(() => {
     setDidImageFail(false);
   }, [resource.primaryImageUrl]);
 
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.resourceGridItem, pressed ? styles.pressed : null]}>
-      <Card style={[styles.resourceCard, selected ? styles.resourceCardSelected : null]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [styles.resourceCard, selected ? styles.resourceCardSelected : null, pressed ? styles.pressed : null]}
+    >
+      <View style={styles.resourceThumbWrap}>
         <Image
           accessibilityIgnoresInvertColors
           accessibilityLabel={`${resource.name} image`}
           onError={() => setDidImageFail(true)}
           resizeMode="cover"
           source={{ uri: imageUri }}
-          style={styles.resourceImage}
+          style={styles.resourceThumb}
         />
-        <View style={styles.resourceBadgeRow}>
-          <Badge label={resource.resourceType === "room" ? "Room" : "Equipment"} tone="neutral" />
-          <Badge label={resource.availability} tone={availabilityTone(resource.availability)} />
+        <View style={styles.resourceTypeTag}>
+          <AppIcon color="#FFFFFF" name={resource.resourceType === "room" ? "room" : "laptop"} size={11} />
         </View>
+      </View>
+      <View style={styles.resourceBody}>
         <Text numberOfLines={2} style={styles.resourceTitle}>{resource.name}</Text>
-        <Text numberOfLines={2} style={styles.resourceMetaText}>
-          {[resource.categoryName, resource.locationName].filter(Boolean).join(" | ") || "No room details recorded"}
-        </Text>
-        {resource.condition ? <Text numberOfLines={1} style={styles.resourceMetaText}>Condition: {resource.condition.replaceAll("_", " ")}</Text> : null}
-        {resource.nextAvailableAt ? <Text numberOfLines={2} style={styles.resourceMetaText}>Available after {formatDate(resource.nextAvailableAt)}</Text> : null}
-      </Card>
+        <Text numberOfLines={1} style={styles.resourceMeta}>{location}</Text>
+        <View style={styles.resourceFooter}>
+          <Badge label={resource.availability} tone={availabilityTone(resource.availability)} />
+          {resource.nextAvailableAt ? (
+            <Text numberOfLines={1} style={styles.resourceNext}>FREE {formatDate(resource.nextAvailableAt).toUpperCase()}</Text>
+          ) : null}
+        </View>
+      </View>
+      <View style={[styles.selectMark, selected ? styles.selectMarkActive : null]}>
+        {selected ? <AppIcon color="#FFFFFF" focused name="check" size={16} /> : null}
+      </View>
     </Pressable>
   );
 }
 
 function SchedulePreview({ entries }: { entries: MobileResourceScheduleEntry[] }) {
   if (!entries.length) {
-    return <Notice tone="success">No active schedule conflicts for the selected day.</Notice>;
+    return <Notice tone="success">No schedule conflicts for this day.</Notice>;
   }
 
   return (
     <View style={styles.scheduleList}>
-      <Text style={styles.groupLabel}>Schedule</Text>
-      {entries.slice(0, 4).map((entry) => (
+      <Text style={styles.cardEyebrow}>SAME-DAY SCHEDULE</Text>
+      {entries.slice(0, 3).map((entry) => (
         <View key={entry.id} style={styles.scheduleRow}>
-          <Badge label={entry.availability} tone={availabilityTone(entry.availability)} />
+          <View style={[styles.scheduleRail, { backgroundColor: availabilityColor(entry.availability) }]} />
           <View style={styles.scheduleCopy}>
             <Text numberOfLines={1} style={styles.scheduleTitle}>{entry.purpose}</Text>
-            <Text style={styles.metaText}>{formatDate(entry.requestedStartAt)} - {formatDate(entry.requestedEndAt)}</Text>
+            <Text numberOfLines={1} style={styles.scheduleTime}>{formatDate(entry.requestedStartAt)} – {formatDate(entry.requestedEndAt)}</Text>
           </View>
+          <Badge label={entry.availability} tone={availabilityTone(entry.availability)} />
         </View>
       ))}
     </View>
   );
 }
 
-function availabilityTone(availability: AvailabilityState) {
+function availabilityTone(availability: AvailabilityState): Tone {
   if (availability === "available") {
     return "success";
   }
@@ -249,16 +282,17 @@ function availabilityTone(availability: AvailabilityState) {
   return "danger";
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+function availabilityColor(availability: AvailabilityState) {
+  return { danger: colors.danger, success: colors.success, warning: colors.warning }[availabilityTone(availability) as "danger" | "success" | "warning"];
 }
 
-function formatReference(value: string | null) {
-  if (!value) {
-    return "UNKNOWN";
-  }
-
-  return value.slice(0, 8).toUpperCase();
+function formatDate(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short"
+  });
 }
 
 function getResourceImageUri(resource: MobileBorrowingResource, forceFallback = false) {
@@ -284,211 +318,155 @@ function getResourceImageUri(resource: MobileBorrowingResource, forceFallback = 
 }
 
 const styles = StyleSheet.create({
-  bodyText: {
-    color: colors.muted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20
-  },
-  cardHeader: {
-    alignItems: "center",
-    flexDirection: "row",
+  browseCard: {
     gap: 10,
-    justifyContent: "space-between"
+    padding: 12
   },
-  cardTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-    lineHeight: 23
-  },
-  dateText: {
+  cardEyebrow: {
     color: colors.muted,
-    flexShrink: 1,
-    fontSize: 12,
-    fontWeight: "700",
-    textAlign: "right"
+    ...typography.eyebrow
   },
-  filterChip: {
+  decisionNotes: {
+    color: colors.muted,
+    fontSize: 12.5,
+    fontStyle: "italic",
+    lineHeight: 17,
+    marginTop: -6,
+    paddingBottom: 10,
+    paddingLeft: 48
+  },
+  groupCard: {
+    gap: 0,
+    paddingVertical: 2
+  },
+  historyActions: {
+    paddingBottom: 12,
+    paddingLeft: 48
+  },
+  historyDivider: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth
+  },
+  pressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.985 }]
+  },
+  requestCard: {
+    gap: 14
+  },
+  requestHeader: {
+    gap: 4
+  },
+  requestTitle: {
+    color: colors.text,
+    ...typography.title
+  },
+  resourceBody: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0
+  },
+  resourceCard: {
     alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 999,
+    borderRadius: spacing.radius,
     borderWidth: 1,
-    minHeight: 42,
-    paddingHorizontal: 16,
-    paddingVertical: 10
-  },
-  filterChipSelected: {
-    backgroundColor: colors.primaryMuted,
-    borderColor: colors.primary
-  },
-  filterChipText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "800"
-  },
-  filterChipTextSelected: {
-    color: colors.primaryDark
-  },
-  filterRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10
-  },
-  groupLabel: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "900"
-  },
-  headerRow: {
-    alignItems: "flex-start",
-    gap: 14
-  },
-  heroCaption: {
-    color: colors.muted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20
-  },
-  heroCard: {
-    backgroundColor: colors.mintSoft,
-    borderColor: "rgba(255,255,255,0.82)",
-    gap: 16,
-    padding: 22
-  },
-  heroCopy: {
-    flex: 1,
-    gap: 7,
-    minWidth: 0
-  },
-  heroKicker: {
-    color: colors.primaryDark,
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase"
-  },
-  heroMetric: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 22,
-    justifyContent: "center",
-    minHeight: 82,
-    paddingHorizontal: 14,
-    width: 96,
-    ...shadows.soft
-  },
-  heroMetricLabel: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: "800",
-    lineHeight: 14,
-    textAlign: "center"
-  },
-  heroMetricValue: {
-    color: colors.primaryDark,
-    fontSize: 28,
-    fontVariant: ["tabular-nums"],
-    fontWeight: "900",
-    lineHeight: 32
-  },
-  heroTitle: {
-    color: colors.text,
-    fontSize: 26,
-    fontWeight: "900",
-    lineHeight: 31
-  },
-  heroHeaderRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 14,
-    justifyContent: "space-between"
-  },
-  historyCard: {
-    gap: 12
-  },
-  metaText: {
-    color: colors.muted,
-    fontSize: 14,
-    fontWeight: "600",
-    lineHeight: 20
-  },
-  panelCard: {
-    gap: 16
-  },
-  pressed: {
-    opacity: 0.86,
-    transform: [{ scale: 0.985 }]
-  },
-  resourceCard: {
-    gap: 9,
-    minHeight: 250,
+    gap: 12,
     padding: 10
   },
   resourceCardSelected: {
     borderColor: colors.primary,
-    borderWidth: 2,
-    ...shadows.accent
+    borderWidth: 1.5,
+    backgroundColor: "#F7F9FF"
   },
-  resourceBadgeRow: {
+  resourceFooter: {
     alignItems: "center",
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    justifyContent: "space-between"
+    gap: 8,
+    marginTop: 5
   },
-  resourceGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12
-  },
-  resourceGridItem: {
-    flexBasis: "47%",
-    flexGrow: 1,
-    minWidth: 150
-  },
-  resourceImage: {
-    aspectRatio: 1.08,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 18,
-    width: "100%"
-  },
-  resourceMetaText: {
+  resourceMeta: {
     color: colors.muted,
-    fontSize: 12,
-    fontWeight: "600",
-    lineHeight: 16
+    fontSize: 12.5
+  },
+  resourceNext: {
+    color: colors.subtle,
+    flexShrink: 1,
+    fontFamily: fonts.mono,
+    fontSize: 10.5
+  },
+  resourceThumb: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 12,
+    height: 76,
+    width: 76
+  },
+  resourceThumbWrap: {
+    position: "relative"
   },
   resourceTitle: {
     color: colors.text,
-    fontSize: 14,
-    fontWeight: "900",
-    lineHeight: 18
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 19
+  },
+  resourceTypeTag: {
+    alignItems: "center",
+    backgroundColor: "rgba(19, 23, 34, 0.78)",
+    borderRadius: 7,
+    bottom: 5,
+    height: 20,
+    justifyContent: "center",
+    left: 5,
+    position: "absolute",
+    width: 20
   },
   scheduleCopy: {
     flex: 1,
-    gap: 2,
+    gap: 1,
     minWidth: 0
   },
   scheduleList: {
-    gap: 10
+    gap: 8
+  },
+  scheduleRail: {
+    alignSelf: "stretch",
+    borderRadius: 2,
+    width: 3
   },
   scheduleRow: {
-    alignItems: "flex-start",
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.border,
-    borderRadius: spacing.controlRadius,
-    borderWidth: 1,
+    alignItems: "center",
+    backgroundColor: colors.surfaceGlass,
+    borderRadius: 10,
     flexDirection: "row",
     gap: 10,
-    padding: 12
+    padding: 9
+  },
+  scheduleTime: {
+    color: colors.muted,
+    fontFamily: fonts.mono,
+    fontSize: 11
   },
   scheduleTitle: {
     color: colors.text,
-    fontSize: 14,
-    fontWeight: "900"
+    fontSize: 13,
+    fontWeight: "600"
   },
-  sectionBlock: {
-    gap: 12
+  selectMark: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderColor: colors.borderStrong,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    height: 22,
+    justifyContent: "center",
+    width: 22
+  },
+  selectMarkActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
   }
 });

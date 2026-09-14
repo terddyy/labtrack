@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Preflight before production APK: run `npm run test:release` from the repo root.
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {

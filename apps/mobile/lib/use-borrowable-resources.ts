@@ -1,6 +1,6 @@
-import { createBookingRange, type BookingRange, type ResourceType } from "@labtrack/shared";
+import { createBookingRange, getBorrowSubmitEligibility, type BookingRange, type ResourceType } from "@labtrack/shared";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createBorrowing,
   formatApiError,
@@ -12,11 +12,15 @@ import {
 
 type ResourceFilter = "all" | ResourceType;
 
-export function useBorrowableResources() {
+const QUERY_DEBOUNCE_MS = 300;
+
+export function useBorrowableResources(options?: { onSubmitted?: () => void | Promise<void> }) {
+  const onSubmitted = options?.onSubmitted;
   const [range, setRange] = useState<BookingRange>(() => createBookingRange(new Date(Date.now() + 60 * 60 * 1000), 90));
   const [validationNow, setValidationNow] = useState(() => new Date());
   const [filter, setFilter] = useState<ResourceFilter>("all");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [purpose, setPurpose] = useState("");
   const [resources, setResources] = useState<MobileBorrowingResource[]>([]);
   const [selectedResource, setSelectedResource] = useState<MobileBorrowingResource | null>(null);
@@ -29,7 +33,26 @@ export function useBorrowableResources() {
   const requestIdRef = useRef(0);
 
   const resourceType = filter === "all" ? null : filter;
-  const canSubmit = Boolean(selectedResource && purpose.trim().length >= 5 && selectedResource.availability !== "busy" && selectedResource.availability !== "unavailable");
+  const submitEligibility = useMemo(() => {
+    if (!selectedResource) {
+      return { canSubmit: false, reason: "Select a resource to reserve." as string | undefined };
+    }
+
+    return getBorrowSubmitEligibility({
+      availability: selectedResource.availability,
+      now: validationNow,
+      purpose,
+      range
+    });
+  }, [purpose, range, selectedResource, validationNow]);
+
+  const canSubmit = submitEligibility.canSubmit;
+  const submitBlockReason = selectedResource && !canSubmit ? submitEligibility.reason ?? null : null;
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setDebouncedQuery(query), QUERY_DEBOUNCE_MS);
+    return () => clearTimeout(timeoutId);
+  }, [query]);
 
   const refresh = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
@@ -40,7 +63,7 @@ export function useBorrowableResources() {
     try {
       const nextResources = await listBorrowableResources({
         endAt: range.requestedEndAt,
-        query,
+        query: debouncedQuery,
         resourceType,
         startAt: range.requestedStartAt
       });
@@ -67,7 +90,7 @@ export function useBorrowableResources() {
         setIsLoading(false);
       }
     }
-  }, [query, range.requestedEndAt, range.requestedStartAt, resourceType]);
+  }, [debouncedQuery, range.requestedEndAt, range.requestedStartAt, resourceType]);
 
   const refreshSchedule = useCallback(async (resource: MobileBorrowingResource | null = selectedResource) => {
     if (!resource) {
@@ -118,21 +141,25 @@ export function useBorrowableResources() {
       setMessage("Borrowing request submitted.");
       await refresh();
       await refreshSchedule(selectedResource);
+      await onSubmitted?.();
     } catch (submitError) {
       setError(formatApiError(submitError));
     } finally {
       setIsSubmitting(false);
     }
-  }, [canSubmit, purpose, range.requestedEndAt, range.requestedStartAt, refresh, refreshSchedule, selectedResource]);
+  }, [canSubmit, onSubmitted, purpose, range.requestedEndAt, range.requestedStartAt, refresh, refreshSchedule, selectedResource]);
+
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
 
   useFocusEffect(
     useCallback(() => {
-      void refresh();
+      void refreshRef.current();
 
       return () => {
         requestIdRef.current += 1;
       };
-    }, [refresh])
+    }, [])
   );
 
   useFocusEffect(
@@ -147,6 +174,10 @@ export function useBorrowableResources() {
       void refreshSchedule();
     }, [refreshSchedule])
   );
+
+  useEffect(() => {
+    void refresh();
+  }, [debouncedQuery, range.requestedEndAt, range.requestedStartAt, resourceType, refresh]);
 
   return useMemo(() => ({
     canSubmit,
@@ -169,6 +200,7 @@ export function useBorrowableResources() {
     setQuery,
     setRange,
     submit,
+    submitBlockReason,
     validationNow
   }), [
     canSubmit,
@@ -187,6 +219,7 @@ export function useBorrowableResources() {
     selectResource,
     selectedResource,
     submit,
+    submitBlockReason,
     validationNow
   ]);
 }

@@ -2,13 +2,19 @@ import { buildQuickLoginAccounts, type QuickLoginAccount } from "@labtrack/share
 import { router } from "expo-router";
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import { Button, Card, Field, Notice, ScreenScrollView, SectionTitle } from "@/components/ui";
-import { colors, shadows, spacing } from "@/constants/theme";
+import { AppIcon } from "@/components/icons";
+import { Button, Card, ConsoleHeader, Field, ListRow, Notice, ScreenScrollView, SegmentedControl } from "@/components/ui";
+import { colors, typography } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 import { formatApiError, hasSupabaseConfig, signInWithPassword, signUpWithPassword } from "@/lib/labtrack-api";
 
 type AuthMode = "sign-in" | "sign-up";
 type AuthMessage = { tone: "danger" | "success"; text: string };
+
+const authModes: Array<{ label: string; value: AuthMode }> = [
+  { label: "Sign in", value: "sign-in" },
+  { label: "Register", value: "sign-up" }
+];
 
 const isQuickLoginEnabled = process.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN !== "false";
 const quickLoginAccounts = isQuickLoginEnabled
@@ -92,41 +98,47 @@ export default function SignInScreen() {
   }
 
   return (
-    <ScreenScrollView contentContainerStyle={styles.screenContent} includeTopInset>
-      <View style={styles.heroPanel}>
-        <View style={styles.brandRow}>
-          <View style={styles.brandMark}>
-            <Image
-              accessibilityIgnoresInvertColors
-              source={require("../assets/brand/labtrack-icon.png")}
-              style={styles.brandMarkImage}
-            />
+    <ScreenScrollView
+      header={(
+        <ConsoleHeader
+          caption="Scan equipment, reserve rooms, and report defects from your pocket."
+          eyebrow="Labtrack · Mobile access"
+          right={(
+            <View style={styles.brandMark}>
+              <Image
+                accessibilityIgnoresInvertColors
+                source={require("../assets/brand/labtrack-icon.png")}
+                style={styles.brandMarkImage}
+              />
+            </View>
+          )}
+          title={"Every device,\naccounted for."}
+        >
+          <View style={styles.highlights}>
+            <Highlight icon="scan" label="QR scan" />
+            <Highlight icon="borrow" label="Reserve" />
+            <Highlight icon="wrench" label="Report" />
           </View>
-          <View style={styles.brandCopy}>
-            <Text style={styles.brandName}>LABTRACK</Text>
-            <Text style={styles.brandCaption}>Mobile asset access</Text>
-          </View>
-        </View>
-        <Text style={styles.heroTitle}>Soft, fast lab operations in one secure mobile workspace.</Text>
-        <Text style={styles.heroCaption}>Scan assets, submit borrowing requests, and report defects with your LABTRACK account.</Text>
-      </View>
-
+        </ConsoleHeader>
+      )}
+    >
       {!isConfigured ? <Notice tone="warning">Supabase mobile configuration is missing.</Notice> : null}
       {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
 
-      <Card style={styles.formPanel}>
-        <SectionTitle
-          title={isSignUp ? "Create account" : "Sign in"}
-          caption={isSignUp ? "Register with your LABTRACK borrowing account details." : "Use your LABTRACK account to open the mobile workflow."}
-        />
-        <View style={styles.authModeRow}>
-          <Button disabled={isSubmitting} fullWidth={false} onPress={() => setAuthMode("sign-in")} style={styles.authModeButton} variant={isSignUp ? "secondary" : "primary"}>
-            Sign in
-          </Button>
-          <Button disabled={isSubmitting} fullWidth={false} onPress={() => setAuthMode("sign-up")} style={styles.authModeButton} variant={isSignUp ? "primary" : "secondary"}>
-            Register
-          </Button>
+      <Card style={styles.formCard}>
+        <View style={styles.formHeader}>
+          <Text style={styles.formTitle}>{isSignUp ? "Create your account" : "Welcome back"}</Text>
+          <Text style={styles.formCaption}>
+            {isSignUp ? "Register with your LABTRACK borrowing account details." : "Use your LABTRACK account to continue."}
+          </Text>
         </View>
+        <SegmentedControl
+          onChange={(mode) => {
+            if (!isSubmitting) setAuthMode(mode);
+          }}
+          options={authModes}
+          value={authMode}
+        />
         {isSignUp ? (
           <Field
             autoCapitalize="words"
@@ -157,108 +169,133 @@ export default function SignInScreen() {
           value={password}
         />
         <Button disabled={isManualAuthDisabled} loading={isSubmitting && !pendingQuickRole} onPress={handleManualAuth}>
-          {isSignUp ? "Create account" : "Open dashboard"}
+          {isSignUp ? "Create account" : "Continue"}
         </Button>
       </Card>
 
       {quickLoginAccounts.length ? (
-        <Card style={styles.quickPanel}>
-          <SectionTitle title="Quick login" caption="Sample production accounts for one-tap access." />
-          <View style={styles.quickGrid}>
-            {quickLoginAccounts.map((account) => (
-              <Button
-                disabled={isSubmitting || !isConfigured}
-                key={account.role}
-                loading={pendingQuickRole === account.role}
-                onPress={() => void handleQuickSignIn(account)}
-                variant="secondary"
-              >
-                {account.label}
-              </Button>
-            ))}
+        <>
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>DEMO ACCESS</Text>
+            <View style={styles.dividerLine} />
           </View>
-        </Card>
+          <Card style={styles.groupCard}>
+            {quickLoginAccounts.map((account, index) => (
+              <ListRow
+                divider={index > 0}
+                key={account.role}
+                leading={(
+                  <View style={styles.quickIcon}>
+                    <AppIcon color={colors.primary} name="flash" size={16} />
+                  </View>
+                )}
+                meta={account.email}
+                onPress={isSubmitting || !isConfigured ? undefined : () => void handleQuickSignIn(account)}
+                title={account.label}
+                trailing={
+                  pendingQuickRole === account.role
+                    ? <Text style={styles.quickPending}>Signing in…</Text>
+                    : <AppIcon color={colors.subtle} name="chevron-forward" size={16} />
+                }
+              />
+            ))}
+          </Card>
+        </>
       ) : null}
     </ScreenScrollView>
   );
 }
 
+function Highlight({ icon, label }: { icon: "scan" | "borrow" | "wrench"; label: string }) {
+  return (
+    <View style={styles.highlight}>
+      <AppIcon color={colors.inkAccent} name={icon} size={15} />
+      <Text style={styles.highlightText}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  authModeButton: {
-    flex: 1
-  },
-  authModeRow: {
-    flexDirection: "row",
-    gap: 10
-  },
-  brandCaption: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: "700"
-  },
-  brandCopy: {
-    flex: 1,
-    gap: 2
-  },
   brandMark: {
-    alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.surface,
-    borderRadius: 22,
-    borderWidth: 3,
-    height: 58,
-    justifyContent: "center",
+    borderColor: colors.inkBorder,
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 52,
     overflow: "hidden",
-    width: 58,
-    ...shadows.soft
+    width: 52
   },
   brandMarkImage: {
-    height: 58,
-    width: 58
+    height: 52,
+    width: 52
   },
-  brandName: {
-    color: colors.text,
-    fontSize: 25,
-    fontWeight: "900",
-    letterSpacing: 0
-  },
-  brandRow: {
+  divider: {
     alignItems: "center",
     flexDirection: "row",
-    gap: 12
+    gap: 10,
+    paddingTop: 8
   },
-  formPanel: {
-    gap: 16
+  dividerLine: {
+    backgroundColor: colors.border,
+    flex: 1,
+    height: StyleSheet.hairlineWidth
   },
-  heroCaption: {
+  dividerText: {
+    color: colors.subtle,
+    ...typography.eyebrow
+  },
+  formCaption: {
     color: colors.muted,
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 22
+    ...typography.caption
   },
-  heroPanel: {
-    backgroundColor: colors.mintSoft,
-    borderColor: "rgba(255,255,255,0.86)",
-    borderRadius: spacing.radiusLarge,
-    borderWidth: 1,
-    gap: 16,
-    padding: 22,
-    ...shadows.card
+  formCard: {
+    gap: 14,
+    padding: 18
   },
-  heroTitle: {
+  formHeader: {
+    gap: 3
+  },
+  formTitle: {
     color: colors.text,
-    fontSize: 28,
-    fontWeight: "900",
-    lineHeight: 34
+    ...typography.title,
+    fontSize: 20
   },
-  quickGrid: {
-    gap: 10
+  groupCard: {
+    gap: 0,
+    paddingVertical: 2
   },
-  quickPanel: {
-    gap: 14
+  highlight: {
+    alignItems: "center",
+    backgroundColor: colors.inkRaised,
+    borderColor: colors.inkBorder,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 6
   },
-  screenContent: {
-    flexGrow: 1,
-    justifyContent: "center"
+  highlightText: {
+    color: colors.inkText,
+    fontSize: 12.5,
+    fontWeight: "500"
+  },
+  highlights: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  quickIcon: {
+    alignItems: "center",
+    backgroundColor: colors.primaryMuted,
+    borderRadius: 10,
+    height: 34,
+    justifyContent: "center",
+    width: 34
+  },
+  quickPending: {
+    color: colors.primary,
+    fontSize: 12.5,
+    fontWeight: "600"
   }
 });
