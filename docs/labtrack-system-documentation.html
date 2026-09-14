@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LABTRACK — System Documentation</title>
+  <style>
+    @page { margin: 18mm 16mm; size: A4; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Calibri, Arial, sans-serif;
+      color: #1a1a1a;
+      line-height: 1.45;
+      font-size: 10.5pt;
+      margin: 0;
+      padding: 0;
+    }
+    .cover {
+      page-break-after: always;
+      min-height: 250mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 24mm 12mm 12mm;
+      border-bottom: 4px solid #007aff;
+    }
+    .cover h1 {
+      font-size: 24pt;
+      margin: 0 0 8px;
+      color: #007aff;
+      line-height: 1.2;
+    }
+    .cover .subtitle {
+      font-size: 12pt;
+      color: #444;
+      max-width: 95%;
+      margin-bottom: 28px;
+    }
+    .cover .meta { font-size: 10pt; color: #666; }
+    h2 {
+      font-size: 14pt;
+      color: #007aff;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 4px;
+      margin-top: 22px;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 11pt;
+      color: #333;
+      margin-top: 16px;
+      page-break-after: avoid;
+    }
+    p { margin: 6px 0 10px; }
+    ul { margin: 6px 0 12px 18px; padding: 0; }
+    li { margin-bottom: 4px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f0f6ff; font-weight: 600; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .mono { font-family: Consolas, "Courier New", monospace; font-size: 9pt; }
+    .note {
+      background: #f7f9fc;
+      border-left: 3px solid #007aff;
+      padding: 8px 12px;
+      margin: 10px 0;
+      font-size: 9.5pt;
+    }
+    .erd {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 8pt;
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      padding: 12px;
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.35;
+      page-break-inside: avoid;
+    }
+    .section { page-break-inside: avoid; }
+    .footer-note {
+      margin-top: 24px;
+      font-size: 9pt;
+      color: #666;
+      border-top: 1px solid #ddd;
+      padding-top: 8px;
+    }
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>LABTRACK System Documentation</h1>
+  <p class="subtitle">
+    Hardware Asset Management System with App-Based Equipment Booking and Defect Reporting<br />
+    College of Computing Studies, Pampanga State University
+  </p>
+  <p class="meta">
+    Document type: Technical reference for thesis / capstone paper<br />
+    Contents: Technology stack and database entity reference (for ERD)<br />
+    Generated: August 24, 2026<br />
+    Source: LABTRACK monorepo (<span class="mono">supabase/migrations</span>, application manifests)
+  </p>
+</div>
+
+<h2>1. System Overview</h2>
+<p>
+  LABTRACK is a cloud-hosted asset management system composed of a <strong>web administration dashboard</strong>,
+  an <strong>Android mobile application</strong>, and a <strong>Supabase backend</strong> (PostgreSQL database,
+  authentication, file storage, row-level security, and RPC functions). Instructors scan QR codes on lab equipment
+  to view details, request bookings, report defects with photos, and communicate with administrators through
+  ticket-based messaging.
+</p>
+
+<h3>1.1 Application Components</h3>
+<table>
+  <tr><th>Component</th><th>Path</th><th>Purpose</th></tr>
+  <tr><td>Web Admin Dashboard</td><td class="mono">apps/web</td><td>Super Admin, Admin/Custodian workflows: assets, QR codes, bookings, defects, tickets, access settings</td></tr>
+  <tr><td>Mobile App (Android)</td><td class="mono">apps/mobile</td><td>Faculty/Instructor/Borrower workflows: QR scan, booking, defect reporting, notifications, tickets</td></tr>
+  <tr><td>Shared Domain Package</td><td class="mono">packages/shared</td><td>Shared TypeScript types, Zod schemas, QR helpers, workflow constants</td></tr>
+  <tr><td>Database &amp; Backend</td><td class="mono">supabase/migrations</td><td>PostgreSQL schema, RLS policies, storage buckets, RPC functions, cron jobs</td></tr>
+</table>
+
+<h3>1.2 User Roles</h3>
+<table>
+  <tr><th>Role</th><th>Enum Value</th><th>Primary Access</th></tr>
+  <tr><td>Super Admin</td><td class="mono">super_admin</td><td>User management, registration policy, university email domains, system settings</td></tr>
+  <tr><td>Admin / Custodian</td><td class="mono">admin</td>, <span class="mono">custodian</span></td><td>Asset catalog, QR generation, booking decisions, checkout/return, defect triage, tickets</td></tr>
+  <tr><td>Instructor / Faculty</td><td class="mono">instructor</td>, <span class="mono">faculty</span></td><td>Mobile: QR scan, booking requests, defect reports, ticket chat, notifications</td></tr>
+  <tr><td>Student</td><td class="mono">student</td><td>Extended role enum (reserved for future scope)</td></tr>
+</table>
+
+<h2>2. Technology Stack</h2>
+
+<h3>2.1 General / Repository</h3>
+<table>
+  <tr><th>Category</th><th>Technology</th><th>Version / Notes</th></tr>
+  <tr><td>Architecture</td><td>TypeScript monorepo (npm workspaces)</td><td>Root package name: <span class="mono">labtrack</span></td></tr>
+  <tr><td>Runtime</td><td>Node.js</td><td>&ge; 20.9.0</td></tr>
+  <tr><td>Package manager</td><td>npm</td><td>Root <span class="mono">package-lock.json</span></td></tr>
+  <tr><td>Language</td><td>TypeScript</td><td>5.9.3 (web/shared), 6.0.3 (mobile)</td></tr>
+  <tr><td>Validation</td><td>Zod</td><td>4.1.13 (<span class="mono">@labtrack/shared</span>)</td></tr>
+  <tr><td>Version control</td><td>Git</td><td>—</td></tr>
+</table>
+
+<h3>2.2 Web Application (<span class="mono">apps/web</span>)</h3>
+<table>
+  <tr><th>Category</th><th>Technology</th><th>Version</th></tr>
+  <tr><td>Framework</td><td>Next.js (App Router)</td><td>16.1.6</td></tr>
+  <tr><td>UI library</td><td>React</td><td>19.2.3</td></tr>
+  <tr><td>Backend client</td><td>@supabase/supabase-js</td><td>2.89.0</td></tr>
+  <tr><td>SSR auth integration</td><td>@supabase/ssr</td><td>0.7.0</td></tr>
+  <tr><td>Icons</td><td>lucide-react</td><td>0.468.0</td></tr>
+  <tr><td>QR code display</td><td>qrcode.react</td><td>4.2.0</td></tr>
+  <tr><td>Styling</td><td>Custom CSS (CSS variables, glass-style UI)</td><td>—</td></tr>
+  <tr><td>Server features</td><td>Next.js Server Actions</td><td>Body size limit: 6 MB</td></tr>
+  <tr><td>Deployment target</td><td>Vercel</td><td>Documented in architecture</td></tr>
+</table>
+
+<h3>2.3 Mobile Application (<span class="mono">apps/mobile</span>)</h3>
+<table>
+  <tr><th>Category</th><th>Technology</th><th>Version</th></tr>
+  <tr><td>Framework</td><td>Expo SDK</td><td>56.0.5</td></tr>
+  <tr><td>Navigation</td><td>Expo Router</td><td>56.2.7</td></tr>
+  <tr><td>UI runtime</td><td>React Native</td><td>0.85.3</td></tr>
+  <tr><td>UI library</td><td>React</td><td>19.2.3</td></tr>
+  <tr><td>Backend client</td><td>@supabase/supabase-js</td><td>2.89.0</td></tr>
+  <tr><td>QR scanning</td><td>expo-camera</td><td>~56.0.7</td></tr>
+  <tr><td>Push notifications</td><td>expo-notifications</td><td>~56.0.14</td></tr>
+  <tr><td>Secure storage</td><td>expo-secure-store</td><td>~56.0.4</td></tr>
+  <tr><td>UI effects</td><td>expo-blur, expo-linear-gradient</td><td>SDK 56</td></tr>
+  <tr><td>Date/time picker</td><td>@react-native-community/datetimepicker</td><td>9.1.0</td></tr>
+  <tr><td>Safe area / screens</td><td>react-native-safe-area-context, react-native-screens</td><td>5.7.0 / 4.25.2</td></tr>
+  <tr><td>Dev client</td><td>expo-dev-client</td><td>~56.0.18</td></tr>
+  <tr><td>Platform target</td><td>Android (APK via EAS Build)</td><td>Android-first; iOS out of V1 scope</td></tr>
+  <tr><td>Build service</td><td>Expo Application Services (EAS)</td><td>CLI &ge; 16.0.0</td></tr>
+</table>
+
+<h3>2.4 Backend &amp; Database (Supabase)</h3>
+<table>
+  <tr><th>Category</th><th>Technology</th><th>Notes</th></tr>
+  <tr><td>Backend platform</td><td>Supabase (hosted)</td><td>Auth, Postgres, Storage, Realtime, PostgREST API</td></tr>
+  <tr><td>Database</td><td>PostgreSQL</td><td>Relational schema in <span class="mono">public</span> schema</td></tr>
+  <tr><td>Authentication</td><td>Supabase Auth</td><td>Email/password; signup domain restriction hook</td></tr>
+  <tr><td>Authorization</td><td>Row Level Security (RLS)</td><td>All public tables protected by RLS policies</td></tr>
+  <tr><td>File storage</td><td>Supabase Storage</td><td>Private buckets: <span class="mono">defect-photos</span>, <span class="mono">asset-images</span></td></tr>
+  <tr><td>Business logic</td><td>PostgreSQL RPC functions</td><td>Booking, defect, QR, ticket, notification workflows</td></tr>
+  <tr><td>Extensions</td><td>pgcrypto, pg_cron</td><td>UUID generation; scheduled keepalive jobs</td></tr>
+  <tr><td>Private schema</td><td><span class="mono">app_private</span></td><td>Helper functions, keepalive audit table (not client-accessible)</td></tr>
+  <tr><td>Local development</td><td>Supabase CLI</td><td><span class="mono">supabase start</span>, <span class="mono">supabase db reset</span></td></tr>
+</table>
+
+<h3>2.5 Development &amp; Build Tools</h3>
+<ul>
+  <li><strong>Testing:</strong> Node.js built-in test runner (<span class="mono">node --test</span>) in <span class="mono">packages/shared</span></li>
+  <li><strong>Type checking:</strong> <span class="mono">tsc --noEmit</span> across all workspaces</li>
+  <li><strong>Android build scripts:</strong> PowerShell scripts for emulator, dev-client install, APK build (<span class="mono">apps/mobile/scripts/</span>)</li>
+  <li><strong>Environment configuration:</strong> <span class="mono">.env.local</span> (web), <span class="mono">.env</span> (mobile) with Supabase URL and publishable keys</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>3. Database Entities</h2>
+<p>
+  The following tables are defined in Supabase PostgreSQL migrations. All tables in the
+  <span class="mono">public</span> schema use Row Level Security unless noted. The
+  <span class="mono">auth.users</span> table is managed by Supabase Auth and is linked to
+  <span class="mono">public.profiles</span>.
+</p>
+
+<h3>3.1 Enumerated Types</h3>
+<table>
+  <tr><th>Type Name</th><th>Values</th></tr>
+  <tr><td class="mono">user_role</td><td>super_admin, admin, instructor, custodian, faculty, student</td></tr>
+  <tr><td class="mono">asset_status</td><td>available, reserved, checked_out, under_review, for_repair, retired</td></tr>
+  <tr><td class="mono">asset_condition</td><td>excellent, good, fair, defective, for_repair, retired</td></tr>
+  <tr><td class="mono">booking_status</td><td>pending, approved, rejected, cancelled, checked_out, returned</td></tr>
+  <tr><td class="mono">defect_status</td><td>pending, under_review, sent_for_repair, resolved, rejected</td></tr>
+  <tr><td class="mono">thread_subject_type</td><td>booking, defect_report</td></tr>
+  <tr><td class="mono">notification_type</td><td>booking_update, defect_update, ticket_message, system</td></tr>
+  <tr><td class="mono">borrowing_resource_type</td><td>asset, room</td></tr>
+</table>
+
+<h3>3.2 Entity: profiles</h3>
+<p><strong>Description:</strong> Application user profile linked 1:1 with Supabase Auth user.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK, FK → auth.users(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">email</td><td>text</td><td>NOT NULL, UNIQUE</td></tr>
+  <tr><td class="mono">full_name</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">role</td><td>user_role</td><td>NOT NULL, default instructor</td></tr>
+  <tr><td class="mono">department</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">is_active</td><td>boolean</td><td>NOT NULL, default true</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">updated_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.3 Entity: asset_categories</h3>
+<p><strong>Description:</strong> Classification of lab equipment (e.g., Laptop, Projector).</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">name</td><td>text</td><td>NOT NULL, UNIQUE</td></tr>
+  <tr><td class="mono">description</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.4 Entity: locations</h3>
+<p><strong>Description:</strong> Physical rooms or lab locations; also used as reservable room resources.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">name</td><td>text</td><td>NOT NULL, UNIQUE</td></tr>
+  <tr><td class="mono">description</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">location_type</td><td>text</td><td>NOT NULL, default room</td></tr>
+  <tr><td class="mono">capacity</td><td>integer</td><td>nullable</td></tr>
+  <tr><td class="mono">is_reservable</td><td>boolean</td><td>NOT NULL, default true</td></tr>
+  <tr><td class="mono">display_order</td><td>integer</td><td>NOT NULL, default 0</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.5 Entity: assets</h3>
+<p><strong>Description:</strong> Individual trackable hardware items with property number and lifecycle state.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">property_number</td><td>text</td><td>NOT NULL, UNIQUE</td></tr>
+  <tr><td class="mono">serial_number</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">name</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">category_id</td><td>uuid</td><td>FK → asset_categories(id)</td></tr>
+  <tr><td class="mono">location_id</td><td>uuid</td><td>FK → locations(id)</td></tr>
+  <tr><td class="mono">condition</td><td>asset_condition</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">status</td><td>asset_status</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">notes</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">is_room_bound</td><td>boolean</td><td>NOT NULL, default false</td></tr>
+  <tr><td class="mono">is_active</td><td>boolean</td><td>NOT NULL, default true</td></tr>
+  <tr><td class="mono">lifecycle_state</td><td>text</td><td>NOT NULL, default active</td></tr>
+  <tr><td class="mono">archived_at</td><td>timestamptz</td><td>nullable</td></tr>
+  <tr><td class="mono">archived_by</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">archive_reason</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">created_by</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">created_at, updated_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.6 Entity: asset_qr_codes</h3>
+<p><strong>Description:</strong> QR code records tied to assets; only one active QR per asset.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">asset_id</td><td>uuid</td><td>FK → assets(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">code</td><td>text</td><td>NOT NULL, UNIQUE</td></tr>
+  <tr><td class="mono">is_active</td><td>boolean</td><td>NOT NULL; unique partial index per asset</td></tr>
+  <tr><td class="mono">generated_by</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">generated_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">invalidated_at, invalidated_by</td><td>timestamptz / uuid</td><td>nullable; FK invalidated_by → profiles</td></tr>
+</table>
+
+<h3>3.7 Entity: asset_images</h3>
+<p><strong>Description:</strong> Metadata for asset photos stored in Supabase Storage (<span class="mono">asset-images</span> bucket).</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">asset_id</td><td>uuid</td><td>FK → assets(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">storage_path</td><td>text</td><td>NOT NULL, UNIQUE</td></tr>
+  <tr><td class="mono">alt_text</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">is_primary</td><td>boolean</td><td>NOT NULL; one primary per asset</td></tr>
+  <tr><td class="mono">uploaded_by</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.8 Entity: asset_lifecycle_events</h3>
+<p><strong>Description:</strong> Audit trail of asset status/condition changes.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">asset_id</td><td>uuid</td><td>FK → assets(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">actor_id</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">event_type</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">from_status, to_status</td><td>asset_status</td><td>nullable</td></tr>
+  <tr><td class="mono">from_condition, to_condition</td><td>asset_condition</td><td>nullable</td></tr>
+  <tr><td class="mono">notes</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">metadata</td><td>jsonb</td><td>NOT NULL, default {}</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.9 Entity: bookings</h3>
+<p><strong>Description:</strong> Borrowing/reservation requests for an asset or a room location.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">resource_type</td><td>borrowing_resource_type</td><td>NOT NULL (asset or room)</td></tr>
+  <tr><td class="mono">asset_id</td><td>uuid</td><td>FK → assets(id); required when resource_type = asset</td></tr>
+  <tr><td class="mono">location_id</td><td>uuid</td><td>FK → locations(id); required when resource_type = room</td></tr>
+  <tr><td class="mono">instructor_id</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">requested_start_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">requested_end_at</td><td>timestamptz</td><td>NOT NULL; must be after start</td></tr>
+  <tr><td class="mono">purpose</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">status</td><td>booking_status</td><td>NOT NULL, default pending</td></tr>
+  <tr><td class="mono">decided_by</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">decided_at</td><td>timestamptz</td><td>nullable</td></tr>
+  <tr><td class="mono">decision_notes</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">created_at, updated_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.10 Entity: booking_events</h3>
+<p><strong>Description:</strong> Status transition history for bookings.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">booking_id</td><td>uuid</td><td>FK → bookings(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">actor_id</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">from_status</td><td>booking_status</td><td>nullable</td></tr>
+  <tr><td class="mono">to_status</td><td>booking_status</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">notes</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<h3>3.11 Entity: defect_reports</h3>
+<p><strong>Description:</strong> Equipment defect/issue reports submitted by instructors.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">asset_id</td><td>uuid</td><td>FK → assets(id)</td></tr>
+  <tr><td class="mono">instructor_id</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">title</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">description</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">status</td><td>defect_status</td><td>NOT NULL, default pending</td></tr>
+  <tr><td class="mono">triaged_by</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">triaged_at</td><td>timestamptz</td><td>nullable</td></tr>
+  <tr><td class="mono">resolution_notes</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">created_at, updated_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.12 Entity: defect_photos</h3>
+<p><strong>Description:</strong> Photo evidence for defect reports; files stored in <span class="mono">defect-photos</span> bucket.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">defect_report_id</td><td>uuid</td><td>FK → defect_reports(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">storage_path</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">uploaded_by</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.13 Entity: ticket_threads</h3>
+<p><strong>Description:</strong> Support conversation thread linked to exactly one booking or one defect report.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">subject_type</td><td>thread_subject_type</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">booking_id</td><td>uuid</td><td>FK → bookings(id) ON DELETE CASCADE; set when subject_type = booking</td></tr>
+  <tr><td class="mono">defect_report_id</td><td>uuid</td><td>FK → defect_reports(id) ON DELETE CASCADE; set when subject_type = defect_report</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.14 Entity: ticket_messages</h3>
+<p><strong>Description:</strong> Individual messages within a ticket thread.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">thread_id</td><td>uuid</td><td>FK → ticket_threads(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">sender_id</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">body</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.15 Entity: notifications</h3>
+<p><strong>Description:</strong> In-app notifications for booking, defect, ticket, and system events.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">recipient_id</td><td>uuid</td><td>FK → profiles(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">type</td><td>notification_type</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">title</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">body</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">read_at</td><td>timestamptz</td><td>nullable</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.16 Entity: device_push_tokens</h3>
+<p><strong>Description:</strong> Expo push notification tokens registered by mobile users.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">user_id</td><td>uuid</td><td>FK → profiles(id) ON DELETE CASCADE</td></tr>
+  <tr><td class="mono">expo_push_token</td><td>text</td><td>NOT NULL, UNIQUE</td></tr>
+  <tr><td class="mono">platform</td><td>text</td><td>NOT NULL, default android</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">last_seen_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.17 Entity: audit_logs</h3>
+<p><strong>Description:</strong> Administrative action audit trail.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">actor_id</td><td>uuid</td><td>FK → profiles(id)</td></tr>
+  <tr><td class="mono">action</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">entity_table</td><td>text</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">entity_id</td><td>uuid</td><td>nullable</td></tr>
+  <tr><td class="mono">metadata</td><td>jsonb</td><td>NOT NULL, default {}</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.18 Entity: university_email_domains</h3>
+<p><strong>Description:</strong> Allowed email domains for self-registration.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>uuid</td><td>PK</td></tr>
+  <tr><td class="mono">domain</td><td>text</td><td>NOT NULL, UNIQUE (e.g., pampangastateu.edu.ph)</td></tr>
+  <tr><td class="mono">is_allowed</td><td>boolean</td><td>NOT NULL, default true</td></tr>
+  <tr><td class="mono">notes</td><td>text</td><td>nullable</td></tr>
+  <tr><td class="mono">created_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.19 Entity: registration_settings</h3>
+<p><strong>Description:</strong> Singleton configuration row for signup domain restriction policy.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>boolean</td><td>PK, always true (singleton)</td></tr>
+  <tr><td class="mono">restrict_signup_to_allowed_domains</td><td>boolean</td><td>NOT NULL, default true</td></tr>
+  <tr><td class="mono">created_at, updated_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.20 Internal Entity: app_private.supabase_keepalive_events</h3>
+<p><strong>Description:</strong> Internal cron audit table (not exposed to client apps). Used by pg_cron scheduled jobs.</p>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Constraints / Notes</th></tr>
+  <tr><td class="mono">id</td><td>bigint</td><td>PK, identity</td></tr>
+  <tr><td class="mono">ran_at</td><td>timestamptz</td><td>NOT NULL</td></tr>
+  <tr><td class="mono">note</td><td>text</td><td>NOT NULL</td></tr>
+</table>
+
+<h3>3.21 Storage Buckets (Supabase Storage)</h3>
+<table>
+  <tr><th>Bucket ID</th><th>Access</th><th>Linked Entity</th></tr>
+  <tr><td class="mono">defect-photos</td><td>Private</td><td>defect_photos.storage_path</td></tr>
+  <tr><td class="mono">asset-images</td><td>Private</td><td>asset_images.storage_path</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<h2>4. Entity Relationship Diagram (Reference)</h2>
+<p>
+  Use this diagram as a reference when drawing the formal ERD for your paper.
+  Cardinality notation: <strong>1</strong> = one, <strong>N</strong> = many, <strong>0..1</strong> = optional one.
+</p>
+
+<div class="erd">auth.users (Supabase Auth)
+    |
+    | 1 : 1
+    v
+profiles ─────────────────────────────────────────────────────────────┐
+    |                                                                 |
+    | 1:N (created_by, archived_by, actor references)                 |
+    v                                                                 |
+assets ──── N:1 ──── asset_categories                                 |
+    |                                                                 |
+    | N:1                                                             |
+    v                                                                 |
+locations &lt;──── N:1 ──── bookings (when resource_type = room)       |
+    ^                                                                 |
+    | N:1                                                             |
+    |                                                                 |
+    | 1:N                                                             |
+    ├── asset_qr_codes                                                |
+    ├── asset_images ──► storage: asset-images                        |
+    ├── asset_lifecycle_events                                        |
+    ├── bookings (when resource_type = asset)                         |
+    |       |                                                         |
+    |       | 1:N                                                     |
+    |       ├── booking_events                                        |
+    |       └── ticket_threads (subject_type = booking)               |
+    |                                                                 |
+    └── defect_reports                                                |
+            |                                                         |
+            | 1:N                                                     |
+            ├── defect_photos ──► storage: defect-photos              |
+            └── ticket_threads (subject_type = defect_report)         |
+                    |                                                 |
+                    | 1:N                                             |
+                    └── ticket_messages ◄── sender: profiles          |
+                                                                      |
+profiles ── 1:N ── notifications                                      |
+profiles ── 1:N ── device_push_tokens                                 |
+profiles ── 1:N ── audit_logs (as actor)                              |
+                                                                      |
+university_email_domains (standalone lookup for registration)       |
+registration_settings (singleton policy row)                          |
+app_private.supabase_keepalive_events (internal cron audit)</div>
+
+<h3>4.1 Relationship Summary Table</h3>
+<table>
+  <tr><th>Parent Entity</th><th>Child Entity</th><th>Relationship</th><th>FK Column</th></tr>
+  <tr><td>auth.users</td><td>profiles</td><td>1 : 1</td><td class="mono">profiles.id</td></tr>
+  <tr><td>asset_categories</td><td>assets</td><td>1 : N</td><td class="mono">assets.category_id</td></tr>
+  <tr><td>locations</td><td>assets</td><td>1 : N</td><td class="mono">assets.location_id</td></tr>
+  <tr><td>assets</td><td>asset_qr_codes</td><td>1 : N (1 active)</td><td class="mono">asset_qr_codes.asset_id</td></tr>
+  <tr><td>assets</td><td>asset_images</td><td>1 : N</td><td class="mono">asset_images.asset_id</td></tr>
+  <tr><td>assets</td><td>asset_lifecycle_events</td><td>1 : N</td><td class="mono">asset_lifecycle_events.asset_id</td></tr>
+  <tr><td>assets</td><td>bookings</td><td>1 : N</td><td class="mono">bookings.asset_id</td></tr>
+  <tr><td>locations</td><td>bookings</td><td>1 : N</td><td class="mono">bookings.location_id</td></tr>
+  <tr><td>profiles</td><td>bookings</td><td>1 : N</td><td class="mono">bookings.instructor_id</td></tr>
+  <tr><td>bookings</td><td>booking_events</td><td>1 : N</td><td class="mono">booking_events.booking_id</td></tr>
+  <tr><td>assets</td><td>defect_reports</td><td>1 : N</td><td class="mono">defect_reports.asset_id</td></tr>
+  <tr><td>profiles</td><td>defect_reports</td><td>1 : N</td><td class="mono">defect_reports.instructor_id</td></tr>
+  <tr><td>defect_reports</td><td>defect_photos</td><td>1 : N</td><td class="mono">defect_photos.defect_report_id</td></tr>
+  <tr><td>bookings</td><td>ticket_threads</td><td>1 : 0..1</td><td class="mono">ticket_threads.booking_id</td></tr>
+  <tr><td>defect_reports</td><td>ticket_threads</td><td>1 : 0..1</td><td class="mono">ticket_threads.defect_report_id</td></tr>
+  <tr><td>ticket_threads</td><td>ticket_messages</td><td>1 : N</td><td class="mono">ticket_messages.thread_id</td></tr>
+  <tr><td>profiles</td><td>ticket_messages</td><td>1 : N</td><td class="mono">ticket_messages.sender_id</td></tr>
+  <tr><td>profiles</td><td>notifications</td><td>1 : N</td><td class="mono">notifications.recipient_id</td></tr>
+  <tr><td>profiles</td><td>device_push_tokens</td><td>1 : N</td><td class="mono">device_push_tokens.user_id</td></tr>
+  <tr><td>profiles</td><td>audit_logs</td><td>1 : N</td><td class="mono">audit_logs.actor_id</td></tr>
+</table>
+
+<h2>5. Key Backend RPC Functions (Business Logic)</h2>
+<p>Critical workflows are enforced through PostgreSQL RPC functions rather than direct table writes:</p>
+<ul>
+  <li><span class="mono">resolve_asset_by_qr_code</span> — QR-scoped asset lookup for mobile users</li>
+  <li><span class="mono">regenerate_asset_qr</span> — Atomic QR replacement with audit logging</li>
+  <li><span class="mono">create_booking</span>, <span class="mono">cancel_booking</span>, <span class="mono">decide_booking</span>, <span class="mono">checkout_booking</span>, <span class="mono">return_booking</span> — Booking lifecycle</li>
+  <li><span class="mono">create_defect_report</span>, <span class="mono">triage_defect_report</span> — Defect workflow</li>
+  <li><span class="mono">ensure_ticket_thread</span>, <span class="mono">send_ticket_message</span> — Ticket messaging</li>
+  <li><span class="mono">mark_notification_read</span> — Notification read state</li>
+  <li><span class="mono">hook_restrict_signup_by_email_domain</span> — Auth hook for domain-restricted registration</li>
+</ul>
+
+<div class="footer-note">
+  This document was generated from the LABTRACK source repository. For the latest schema, refer to
+  <span class="mono">supabase/migrations/</span>. Total public entities: 19 tables + 2 storage buckets + Supabase Auth users.
+</div>
+
+</body>
+</html>
