@@ -34,6 +34,8 @@ import {
   printableReportRowDtoSchema,
   regenerateAssetQrInputSchema,
   resolveAssetByQrCodeInputSchema,
+  resetMyActivityDataInputSchema,
+  resetMyActivityDataResultSchema,
   resourceScheduleEntryRowDtoSchema,
   returnBookingInputSchema,
   sendTicketMessageInputSchema,
@@ -79,7 +81,8 @@ export const backendRpcInputSchemas = {
   triageDefectReport: triageDefectReportInputSchema,
   ensureTicketThread: ensureTicketThreadInputSchema,
   sendTicketMessage: sendTicketMessageInputSchema,
-  markNotificationRead: markNotificationReadInputSchema
+  markNotificationRead: markNotificationReadInputSchema,
+  resetMyActivityData: resetMyActivityDataInputSchema
 } as const satisfies Record<BackendRpcKey, z.ZodType>;
 
 export const backendRpcReturnSchemas = {
@@ -108,7 +111,8 @@ export const backendRpcReturnSchemas = {
   triageDefectReport: z.array(defectReportRpcResultDtoSchema),
   ensureTicketThread: ticketThreadRowDtoSchema,
   sendTicketMessage: ticketMessageRowDtoSchema,
-  markNotificationRead: notificationRowDtoSchema
+  markNotificationRead: notificationRowDtoSchema,
+  resetMyActivityData: resetMyActivityDataResultSchema
 } as const satisfies Record<BackendRpcKey, z.ZodType>;
 
 export type BackendRpcInput<K extends BackendRpcKey> = z.input<(typeof backendRpcInputSchemas)[K]>;

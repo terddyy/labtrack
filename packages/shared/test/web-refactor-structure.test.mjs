@@ -17,7 +17,7 @@ test("web admin component calls server actions instead of direct Supabase RPC/ta
 });
 
 test("web asset form keeps generated identifiers off the user form and accepts an image", () => {
-  const source = readFileSync(path.join(webRoot, "components", "admin-dashboard.tsx"), "utf8");
+  const source = readFileSync(path.join(webRoot, "components", "assets", "asset-form.tsx"), "utf8");
 
   assert.doesNotMatch(source, /htmlFor="property-number"/);
   assert.doesNotMatch(source, /htmlFor="serial-number"/);
@@ -69,4 +69,17 @@ test("web typecheck does not depend on ignored .next generated route types", () 
   const nextEnv = readFileSync(path.join(webRoot, "next-env.d.ts"), "utf8");
 
   assert.doesNotMatch(nextEnv, /\.next\/types\/routes\.d\.ts/);
+});
+
+test("production mobile EAS profile disables quick login", () => {
+  const easConfig = JSON.parse(readFileSync(path.join(repoRoot, "apps", "mobile", "eas.json"), "utf8"));
+
+  assert.equal(easConfig.build.production.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN, "false");
+});
+
+test("web package exposes a typecheck script for the release gate", () => {
+  const packageJson = JSON.parse(readFileSync(path.join(webRoot, "package.json"), "utf8"));
+
+  assert.equal(typeof packageJson.scripts.typecheck, "string");
+  assert.match(packageJson.scripts.typecheck, /tsc/);
 });

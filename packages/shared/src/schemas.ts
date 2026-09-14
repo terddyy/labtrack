@@ -296,6 +296,15 @@ export const markNotificationReadInputSchema = z.object({
   p_notification_id: idSchema
 });
 
+export const resetMyActivityDataInputSchema = z.object({});
+
+export const resetMyActivityDataResultSchema = z.object({
+  bookings_deleted: z.number().int().nonnegative(),
+  defect_reports_deleted: z.number().int().nonnegative(),
+  notifications_deleted: z.number().int().nonnegative(),
+  push_tokens_deleted: z.number().int().nonnegative()
+});
+
 export const profileRowDtoSchema = z.object({
   id: idSchema,
   email: z.email(),
@@ -554,6 +563,8 @@ export type TriageDefectReportInput = z.infer<typeof triageDefectReportInputSche
 export type EnsureTicketThreadInput = z.infer<typeof ensureTicketThreadInputSchema>;
 export type SendTicketMessageInput = z.infer<typeof sendTicketMessageInputSchema>;
 export type MarkNotificationReadInput = z.infer<typeof markNotificationReadInputSchema>;
+export type ResetMyActivityDataInput = z.infer<typeof resetMyActivityDataInputSchema>;
+export type ResetMyActivityDataResult = z.infer<typeof resetMyActivityDataResultSchema>;
 export type ProfileRowDtoInput = z.infer<typeof profileRowDtoSchema>;
 export type AssetQrCodeRowDtoInput = z.infer<typeof assetQrCodeRowDtoSchema>;
 export type InstructorAssetLookupDtoInput = z.infer<typeof instructorAssetLookupDtoSchema>;

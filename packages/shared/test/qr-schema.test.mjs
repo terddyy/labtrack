@@ -115,7 +115,8 @@ test("exposes planned backend RPC names", () => {
     triageDefectReport: "triage_defect_report",
     ensureTicketThread: "ensure_ticket_thread",
     sendTicketMessage: "send_ticket_message",
-    markNotificationRead: "mark_notification_read"
+    markNotificationRead: "mark_notification_read",
+    resetMyActivityData: "reset_my_activity_data"
   });
 });
 
@@ -146,7 +147,8 @@ test("exposes planned backend RPC argument names", () => {
     triageDefectReport: ["p_defect_report_id", "p_status", "p_notes"],
     ensureTicketThread: ["p_subject_type", "p_booking_id", "p_defect_report_id"],
     sendTicketMessage: ["p_thread_id", "p_body"],
-    markNotificationRead: ["p_notification_id"]
+    markNotificationRead: ["p_notification_id"],
+    resetMyActivityData: []
   });
 });
 

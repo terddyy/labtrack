@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "6mb"
     }
   },
+  devIndicators: { position: "bottom-right" },
   typedRoutes: false,
   transpilePackages: ["@labtrack/shared"]
 };

@@ -21,18 +21,23 @@ import {
   createCategory,
   createLocation,
   decideBooking,
+  deleteAsset,
+  deleteCatalogItem,
   generateAssetQr,
   getAdminAccess,
   getAdminDashboardData,
+  getAssetLifecycle,
   getBorrowingMonitor,
   getPrintableReportData,
   getTicketMessages,
   getUsageAnalytics,
   listActivityLogs,
+  renameCatalogItem,
   returnBooking,
   sendTicketMessage,
   triageDefectReport,
   updateAllowedEmailDomain,
+  updateAsset,
   updateProfileAccess,
   updateRegistrationPolicy
 } from "./services";
@@ -40,6 +45,8 @@ import type {
   ActivityLogFilters,
   ActivityLogRow,
   AssetFormState,
+  AssetLifecycleEvent,
+  CatalogKind,
   BorrowingMonitorFilters,
   BorrowingMonitorRow,
   DashboardData,
@@ -203,6 +210,53 @@ export async function createLocationAction(name: string) {
     await createLocation(name);
     return null;
   });
+}
+
+export async function updateAssetAction(assetId: string, input: FormData) {
+  return toActionResult(() => updateAsset(parseId(assetId), parseAssetForm(input)));
+}
+
+export async function deleteAssetAction(assetId: string) {
+  return toActionResult(async () => {
+    await deleteAsset(parseId(assetId));
+    return null;
+  });
+}
+
+export async function renameCatalogItemAction(kind: CatalogKind, id: string, name: string) {
+  return toActionResult(async () => {
+    await renameCatalogItem(parseCatalogKind(kind), parseId(id), parseCatalogName(name));
+    return null;
+  });
+}
+
+export async function deleteCatalogItemAction(kind: CatalogKind, id: string) {
+  return toActionResult(async () => {
+    await deleteCatalogItem(parseCatalogKind(kind), parseId(id));
+    return null;
+  });
+}
+
+export async function getAssetLifecycleAction(assetId: string): Promise<ActionResult<AssetLifecycleEvent[]>> {
+  return toActionResult(() => getAssetLifecycle(parseId(assetId)));
+}
+
+function parseCatalogKind(value: string): CatalogKind {
+  if (value !== "category" && value !== "location") {
+    throw new Error("Catalog type is invalid.");
+  }
+
+  return value;
+}
+
+function parseCatalogName(value: string) {
+  const trimmedValue = typeof value === "string" ? value.trim() : "";
+
+  if (!trimmedValue || trimmedValue.length > 120) {
+    throw new Error("Name must be between 1 and 120 characters.");
+  }
+
+  return trimmedValue;
 }
 
 async function toActionResult<T>(action: () => Promise<T>): Promise<ActionResult<T>> {

@@ -14,6 +14,9 @@
     "dev:mobile": "npm run start -w @labtrack/mobile",
     "dev:mobile:dev-client": "npm run start:dev-client -w @labtrack/mobile",
     "dev:mobile:dev-client:clear": "npm run start:dev-client:clear -w @labtrack/mobile",
+    "dev:mobile:android:install": "npm run android:install -w @labtrack/mobile",
+    "dev:mobile:android:install:phone": "npm run android:install:phone -w @labtrack/mobile",
+    "dev:mobile:android:emulator": "npm run android:emulator -w @labtrack/mobile",
     "build:mobile:android:development": "npm run build:android:development -w @labtrack/mobile",
     "build:mobile:android:dev-client": "npm run build:android:dev-client -w @labtrack/mobile",
     "build:mobile:android:preview": "npm run build:android:preview -w @labtrack/mobile",
@@ -22,6 +25,7 @@
     "version:mobile:android:minor": "npm run version:android:minor -w @labtrack/mobile",
     "version:mobile:android:major": "npm run version:android:major -w @labtrack/mobile",
     "test": "npm run test -w @labtrack/shared",
+    "test:release": "npm run test && npm run typecheck",
     "typecheck": "npm run typecheck -w @labtrack/shared && npm run typecheck -w @labtrack/web && npm run typecheck -w @labtrack/mobile"
   },
   "engines": {

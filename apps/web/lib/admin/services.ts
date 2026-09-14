@@ -2,10 +2,13 @@ import {
   assetSchema,
   buildQuickLoginAccounts,
   callRpc,
+  formatStatusLabel,
   getDashboardCounters,
   isCustodianRole,
   normalizeEmailDomain,
   type AdminAssetRowDto,
+  type AssetCondition,
+  type AssetStatus,
   type BookingStatus,
   type Profile
 } from "@labtrack/shared";
@@ -29,7 +32,10 @@ import type {
   ProfileRow,
   RegistrationPolicy,
   ReportFilters,
+  AssetLifecycleEvent,
+  CatalogKind,
   TicketMessageRow,
+  TicketThreadRow,
   UsageAnalyticsRow
 } from "./types";
 
@@ -45,6 +51,16 @@ type SupabaseCountResult = {
   count: number | null;
   error: { message: string } | null;
 };
+type EmbeddedOne<T> = T | T[] | null;
+type TicketThreadQueryRow = Omit<TicketThreadRow, "requester_id" | "subject_title"> & {
+  booking: EmbeddedOne<{ instructor_id: string; purpose: string }>;
+  defect_report: EmbeddedOne<{ instructor_id: string; title: string }>;
+};
+
+// Bookings/defects are loaded client-side for lists and dashboard analytics.
+const RECENT_WORKFLOW_LIMIT = 200;
+const FOREIGN_KEY_VIOLATION = "23503";
+const UNIQUE_VIOLATION = "23505";
 
 const ASSET_IMAGE_BUCKET = "asset-images";
 const ASSET_IMAGE_SIGNED_URL_TTL_SECONDS = 60 * 60;
@@ -174,7 +190,7 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
         .from("bookings")
         .select("id,resource_type,asset_id,location_id,instructor_id,purpose,status,requested_start_at,requested_end_at,decision_notes")
         .order("created_at", { ascending: false })
-        .limit(50),
+        .limit(RECENT_WORKFLOW_LIMIT),
       []
     ),
     readDashboardQuery<DefectRow[]>(
@@ -183,7 +199,7 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
         .from("defect_reports")
         .select("id,asset_id,instructor_id,title,description,status,resolution_notes,created_at")
         .order("created_at", { ascending: false })
-        .limit(50),
+        .limit(RECENT_WORKFLOW_LIMIT),
       []
     ),
     readDashboardQuery<ProfileRow[]>(
@@ -211,11 +227,11 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
         .order("domain"),
       []
     ),
-    readDashboardQuery<DashboardData["ticketThreads"]>(
+    readDashboardQuery<TicketThreadQueryRow[]>(
       "ticket_threads.recent",
       supabase
         .from("ticket_threads")
-        .select("id,subject_type,booking_id,defect_report_id,created_at")
+        .select("id,subject_type,booking_id,defect_report_id,created_at,booking:bookings(instructor_id,purpose),defect_report:defect_reports(instructor_id,title)")
         .order("created_at", { ascending: false })
         .limit(50),
       []
@@ -244,7 +260,7 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
       registrationSettings,
       emailDomains
     ),
-    ticketThreads,
+    ticketThreads: ticketThreads.map(toTicketThreadRow),
     counters: {
       ...fallbackCounters,
       registeredAssets: assetCount ?? fallbackCounters.registeredAssets,
@@ -592,6 +608,279 @@ export async function createLocation(name: string) {
   }
 }
 
+export async function updateAsset(assetId: string, input: AssetFormState) {
+  const supabase = await requireAuthorizedAdminClient();
+  const profile = await requireAuthorizedAdminProfile();
+  const { data: existing, error: existingError } = await supabase
+    .from("assets")
+    .select("property_number,serial_number,status,condition")
+    .eq("id", assetId)
+    .single();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  const current = existing as { property_number: string; serial_number: string | null; status: AssetStatus; condition: AssetCondition };
+  const validation = assetSchema.safeParse({
+    propertyNumber: current.property_number,
+    serialNumber: current.serial_number ?? undefined,
+    name: input.name.trim(),
+    categoryId: input.categoryId,
+    locationId: input.locationId,
+    condition: input.condition,
+    status: input.status
+  });
+
+  if (!validation.success) {
+    return { formErrors: validation.error.issues };
+  }
+
+  const imageError = validateAssetImageFile(input.imageFile);
+
+  if (imageError) {
+    return { formErrors: [imageError] };
+  }
+
+  const { error } = await supabase
+    .from("assets")
+    .update({
+      name: validation.data.name,
+      category_id: validation.data.categoryId,
+      location_id: validation.data.locationId,
+      condition: validation.data.condition,
+      status: validation.data.status,
+      notes: input.notes.trim() || null
+    })
+    .eq("id", assetId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (current.status !== validation.data.status || current.condition !== validation.data.condition) {
+    // Best effort: the lifecycle report still works from bookings/defects if this insert fails.
+    await supabase.from("asset_lifecycle_events").insert({
+      asset_id: assetId,
+      actor_id: profile.id,
+      event_type: "asset_updated",
+      from_status: current.status,
+      to_status: validation.data.status,
+      from_condition: current.condition,
+      to_condition: validation.data.condition,
+      notes: "Updated from LABTRACK admin."
+    });
+  }
+
+  if (input.imageFile) {
+    await replaceAssetPrimaryImage({
+      altText: `${validation.data.name} image`,
+      assetId,
+      file: input.imageFile,
+      profileId: profile.id,
+      supabase
+    });
+  }
+
+  return { id: assetId };
+}
+
+export async function deleteAsset(assetId: string) {
+  const supabase = await requireAuthorizedAdminClient();
+  const [bookingCount, defectCount] = await Promise.all([
+    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("asset_id", assetId),
+    supabase.from("defect_reports").select("id", { count: "exact", head: true }).eq("asset_id", assetId)
+  ]);
+  const countError = bookingCount.error ?? defectCount.error;
+
+  if (countError) {
+    throw new Error(countError.message);
+  }
+
+  if ((bookingCount.count ?? 0) > 0 || (defectCount.count ?? 0) > 0) {
+    throw new Error("This asset has borrowing or defect history. Set its status to Retired instead of deleting it.");
+  }
+
+  const { data: images } = await supabase.from("asset_images").select("storage_path").eq("asset_id", assetId);
+  const { error } = await supabase.from("assets").delete().eq("id", assetId);
+
+  if (error) {
+    throw new Error(toFriendlyWriteError(error, "asset"));
+  }
+
+  const storagePaths = ((images ?? []) as Array<{ storage_path: string }>)
+    .map((image) => image.storage_path)
+    .filter((path) => !/^https?:\/\//i.test(path));
+
+  if (storagePaths.length) {
+    await supabase.storage.from(ASSET_IMAGE_BUCKET).remove(storagePaths);
+  }
+}
+
+export async function renameCatalogItem(kind: CatalogKind, id: string, name: string) {
+  const supabase = await requireAuthorizedAdminClient();
+  const trimmedName = name.trim();
+
+  if (!trimmedName) {
+    throw new Error(`${catalogLabels[kind]} name is required.`);
+  }
+
+  const { error } = await supabase.from(catalogTables[kind]).update({ name: trimmedName }).eq("id", id);
+
+  if (error) {
+    throw new Error(toFriendlyWriteError(error, catalogLabels[kind].toLowerCase()));
+  }
+}
+
+export async function deleteCatalogItem(kind: CatalogKind, id: string) {
+  const supabase = await requireAuthorizedAdminClient();
+  const { error } = await supabase.from(catalogTables[kind]).delete().eq("id", id);
+
+  if (error) {
+    throw new Error(toFriendlyWriteError(error, catalogLabels[kind].toLowerCase()));
+  }
+}
+
+export async function getAssetLifecycle(assetId: string): Promise<AssetLifecycleEvent[]> {
+  const supabase = await requireAuthorizedAdminClient();
+  const [assetResult, qrResult, bookingResult, defectResult, lifecycleResult] = await Promise.all([
+    supabase.from("assets").select("id,name,created_at,created_by").eq("id", assetId).single(),
+    supabase.from("asset_qr_codes").select("id,code,generated_at,generated_by,invalidated_at,invalidated_by").eq("asset_id", assetId),
+    supabase
+      .from("bookings")
+      .select("id,purpose,status,requested_start_at,requested_end_at,created_at,instructor_id")
+      .eq("asset_id", assetId),
+    supabase
+      .from("defect_reports")
+      .select("id,title,status,resolution_notes,created_at,triaged_at,triaged_by,instructor_id")
+      .eq("asset_id", assetId),
+    supabase
+      .from("asset_lifecycle_events")
+      .select("id,event_type,from_status,to_status,notes,created_at,actor_id")
+      .eq("asset_id", assetId)
+  ]);
+  const readError = assetResult.error ?? qrResult.error ?? bookingResult.error ?? defectResult.error ?? lifecycleResult.error;
+
+  if (readError) {
+    throw new Error(readError.message);
+  }
+
+  const asset = assetResult.data as { id: string; name: string; created_at: string; created_by: string | null };
+  const qrCodes = (qrResult.data ?? []) as Array<{ id: string; code: string; generated_at: string; generated_by: string | null; invalidated_at: string | null; invalidated_by: string | null }>;
+  const bookings = (bookingResult.data ?? []) as Array<{ id: string; purpose: string; status: string; requested_start_at: string; requested_end_at: string; created_at: string; instructor_id: string }>;
+  const defects = (defectResult.data ?? []) as Array<{ id: string; title: string; status: string; resolution_notes: string | null; created_at: string; triaged_at: string | null; triaged_by: string | null; instructor_id: string }>;
+  const lifecycle = (lifecycleResult.data ?? []) as Array<{ id: string; event_type: string; from_status: string | null; to_status: string | null; notes: string | null; created_at: string; actor_id: string | null }>;
+
+  const bookingEvents = bookings.length
+    ? await supabase
+        .from("booking_events")
+        .select("id,booking_id,to_status,notes,created_at,actor_id")
+        .in("booking_id", bookings.map((booking) => booking.id))
+    : { data: [], error: null };
+
+  if (bookingEvents.error) {
+    throw new Error(bookingEvents.error.message);
+  }
+
+  const events = (bookingEvents.data ?? []) as Array<{ id: string; booking_id: string; to_status: string; notes: string | null; created_at: string; actor_id: string | null }>;
+  const actorIds = new Set<string>();
+  [asset.created_by, ...qrCodes.flatMap((qr) => [qr.generated_by, qr.invalidated_by]), ...bookings.map((b) => b.instructor_id), ...defects.flatMap((d) => [d.instructor_id, d.triaged_by]), ...lifecycle.map((l) => l.actor_id), ...events.map((e) => e.actor_id)]
+    .forEach((id) => {
+      if (id) actorIds.add(id);
+    });
+
+  const { data: actorRows } = actorIds.size
+    ? await supabase.from("profiles").select("id,full_name").in("id", [...actorIds])
+    : { data: [] };
+  const names = new Map(((actorRows ?? []) as Array<{ id: string; full_name: string }>).map((row) => [row.id, row.full_name]));
+  const nameOf = (id: string | null) => (id ? names.get(id) ?? null : null);
+  const bookingPurpose = new Map(bookings.map((booking) => [booking.id, booking.purpose]));
+
+  const timeline: AssetLifecycleEvent[] = [
+    { id: `asset-${asset.id}`, occurredAt: asset.created_at, kind: "registered", title: "Asset registered", detail: asset.name, status: null, actorName: nameOf(asset.created_by) },
+    ...qrCodes.flatMap((qr): AssetLifecycleEvent[] => [
+      { id: `qr-${qr.id}`, occurredAt: qr.generated_at, kind: "qr", title: "QR label issued", detail: qr.code, status: null, actorName: nameOf(qr.generated_by) },
+      ...(qr.invalidated_at
+        ? [{ id: `qr-void-${qr.id}`, occurredAt: qr.invalidated_at, kind: "qr" as const, title: "QR label invalidated", detail: qr.code, status: null, actorName: nameOf(qr.invalidated_by) }]
+        : [])
+    ]),
+    ...bookings.map((booking): AssetLifecycleEvent => ({
+      id: `booking-${booking.id}`,
+      occurredAt: booking.created_at,
+      kind: "borrowing",
+      title: "Borrowing requested",
+      detail: booking.purpose,
+      status: booking.status,
+      actorName: nameOf(booking.instructor_id)
+    })),
+    ...events.map((event): AssetLifecycleEvent => ({
+      id: `booking-event-${event.id}`,
+      occurredAt: event.created_at,
+      kind: "borrowing",
+      title: `Borrowing ${formatStatusLabel(event.to_status)}`,
+      detail: event.notes ?? bookingPurpose.get(event.booking_id) ?? null,
+      status: event.to_status,
+      actorName: nameOf(event.actor_id)
+    })),
+    ...defects.flatMap((defect): AssetLifecycleEvent[] => [
+      { id: `defect-${defect.id}`, occurredAt: defect.created_at, kind: "defect", title: "Defect reported", detail: defect.title, status: defect.status, actorName: nameOf(defect.instructor_id) },
+      ...(defect.triaged_at
+        ? [{ id: `defect-triage-${defect.id}`, occurredAt: defect.triaged_at, kind: "defect" as const, title: `Defect ${formatStatusLabel(defect.status)}`, detail: defect.resolution_notes ?? defect.title, status: defect.status, actorName: nameOf(defect.triaged_by) }]
+        : [])
+    ]),
+    ...lifecycle.map((event): AssetLifecycleEvent => ({
+      id: `lifecycle-${event.id}`,
+      occurredAt: event.created_at,
+      kind: "lifecycle",
+      title: event.from_status && event.to_status && event.from_status !== event.to_status
+        ? `Status ${formatStatusLabel(event.from_status)} → ${formatStatusLabel(event.to_status)}`
+        : formatStatusLabel(event.event_type),
+      detail: event.notes,
+      status: event.to_status,
+      actorName: nameOf(event.actor_id)
+    }))
+  ];
+
+  return timeline.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+}
+
+const catalogTables: Record<CatalogKind, "asset_categories" | "locations"> = {
+  category: "asset_categories",
+  location: "locations"
+};
+
+const catalogLabels: Record<CatalogKind, string> = {
+  category: "Category",
+  location: "Location"
+};
+
+function toFriendlyWriteError(error: { message: string; code?: string }, entity: string) {
+  if (error.code === FOREIGN_KEY_VIOLATION) {
+    return `This ${entity} is still used by assets or borrowing records, so it cannot be deleted.`;
+  }
+
+  if (error.code === UNIQUE_VIOLATION) {
+    return `A ${entity} with that name already exists.`;
+  }
+
+  return error.message;
+}
+
+function toTicketThreadRow(row: TicketThreadQueryRow): TicketThreadRow {
+  const booking = Array.isArray(row.booking) ? row.booking[0] : row.booking;
+  const defect = Array.isArray(row.defect_report) ? row.defect_report[0] : row.defect_report;
+
+  return {
+    id: row.id,
+    subject_type: row.subject_type,
+    booking_id: row.booking_id,
+    defect_report_id: row.defect_report_id,
+    created_at: row.created_at,
+    requester_id: booking?.instructor_id ?? defect?.instructor_id ?? null,
+    subject_title: booking?.purpose ?? defect?.title ?? null
+  };
+}
+
 async function requireAuthorizedAdminClient(): Promise<SupabaseServerClient> {
   const access = await getAdminAccess();
 
@@ -781,6 +1070,60 @@ async function uploadAssetPrimaryImage({
   }
 
   return uploadedPath;
+}
+
+async function replaceAssetPrimaryImage({
+  altText,
+  assetId,
+  file,
+  profileId,
+  supabase
+}: {
+  altText: string;
+  assetId: string;
+  file: File;
+  profileId: string;
+  supabase: SupabaseServerClient;
+}) {
+  const { data: previousRows, error: previousError } = await supabase
+    .from("asset_images")
+    .select("id,storage_path")
+    .eq("asset_id", assetId)
+    .eq("is_primary", true);
+
+  if (previousError) {
+    throw new Error(previousError.message);
+  }
+
+  const previous = (previousRows ?? []) as Array<{ id: string; storage_path: string }>;
+  const previousIds = previous.map((row) => row.id);
+
+  // Only one primary image is allowed per asset, so demote the old one before uploading.
+  if (previousIds.length) {
+    const { error } = await supabase.from("asset_images").update({ is_primary: false }).in("id", previousIds);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  try {
+    await uploadAssetPrimaryImage({ altText, assetId, file, profileId, supabase });
+  } catch (error) {
+    if (previousIds.length) {
+      await supabase.from("asset_images").update({ is_primary: true }).in("id", previousIds);
+    }
+    throw error;
+  }
+
+  if (previousIds.length) {
+    await supabase.from("asset_images").delete().in("id", previousIds);
+    const storagePaths = previous.map((row) => row.storage_path).filter((path) => !/^https?:\/\//i.test(path));
+
+    if (storagePaths.length) {
+      await supabase.storage.from(ASSET_IMAGE_BUCKET).remove(storagePaths);
+    }
+  }
 }
 
 async function cleanupFailedAssetCreate({

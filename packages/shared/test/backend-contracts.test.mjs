@@ -12,6 +12,7 @@ const registrationPolicyMigrationPath = fileURLToPath(new URL("../../../supabase
 const restoredAdminAssetsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260604144630_restore_list_admin_assets_rpc.sql", import.meta.url));
 const assetImageReadModelsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606050001_asset_image_read_models.sql", import.meta.url));
 const borrowerQrPickupMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606050002_borrower_qr_pickup.sql", import.meta.url));
+const resetMyActivityDataMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260721120000_reset_my_activity_data.sql", import.meta.url));
 const workflowMigration = readFileSync(workflowMigrationPath, "utf8");
 const adminReadModelsMigration = readFileSync(adminReadModelsMigrationPath, "utf8");
 const bookingHardeningMigration = readFileSync(bookingHardeningMigrationPath, "utf8");
@@ -20,7 +21,8 @@ const registrationPolicyMigration = readFileSync(registrationPolicyMigrationPath
 const restoredAdminAssetsMigration = readFileSync(restoredAdminAssetsMigrationPath, "utf8");
 const assetImageReadModelsMigration = readFileSync(assetImageReadModelsMigrationPath, "utf8");
 const borrowerQrPickupMigration = readFileSync(borrowerQrPickupMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}`;
+const resetMyActivityDataMigration = readFileSync(resetMyActivityDataMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -50,7 +52,7 @@ test("backend RPC constants match workflow migration function names and grants",
 test("backend RPC argument constants match migration parameter names in order", () => {
   for (const [rpcKey, functionName] of Object.entries(backendRpcNames)) {
     const parameters = readFunctionParameters(functionName);
-    assert.ok(parameters, `Expected to find parameters for ${functionName}`);
+    assert.notEqual(parameters, null, `Expected to find parameters for ${functionName}`);
 
     const actualParameterNames = [...parameters.matchAll(/\b(p_[a-z0-9_]+)\b/gi)].map((match) => match[1]);
     assert.deepEqual(actualParameterNames, backendRpcArgumentNames[rpcKey], `${functionName} parameter names drifted`);

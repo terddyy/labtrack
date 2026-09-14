@@ -91,6 +91,18 @@ export type TicketThreadRow = {
   booking_id: string | null;
   defect_report_id: string | null;
   created_at: string;
+  requester_id: string | null;
+  subject_title: string | null;
+};
+
+export type AssetLifecycleEvent = {
+  id: string;
+  occurredAt: string;
+  kind: "registered" | "qr" | "borrowing" | "defect" | "lifecycle";
+  title: string;
+  detail: string | null;
+  status: string | null;
+  actorName: string | null;
 };
 
 export type TicketMessageRow = {
@@ -140,6 +152,8 @@ export type AssetFormState = {
 };
 
 export type FormErrors = Partial<Record<keyof AssetFormState, string>>;
+
+export type CatalogKind = "category" | "location";
 
 export type AdminDashboardProps = {
   initialAccess: AdminAccessState;

@@ -1,24 +1,35 @@
 "use client";
 
+import { formatStatusLabel, getBookingWorkflowActions, type BookingStatus } from "@labtrack/shared";
+import { CalendarDays, ChevronLeft, ChevronRight, MousePointerClick, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { EmptyState, Initials, Notice, StatusBadge } from "@/components/admin/ui";
 import {
-  formatStatusLabel,
-  getBookingWorkflowActions,
-  type BookingStatus
-} from "@labtrack/shared";
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  RefreshCw
-} from "lucide-react";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
-import { EmptyState, Notice, StatusBadge } from "@/components/admin/ui";
-import type {
-  AssetView,
-  BorrowingMonitorRow,
-  LocationRow
-} from "@/lib/admin/types";
+  addDays,
+  buildCalendarDays,
+  buildTimeSlots,
+  createWeekRange,
+  formatAgendaHeading,
+  formatDateKey,
+  formatResource,
+  formatTimeFromMinutes,
+  formatTimeRange,
+  formatWeekLabel,
+  getConflictLabel,
+  getEventStyle,
+  getVisibleWindow,
+  parseDate,
+  slotHeightPx,
+  startOfWeek,
+  summarizeRows,
+  toDateTimeLocalInput
+} from "@/components/admin/calendar-utils";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import type { AssetView, BorrowingMonitorRow, LocationRow } from "@/lib/admin/types";
 
 export type BorrowingCalendarStatusFilter = "all" | BookingStatus;
 export type BorrowingCalendarFilters = {
@@ -30,27 +41,16 @@ export type BorrowingCalendarFilters = {
 };
 export type BorrowingCalendarActionTarget = Pick<BorrowingMonitorRow, "id" | "status">;
 
-type CalendarDay = {
-  date: Date;
-  events: CalendarLaneEvent[];
-  key: string;
-};
-
-type CalendarEventSegment = {
-  endMinutes: number;
-  row: BorrowingMonitorRow;
-  startMinutes: number;
-};
-
-type CalendarLaneEvent = CalendarEventSegment & {
-  laneCount: number;
-  laneIndex: number;
-};
-
 const monitorStatusOptions: BorrowingCalendarStatusFilter[] = ["all", "pending", "approved", "checked_out", "returned", "cancelled", "rejected"];
-const slotHeightPx = 28;
-const defaultVisibleStartHour = 7;
-const defaultVisibleEndHour = 19;
+
+const eventTone: Record<string, string> = {
+  pending: "border-warning bg-warning/12 text-foreground hover:bg-warning/20",
+  approved: "border-primary bg-primary/10 text-foreground hover:bg-primary/18",
+  checked_out: "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+  returned: "border-success bg-success/10 text-foreground hover:bg-success/18",
+  cancelled: "border-muted-foreground/40 bg-muted text-muted-foreground line-through",
+  rejected: "border-destructive/60 bg-destructive/8 text-muted-foreground"
+};
 
 export function BorrowingCalendar({
   actionsDisabled,
@@ -88,10 +88,10 @@ export function BorrowingCalendar({
   const visibleWindow = useMemo(() => getVisibleWindow(rows, weekStart), [rows, weekStart]);
   const timeSlots = useMemo(() => buildTimeSlots(visibleWindow.startHour, visibleWindow.endHour), [visibleWindow]);
   const days = useMemo(() => buildCalendarDays(rows, weekStart), [rows, weekStart]);
-  const selectedRow = rows.find((row) => row.id === selectedRowId) ?? null;
-  const selectedActions = selectedRow ? getBookingWorkflowActions(selectedRow.status) : [];
-  const contentHeight = timeSlots.length * slotHeightPx;
   const summary = useMemo(() => summarizeRows(rows), [rows]);
+  const selectedRow = rows.find((row) => row.id === selectedRowId) ?? null;
+  const contentHeight = timeSlots.length * slotHeightPx;
+  const todayKey = formatDateKey(new Date());
 
   useEffect(() => {
     if (selectedRowId && !rows.some((row) => row.id === selectedRowId)) {
@@ -101,11 +101,7 @@ export function BorrowingCalendar({
 
   function handleWeekChange(nextWeekStart: Date) {
     const range = createWeekRange(nextWeekStart);
-    onChangeFilters({
-      ...filters,
-      from: toDateTimeLocalInput(range.from),
-      to: toDateTimeLocalInput(range.to)
-    });
+    onChangeFilters({ ...filters, from: toDateTimeLocalInput(range.from), to: toDateTimeLocalInput(range.to) });
   }
 
   function handleFilterChange(updates: Partial<Pick<BorrowingCalendarFilters, "locationId" | "resourceId" | "status">>) {
@@ -113,489 +109,322 @@ export function BorrowingCalendar({
   }
 
   return (
-    <section className="borrowing-calendar-layout">
-      <div className="panel borrowing-calendar-panel">
-        <div className="panel-header calendar-toolbar">
-          <div>
-            <p className="eyebrow">Borrowing Calendar</p>
-            <h2>{formatWeekLabel(weekStart)}</h2>
-            <p className="muted">Week view for room and equipment reservations.</p>
-          </div>
-          <div className="calendar-toolbar-actions">
-            <button aria-label="Previous week" className="button secondary" disabled={disabled} onClick={() => handleWeekChange(addDays(weekStart, -7))} type="button">
-              <ChevronLeft size={15} />
-            </button>
-            <button className="button secondary" disabled={disabled} onClick={() => handleWeekChange(new Date())} type="button">
-              <CalendarDays size={15} />
-              Today
-            </button>
-            <button aria-label="Next week" className="button secondary" disabled={disabled} onClick={() => handleWeekChange(addDays(weekStart, 7))} type="button">
-              <ChevronRight size={15} />
-            </button>
-            <button className="button secondary" disabled={disabled} onClick={onRefresh} type="button">
-              <RefreshCw size={15} />
-              {disabled ? "Loading" : "Refresh"}
-            </button>
-          </div>
-        </div>
-
-        <div className="panel-body calendar-controls">
-          <div className="calendar-summary">
-            <SummaryPill label="Visible" value={summary.total.toString()} />
-            <SummaryPill label="Tentative" value={summary.pending.toString()} />
-            <SummaryPill label="Blocking" value={summary.blocking.toString()} />
-            <SummaryPill label="Closed" value={summary.closed.toString()} />
-          </div>
-
-          <div className="calendar-filter-grid">
-            <div className="field">
-              <label htmlFor="monitor-location">Room/Lab</label>
-              <select id="monitor-location" onChange={(event) => handleFilterChange({ locationId: event.target.value })} value={filters.locationId}>
-                <option value="">All rooms and labs</option>
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>{location.name}</option>
-                ))}
-              </select>
+    <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <header className="flex flex-col gap-4 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center rounded-lg border p-0.5">
+              <Button aria-label="Previous week" className="size-7" disabled={disabled} onClick={() => handleWeekChange(addDays(weekStart, -7))} size="icon" type="button" variant="ghost">
+                <ChevronLeft className="size-4" />
+              </Button>
+              <Button className="h-7 px-2.5" disabled={disabled} onClick={() => handleWeekChange(new Date())} size="sm" type="button" variant="ghost">
+                Today
+              </Button>
+              <Button aria-label="Next week" className="size-7" disabled={disabled} onClick={() => handleWeekChange(addDays(weekStart, 7))} size="icon" type="button" variant="ghost">
+                <ChevronRight className="size-4" />
+              </Button>
             </div>
-            <div className="field">
-              <label htmlFor="monitor-resource">Resource</label>
-              <select id="monitor-resource" onChange={(event) => handleFilterChange({ resourceId: event.target.value })} value={filters.resourceId}>
-                <option value="">All resources</option>
+            <h2 className="text-[15px] font-semibold tracking-tight">{formatWeekLabel(weekStart)}</h2>
+            <Button aria-label="Refresh calendar" className="size-8 text-muted-foreground" disabled={disabled} onClick={onRefresh} size="icon" type="button" variant="ghost">
+              <RefreshCw className={cn("size-4", disabled && "animate-spin")} />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:w-auto">
+            <FilterSelect id="monitor-location" label="Room / lab" onChange={(value) => handleFilterChange({ locationId: value })} value={filters.locationId}>
+              <SelectItem value="all">All rooms and labs</SelectItem>
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={location.id}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </FilterSelect>
+            <FilterSelect id="monitor-resource" label="Resource" onChange={(value) => handleFilterChange({ resourceId: value })} value={filters.resourceId}>
+              <SelectItem value="all">All resources</SelectItem>
+              <SelectGroup>
+                <SelectLabel>Rooms</SelectLabel>
                 {locations.map((location) => (
-                  <option key={`room-${location.id}`} value={location.id}>Room: {location.name}</option>
+                  <SelectItem key={`room-${location.id}`} value={location.id}>
+                    {location.name}
+                  </SelectItem>
                 ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel>Equipment</SelectLabel>
                 {assets.map((asset) => (
-                  <option key={`asset-${asset.id}`} value={asset.id}>Equipment: {asset.name}</option>
+                  <SelectItem key={`asset-${asset.id}`} value={asset.id}>
+                    {asset.name}
+                  </SelectItem>
                 ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="monitor-status">Status</label>
-              <select id="monitor-status" onChange={(event) => handleFilterChange({ status: event.target.value as BorrowingCalendarStatusFilter })} value={filters.status}>
-                {monitorStatusOptions.map((status) => (
-                  <option key={status} value={status}>{status === "all" ? "All statuses" : formatStatusLabel(status)}</option>
-                ))}
-              </select>
-            </div>
+              </SelectGroup>
+            </FilterSelect>
+            <FilterSelect
+              id="monitor-status"
+              label="Status"
+              onChange={(value) => handleFilterChange({ status: (value || "all") as BorrowingCalendarStatusFilter })}
+              value={filters.status === "all" ? "" : filters.status}
+            >
+              {monitorStatusOptions.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status === "all" ? "All statuses" : formatStatusLabel(status)}
+                </SelectItem>
+              ))}
+            </FilterSelect>
           </div>
+        </header>
 
-          {message ? <Notice tone="warning">{message}</Notice> : null}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
+          <Legend className="bg-muted-foreground/50" label="Visible" value={summary.total} />
+          <Legend className="bg-warning" label="Tentative" value={summary.pending} />
+          <Legend className="bg-primary" label="Blocking" value={summary.blocking} />
+          <Legend className="bg-success" label="Closed" value={summary.closed} />
         </div>
 
-        <div className="calendar-week-scroller">
-          <div className="calendar-week-grid">
-            <div className="calendar-time-axis">
-              <div className="calendar-day-heading calendar-time-heading">Time</div>
-              <div className="calendar-slot-stack" style={{ height: contentHeight }}>
-                {timeSlots.map((minutes) => (
-                  <div className="calendar-time-label" key={minutes}>
-                    {minutes % 60 === 0 ? formatTimeFromMinutes(minutes) : ""}
-                  </div>
-                ))}
+        {message ? (
+          <div className="border-b p-4">
+            <Notice tone="warning">{message}</Notice>
+          </div>
+        ) : null}
+
+        <div className="hidden overflow-x-auto md:block">
+          <div className="grid min-w-[760px] grid-cols-[56px_repeat(7,minmax(0,1fr))]">
+            <div className="sticky left-0 z-10 border-r bg-card">
+              <div className="h-12 border-b" />
+              <div className="relative" style={{ height: contentHeight }}>
+                {timeSlots.map((minutes, index) =>
+                  minutes % 60 === 0 ? (
+                    <span className="absolute right-2 -translate-y-1/2 font-mono text-[10px] text-muted-foreground tabular" key={minutes} style={{ top: index * slotHeightPx }}>
+                      {index === 0 ? "" : formatTimeFromMinutes(minutes)}
+                    </span>
+                  ) : null
+                )}
               </div>
             </div>
 
-            {days.map((day) => (
-              <section className="calendar-day-column" key={day.key}>
-                <div className="calendar-day-heading">
-                  <span>{formatWeekday(day.date)}</span>
-                  <strong>{formatDayNumber(day.date)}</strong>
+            {days.map((day) => {
+              const isToday = day.key === todayKey;
+              return (
+                <div className={cn("border-r last:border-r-0", isToday && "bg-primary/[0.03]")} key={day.key}>
+                  <div className="flex h-12 flex-col items-center justify-center border-b">
+                    <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                      {day.date.toLocaleDateString(undefined, { weekday: "short" })}
+                    </span>
+                    <span
+                      className={cn(
+                        "mt-0.5 flex size-6 items-center justify-center rounded-full font-mono text-xs tabular",
+                        isToday && "bg-primary font-semibold text-primary-foreground"
+                      )}
+                    >
+                      {day.date.getDate()}
+                    </span>
+                  </div>
+                  <div className="relative" style={{ height: contentHeight }}>
+                    {timeSlots.map((minutes, index) => (
+                      <div
+                        className={cn("pointer-events-none absolute inset-x-0 border-t", minutes % 60 === 0 ? "border-border" : "border-dashed border-border/50")}
+                        key={minutes}
+                        style={{ top: index * slotHeightPx }}
+                      />
+                    ))}
+                    {day.events.map((event) => (
+                      <button
+                        aria-pressed={selectedRowId === event.row.id}
+                        className={cn(
+                          "absolute flex flex-col overflow-hidden rounded-md border-l-[3px] px-1.5 py-1 text-left text-[11px] leading-tight shadow-xs transition-all",
+                          eventTone[event.row.status] ?? eventTone.approved,
+                          selectedRowId === event.row.id && "ring-2 ring-ring ring-offset-1 ring-offset-card"
+                        )}
+                        key={`${day.key}-${event.row.id}`}
+                        onClick={() => setSelectedRowId(event.row.id)}
+                        style={getEventStyle(event, visibleWindow.startHour)}
+                        type="button"
+                      >
+                        <span className="truncate font-semibold">{formatResource(event.row, assets, locations)}</span>
+                        <span className="truncate font-mono text-[10px] opacity-75">{formatTimeRange(event.row.requested_start_at, event.row.requested_end_at)}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="calendar-day-slots" style={{ height: contentHeight }}>
-                  {timeSlots.map((minutes) => (
-                    <div className="calendar-grid-line" key={`${day.key}-${minutes}`} />
-                  ))}
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="divide-y md:hidden">
+          {days.map((day) => (
+            <section className="p-4" key={`agenda-${day.key}`}>
+              <h3 className="mb-2 flex items-center justify-between text-sm font-medium">
+                {formatAgendaHeading(day.date)}
+                <span className="rounded-full bg-muted px-2 font-mono text-xs text-muted-foreground">{day.events.length}</span>
+              </h3>
+              {day.events.length ? (
+                <div className="space-y-2">
                   {day.events.map((event) => (
                     <button
-                      aria-pressed={selectedRowId === event.row.id}
-                      className={`calendar-event is-${event.row.status}`}
-                      key={`${day.key}-${event.row.id}`}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg border p-2.5 text-left text-sm hover:bg-muted/50"
+                      key={`agenda-${day.key}-${event.row.id}`}
                       onClick={() => setSelectedRowId(event.row.id)}
-                      style={getEventStyle(event, visibleWindow.startHour)}
                       type="button"
                     >
-                      <span className="calendar-event-time">{formatTimeRange(event.row.requested_start_at, event.row.requested_end_at)}</span>
-                      <strong>{formatResource(event.row, assets, locations)}</strong>
-                      <span>{event.row.borrower_name ?? event.row.borrower_email ?? "Unknown borrower"}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{formatResource(event.row, assets, locations)}</span>
+                        <span className="block font-mono text-xs text-muted-foreground">{formatTimeRange(event.row.requested_start_at, event.row.requested_end_at)}</span>
+                      </span>
+                      <StatusBadge status={event.row.status} />
                     </button>
                   ))}
                 </div>
-              </section>
-            ))}
-          </div>
-        </div>
-
-        <div className="calendar-agenda">
-          {days.map((day) => (
-            <section className="calendar-agenda-day" key={`agenda-${day.key}`}>
-              <div className="topbar compact">
-                <h3>{formatAgendaHeading(day.date)}</h3>
-                <span className="badge neutral">{day.events.length}</span>
-              </div>
-              {day.events.length ? day.events.map((event) => (
-                <button
-                  aria-pressed={selectedRowId === event.row.id}
-                  className={`calendar-agenda-item is-${event.row.status}`}
-                  key={`agenda-${day.key}-${event.row.id}`}
-                  onClick={() => setSelectedRowId(event.row.id)}
-                  type="button"
-                >
-                  <span className="calendar-event-time">{formatTimeRange(event.row.requested_start_at, event.row.requested_end_at)}</span>
-                  <strong>{formatResource(event.row, assets, locations)}</strong>
-                  <span>{event.row.borrower_name ?? event.row.borrower_email ?? "Unknown borrower"}</span>
-                  <StatusBadge status={event.row.status} />
-                </button>
-              )) : <p className="muted">No borrowing schedules.</p>}
+              ) : (
+                <p className="text-xs text-muted-foreground">No schedules.</p>
+              )}
             </section>
           ))}
         </div>
 
-        {!rows.length ? <EmptyState label={disabled ? "Loading borrowing schedules." : "No borrowing schedules found for this week."} /> : null}
+        {!rows.length && !disabled ? (
+          <div className="border-t p-4">
+            <EmptyState description="Use the arrows to browse other weeks." icon={CalendarDays} label="No bookings this week" />
+          </div>
+        ) : null}
       </div>
 
-      <aside className="panel calendar-detail-panel">
-        <div className="panel-header">
-          <div>
-            <h2>Booking details</h2>
-            <p className="muted">{selectedRow ? "Review schedule and run workflow actions." : "Select a calendar block."}</p>
-          </div>
-        </div>
-        <div className="panel-body calendar-detail-body">
-          {selectedRow ? (
-            <>
-              <div className="calendar-detail-title">
-                <div>
-                  <p className="eyebrow">{selectedRow.resource_type === "room" ? "Room" : "Equipment"}</p>
-                  <h3>{formatResource(selectedRow, assets, locations)}</h3>
-                </div>
-                <StatusBadge status={selectedRow.status} />
-              </div>
-
-              <div className="calendar-detail-meta">
-                <DetailRow label="Borrower" value={selectedRow.borrower_name ?? selectedRow.borrower_email ?? "Unknown borrower"} />
-                <DetailRow label="Schedule" value={`${formatDateTime(selectedRow.requested_start_at)} - ${formatDateTime(selectedRow.requested_end_at)}`} />
-                <DetailRow label="Availability" value={getConflictLabel(selectedRow.status)} tone={getConflictTone(selectedRow.status)} />
-                <DetailRow label="Purpose" value={selectedRow.purpose} />
-              </div>
-
-              {selectedActions.length ? (
-                <div className="calendar-detail-actions">
-                  {selectedActions.includes("approve") ? <button className="button primary" disabled={actionsDisabled} onClick={() => onApprove(selectedRow)} type="button">Approve</button> : null}
-                  {selectedActions.includes("reject") ? <button className="button secondary" disabled={actionsDisabled} onClick={() => onReject(selectedRow)} type="button">Reject</button> : null}
-                  {selectedActions.includes("checkout") ? <button className="button primary" disabled={actionsDisabled} onClick={() => onCheckout(selectedRow)} type="button">Check out</button> : null}
-                  {selectedActions.includes("return") ? <button className="button primary" disabled={actionsDisabled} onClick={() => onReturn(selectedRow)} type="button">Return</button> : null}
-                  {selectedActions.includes("cancel") ? <button className="button secondary" disabled={actionsDisabled} onClick={() => onCancel(selectedRow)} type="button">Cancel</button> : null}
-                </div>
-              ) : <Notice tone="neutral">No workflow actions are available for this booking status.</Notice>}
-            </>
-          ) : (
-            <div className="calendar-detail-empty">
-              <Clock size={28} />
-              <p className="muted">Click a booking block in the calendar to see borrower, resource, purpose, and actions.</p>
-            </div>
-          )}
-        </div>
-      </aside>
+      <BookingDetail
+        actionsDisabled={actionsDisabled}
+        assets={assets}
+        locations={locations}
+        onApprove={onApprove}
+        onCancel={onCancel}
+        onCheckout={onCheckout}
+        onReject={onReject}
+        onReturn={onReturn}
+        row={selectedRow}
+      />
     </section>
   );
 }
 
-function SummaryPill({ label, value }: { label: string; value: string }) {
+function BookingDetail({
+  actionsDisabled,
+  assets,
+  locations,
+  onApprove,
+  onCancel,
+  onCheckout,
+  onReject,
+  onReturn,
+  row
+}: {
+  actionsDisabled: boolean;
+  assets: AssetView[];
+  locations: LocationRow[];
+  onApprove: (booking: BorrowingCalendarActionTarget) => void;
+  onCancel: (booking: BorrowingCalendarActionTarget) => void;
+  onCheckout: (booking: BorrowingCalendarActionTarget) => void;
+  onReject: (booking: BorrowingCalendarActionTarget) => void;
+  onReturn: (booking: BorrowingCalendarActionTarget) => void;
+  row: BorrowingMonitorRow | null;
+}) {
+  if (!row) {
+    return (
+      <aside className="rounded-xl border border-dashed bg-card/50 p-6 xl:sticky xl:top-20">
+        <div className="flex flex-col items-center gap-3 py-8 text-center">
+          <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <MousePointerClick className="size-4.5" />
+          </span>
+          <p className="text-sm font-medium">No booking selected</p>
+          <p className="max-w-[220px] text-sm text-muted-foreground">Click a block on the calendar to see details and actions.</p>
+        </div>
+      </aside>
+    );
+  }
+
+  const actions = getBookingWorkflowActions(row.status);
+  const borrower = row.borrower_name ?? row.borrower_email ?? "Unknown borrower";
+  const start = new Date(row.requested_start_at);
+  const end = new Date(row.requested_end_at);
+
   return (
-    <div className="calendar-summary-pill">
-      <span className="muted">{label}</span>
-      <strong>{value}</strong>
+    <aside className="animate-rise overflow-hidden rounded-xl border bg-card xl:sticky xl:top-20" key={row.id}>
+      <header className="space-y-2 border-b p-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
+            {row.resource_type === "room" ? "Room" : "Equipment"}
+          </span>
+          <StatusBadge status={row.status} />
+        </div>
+        <h3 className="text-lg font-semibold tracking-tight">{formatResource(row, assets, locations)}</h3>
+      </header>
+      <dl className="divide-y text-sm">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <Initials name={borrower} />
+          <div className="min-w-0">
+            <dt className="text-xs text-muted-foreground">Borrower</dt>
+            <dd className="truncate font-medium">{borrower}</dd>
+          </div>
+        </div>
+        <div className="px-5 py-3">
+          <dt className="text-xs text-muted-foreground">Schedule</dt>
+          <dd className="mt-0.5 font-medium">{start.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</dd>
+          <dd className="font-mono text-xs text-muted-foreground">{formatTimeRange(row.requested_start_at, row.requested_end_at)}{start.toDateString() !== end.toDateString() ? ` (ends ${end.toLocaleDateString()})` : ""}</dd>
+        </div>
+        <div className="flex items-center justify-between px-5 py-3">
+          <dt className="text-xs text-muted-foreground">Availability</dt>
+          <dd className="text-xs font-medium">{getConflictLabel(row.status)}</dd>
+        </div>
+        <div className="px-5 py-3">
+          <dt className="text-xs text-muted-foreground">Purpose</dt>
+          <dd className="mt-0.5">{row.purpose}</dd>
+        </div>
+      </dl>
+      {actions.length ? (
+        <div className="flex flex-wrap gap-2 border-t bg-muted/30 p-4">
+          {actions.includes("approve") ? <Button disabled={actionsDisabled} onClick={() => onApprove(row)} size="sm" type="button">Approve</Button> : null}
+          {actions.includes("checkout") ? <Button disabled={actionsDisabled} onClick={() => onCheckout(row)} size="sm" type="button">Check out</Button> : null}
+          {actions.includes("return") ? <Button disabled={actionsDisabled} onClick={() => onReturn(row)} size="sm" type="button">Mark returned</Button> : null}
+          {actions.includes("reject") ? <Button disabled={actionsDisabled} onClick={() => onReject(row)} size="sm" type="button" variant="outline">Reject</Button> : null}
+          {actions.includes("cancel") ? <Button disabled={actionsDisabled} onClick={() => onCancel(row)} size="sm" type="button" variant="ghost">Cancel</Button> : null}
+        </div>
+      ) : (
+        <p className="border-t bg-muted/30 px-5 py-3 text-xs text-muted-foreground">No workflow actions for this status.</p>
+      )}
+    </aside>
+  );
+}
+
+function FilterSelect({
+  children,
+  id,
+  label,
+  onChange,
+  value
+}: {
+  children: React.ReactNode;
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Label className="sr-only" htmlFor={id}>
+        {label}
+      </Label>
+      <Select onValueChange={(next) => onChange(next === "all" ? "" : next)} value={value || "all"}>
+        <SelectTrigger className="h-8 w-full lg:w-44" id={id} size="sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
     </div>
   );
 }
 
-function DetailRow({ label, tone, value }: { label: string; tone?: "danger" | "success" | "warning"; value: string }) {
+function Legend({ className, label, value }: { className: string; label: string; value: number }) {
   return (
-    <div className="calendar-detail-row">
-      <span className="muted">{label}</span>
-      {tone ? <span className={`badge ${tone}`}>{value}</span> : <strong>{value}</strong>}
-    </div>
+    <span className="flex items-center gap-1.5">
+      <span className={cn("size-2 rounded-sm", className)} />
+      {label}
+      <span className="font-mono text-foreground tabular">{value}</span>
+    </span>
   );
-}
-
-function buildCalendarDays(rows: BorrowingMonitorRow[], weekStart: Date): CalendarDay[] {
-  return getWeekDays(weekStart).map((date) => {
-    const dayStart = startOfDay(date);
-    const dayEnd = addDays(dayStart, 1);
-    const events = rows.flatMap((row): CalendarEventSegment[] => {
-      const start = parseDate(row.requested_start_at);
-      const end = parseDate(row.requested_end_at);
-
-      if (!start || !end || end <= dayStart || start >= dayEnd) {
-        return [];
-      }
-
-      const segmentStart = start > dayStart ? start : dayStart;
-      const segmentEnd = end < dayEnd ? end : dayEnd;
-
-      return [{
-        endMinutes: minutesSinceStartOfDay(segmentEnd),
-        row,
-        startMinutes: minutesSinceStartOfDay(segmentStart)
-      }];
-    });
-
-    return {
-      date,
-      events: assignLanes(events),
-      key: formatDateKey(date)
-    };
-  });
-}
-
-function assignLanes(events: CalendarEventSegment[]): CalendarLaneEvent[] {
-  const sorted = [...events].sort((left, right) => left.startMinutes - right.startMinutes || left.endMinutes - right.endMinutes);
-  const groups: CalendarEventSegment[][] = [];
-  let group: CalendarEventSegment[] = [];
-  let groupEnd = 0;
-
-  for (const event of sorted) {
-    if (!group.length || event.startMinutes < groupEnd) {
-      group.push(event);
-      groupEnd = Math.max(groupEnd, event.endMinutes);
-      continue;
-    }
-
-    groups.push(group);
-    group = [event];
-    groupEnd = event.endMinutes;
-  }
-
-  if (group.length) {
-    groups.push(group);
-  }
-
-  return groups.flatMap(assignGroupLanes);
-}
-
-function assignGroupLanes(group: CalendarEventSegment[]): CalendarLaneEvent[] {
-  const laneEnds: number[] = [];
-  const assigned = group.map((event) => {
-    const availableLane = laneEnds.findIndex((endMinutes) => endMinutes <= event.startMinutes);
-    const laneIndex = availableLane === -1 ? laneEnds.length : availableLane;
-    laneEnds[laneIndex] = event.endMinutes;
-
-    return {
-      ...event,
-      laneCount: 1,
-      laneIndex
-    };
-  });
-  const laneCount = Math.max(1, laneEnds.length);
-
-  return assigned.map((event) => ({ ...event, laneCount }));
-}
-
-function getEventStyle(event: CalendarLaneEvent, visibleStartHour: number): CSSProperties {
-  const visibleStartMinutes = visibleStartHour * 60;
-  const top = Math.max(0, ((event.startMinutes - visibleStartMinutes) / 30) * slotHeightPx);
-  const height = Math.max(28, ((event.endMinutes - event.startMinutes) / 30) * slotHeightPx - 4);
-  const laneWidth = 100 / event.laneCount;
-
-  return {
-    height,
-    left: `calc(${event.laneIndex * laneWidth}% + 3px)`,
-    top,
-    width: `calc(${laneWidth}% - 6px)`
-  };
-}
-
-function getVisibleWindow(rows: BorrowingMonitorRow[], weekStart: Date) {
-  const weekEnd = addDays(weekStart, 7);
-  let startMinutes = defaultVisibleStartHour * 60;
-  let endMinutes = defaultVisibleEndHour * 60;
-
-  for (const row of rows) {
-    const start = parseDate(row.requested_start_at);
-    const end = parseDate(row.requested_end_at);
-
-    if (!start || !end || end <= weekStart || start >= weekEnd) {
-      continue;
-    }
-
-    startMinutes = Math.min(startMinutes, roundDownToHour(minutesSinceStartOfDay(start)));
-    endMinutes = Math.max(endMinutes, roundUpToHour(minutesSinceStartOfDay(end)));
-  }
-
-  return {
-    endHour: Math.min(24, Math.max(defaultVisibleEndHour, Math.ceil(endMinutes / 60))),
-    startHour: Math.max(0, Math.min(defaultVisibleStartHour, Math.floor(startMinutes / 60)))
-  };
-}
-
-function buildTimeSlots(startHour: number, endHour: number) {
-  const slots: number[] = [];
-
-  for (let minutes = startHour * 60; minutes < endHour * 60; minutes += 30) {
-    slots.push(minutes);
-  }
-
-  return slots;
-}
-
-function summarizeRows(rows: BorrowingMonitorRow[]) {
-  return rows.reduce((summary, row) => {
-    summary.total += 1;
-
-    if (row.status === "pending") {
-      summary.pending += 1;
-    } else if (row.status === "approved" || row.status === "checked_out") {
-      summary.blocking += 1;
-    } else {
-      summary.closed += 1;
-    }
-
-    return summary;
-  }, { blocking: 0, closed: 0, pending: 0, total: 0 });
-}
-
-function createWeekRange(date: Date) {
-  const from = startOfWeek(date);
-  const to = addDays(from, 7);
-
-  return { from, to };
-}
-
-function startOfWeek(date: Date) {
-  const next = startOfDay(date);
-  const day = next.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  next.setDate(next.getDate() + mondayOffset);
-
-  return next;
-}
-
-function startOfDay(date: Date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-
-  return next;
-}
-
-function getWeekDays(weekStart: Date) {
-  return Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-
-  return next;
-}
-
-function parseDate(value: string) {
-  const date = new Date(value);
-
-  return value && !Number.isNaN(date.getTime()) ? date : null;
-}
-
-function minutesSinceStartOfDay(date: Date) {
-  return date.getHours() * 60 + date.getMinutes();
-}
-
-function roundDownToHour(minutes: number) {
-  return Math.floor(minutes / 60) * 60;
-}
-
-function roundUpToHour(minutes: number) {
-  return Math.ceil(minutes / 60) * 60;
-}
-
-function toDateTimeLocalInput(date: Date) {
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-
-  return localDate.toISOString().slice(0, 16);
-}
-
-function formatDateKey(date: Date) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0")
-  ].join("-");
-}
-
-function formatWeekLabel(weekStart: Date) {
-  const weekEnd = addDays(weekStart, 6);
-
-  return `${weekStart.toLocaleDateString(undefined, { day: "numeric", month: "short" })} - ${weekEnd.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
-}
-
-function formatWeekday(date: Date) {
-  return date.toLocaleDateString(undefined, { weekday: "short" });
-}
-
-function formatDayNumber(date: Date) {
-  return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
-
-function formatAgendaHeading(date: Date) {
-  return date.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    weekday: "long"
-  });
-}
-
-function formatTimeFromMinutes(minutes: number) {
-  const date = new Date();
-  date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-
-  return date.toLocaleTimeString(undefined, { hour: "numeric" });
-}
-
-function formatTime(value: string) {
-  return new Date(value).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit"
-  });
-}
-
-function formatTimeRange(from: string, to: string) {
-  return `${formatTime(from)} - ${formatTime(to)}`;
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
-}
-
-function formatResource(row: BorrowingMonitorRow, assets: AssetView[], locations: LocationRow[]) {
-  if (row.resource_type === "room" && row.room_id) {
-    return locations.find((location) => location.id === row.room_id)?.name ?? "Unknown room";
-  }
-
-  if (row.asset_id) {
-    return assets.find((asset) => asset.id === row.asset_id)?.name ?? "Unknown equipment";
-  }
-
-  return "Unknown resource";
-}
-
-function getConflictLabel(status: BookingStatus) {
-  if (status === "pending") {
-    return "Tentative";
-  }
-
-  if (status === "approved" || status === "checked_out") {
-    return "Unavailable";
-  }
-
-  return "Closed";
-}
-
-function getConflictTone(status: BookingStatus) {
-  if (status === "pending") {
-    return "warning";
-  }
-
-  if (status === "approved" || status === "checked_out") {
-    return "danger";
-  }
-
-  return "success";
 }

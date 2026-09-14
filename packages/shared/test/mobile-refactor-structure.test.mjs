@@ -94,3 +94,32 @@ test("mobile asset QR screen separates borrow and defect flows behind transactio
   assert.match(assetSource, /selectedQrTransaction === "borrow"/);
   assert.match(assetSource, /selectedQrTransaction === "defect"/);
 });
+
+test("mobile source has no leftover debug ingest telemetry", () => {
+  const sourceRoots = ["app", "components", "lib", "constants"].map((folder) => path.join(mobileRoot, folder));
+  const files = sourceRoots.flatMap((root) => (existsSync(root) ? listFiles(root) : [])).filter((file) => {
+    return file.endsWith(".tsx") || file.endsWith(".ts");
+  });
+  const offenders = files.filter((file) => {
+    const source = readFileSync(file, "utf8");
+    return source.includes("127.0.0.1:7271") || source.includes("#region agent log");
+  });
+
+  assert.deepEqual(offenders.map((file) => path.relative(repoRoot, file)), []);
+});
+
+test("mobile borrow hook uses shared eligibility and refreshes on input change", () => {
+  const hookSource = readFileSync(path.join(mobileRoot, "lib", "use-borrowable-resources.ts"), "utf8");
+
+  assert.match(hookSource, /getBorrowSubmitEligibility/);
+  assert.match(hookSource, /debouncedQuery/);
+  assert.match(hookSource, /useEffect\(/);
+  assert.match(hookSource, /debouncedQuery, range\.requestedEndAt, range\.requestedStartAt, resourceType/);
+});
+
+test("mobile borrow screen refreshes history after submit and surfaces block reasons", () => {
+  const borrowSource = readFileSync(path.join(protectedRoot, "(tabs)", "borrow.tsx"), "utf8");
+
+  assert.match(borrowSource, /onSubmitted:\s*history\.refresh/);
+  assert.match(borrowSource, /submitBlockReason/);
+});

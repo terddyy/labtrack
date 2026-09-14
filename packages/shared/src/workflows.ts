@@ -1,3 +1,4 @@
+import { isFutureBookingRange, type BookingRange } from "./booking-time.js";
 import type { AvailabilityState } from "./types.js";
 import type { BookingStatus, DefectStatus, UserRole } from "./statuses.js";
 
@@ -154,6 +155,27 @@ export function getAvailabilityState(input: {
   }
 
   return "available";
+}
+
+export function getBorrowSubmitEligibility(input: {
+  purpose: string;
+  availability: AvailabilityState;
+  range: Pick<BookingRange, "startAt" | "endAt">;
+  now?: Date;
+}): { canSubmit: boolean; reason?: string } {
+  if (input.purpose.trim().length < 5) {
+    return { canSubmit: false, reason: "Enter a purpose with at least 5 characters." };
+  }
+
+  if (input.availability === "busy" || input.availability === "unavailable") {
+    return { canSubmit: false, reason: "This resource is not available for the selected schedule." };
+  }
+
+  if (!isFutureBookingRange(input.range, input.now ?? new Date())) {
+    return { canSubmit: false, reason: "Choose a start time later than now." };
+  }
+
+  return { canSubmit: true };
 }
 
 export function getDashboardCounters(input: {
