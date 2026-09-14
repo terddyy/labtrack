@@ -18,7 +18,7 @@ export function useBorrowableResources(options?: { onSubmitted?: () => void | Pr
   const onSubmitted = options?.onSubmitted;
   const [range, setRange] = useState<BookingRange>(() => createBookingRange(new Date(Date.now() + 60 * 60 * 1000), 90));
   const [validationNow, setValidationNow] = useState(() => new Date());
-  const [filter, setFilter] = useState<ResourceFilter>("all");
+  const [filter, setFilter] = useState<ResourceFilter>("asset");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -30,6 +30,7 @@ export function useBorrowableResources(options?: { onSubmitted?: () => void | Pr
   const [hasLoaded, setHasLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
   const resourceType = filter === "all" ? null : filter;
@@ -130,7 +131,7 @@ export function useBorrowableResources(options?: { onSubmitted?: () => void | Pr
     setMessage(null);
 
     try {
-      await createBorrowing({
+      const created = await createBorrowing({
         purpose: purpose.trim(),
         requestedEndAt: range.requestedEndAt,
         requestedStartAt: range.requestedStartAt,
@@ -138,6 +139,7 @@ export function useBorrowableResources(options?: { onSubmitted?: () => void | Pr
         resourceType: selectedResource.resourceType
       });
       setPurpose("");
+      setSubmittedBookingId(created[0]?.id ?? null);
       setMessage("Borrowing request submitted.");
       await refresh();
       await refreshSchedule(selectedResource);
@@ -148,6 +150,20 @@ export function useBorrowableResources(options?: { onSubmitted?: () => void | Pr
       setIsSubmitting(false);
     }
   }, [canSubmit, onSubmitted, purpose, range.requestedEndAt, range.requestedStartAt, refresh, refreshSchedule, selectedResource]);
+
+  const startNewRequest = useCallback(() => {
+    setSubmittedBookingId(null);
+    setSelectedResource(null);
+    setSchedule([]);
+    setPurpose("");
+    setMessage(null);
+    setError(null);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedResource(null);
+    setSchedule([]);
+  }, []);
 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -181,6 +197,7 @@ export function useBorrowableResources(options?: { onSubmitted?: () => void | Pr
 
   return useMemo(() => ({
     canSubmit,
+    clearSelection,
     error,
     filter,
     hasLoaded,
@@ -199,11 +216,14 @@ export function useBorrowableResources(options?: { onSubmitted?: () => void | Pr
     setPurpose,
     setQuery,
     setRange,
+    startNewRequest,
     submit,
     submitBlockReason,
+    submittedBookingId,
     validationNow
   }), [
     canSubmit,
+    clearSelection,
     error,
     filter,
     hasLoaded,
@@ -218,8 +238,10 @@ export function useBorrowableResources(options?: { onSubmitted?: () => void | Pr
     schedule,
     selectResource,
     selectedResource,
+    startNewRequest,
     submit,
     submitBlockReason,
+    submittedBookingId,
     validationNow
   ]);
 }

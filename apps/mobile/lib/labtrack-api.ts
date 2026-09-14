@@ -17,7 +17,8 @@ import {
   type NotificationType,
   type Profile,
   type ResourceScheduleEntryRowDto,
-  type ResourceType
+  type ResourceType,
+  type TicketSubjectType
 } from "@labtrack/shared";
 import { Platform } from "react-native";
 import { supabase } from "@/lib/supabase";
@@ -58,9 +59,10 @@ type DefectRow = {
 
 type TicketThreadRow = {
   id: string;
-  subject_type: "booking" | "defect_report";
+  subject_type: TicketSubjectType;
   booking_id: string | null;
   defect_report_id: string | null;
+  subject: string | null;
   created_at: string;
 };
 
@@ -205,9 +207,10 @@ export type MobileDefectReport = {
 
 export type MobileTicketThread = {
   id: string;
-  subjectType: "booking" | "defect_report";
+  subjectType: TicketSubjectType;
   bookingId: string | null;
   defectReportId: string | null;
+  subject: string | null;
   createdAt: string;
 };
 
@@ -619,7 +622,7 @@ export async function listTicketThreads(options: MobileListOptions = {}, client 
   const { limit, offset } = normalizeListOptions(options);
   const { data, error } = await client
     .from("ticket_threads")
-    .select("id,subject_type,booking_id,defect_report_id,created_at")
+    .select("id,subject_type,booking_id,defect_report_id,subject,created_at")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -657,6 +660,27 @@ export async function sendTicketMessage(threadId: string, body: string, client =
     p_thread_id: validation.data.threadId,
     p_body: validation.data.body
   });
+}
+
+export async function createGeneralTicket(input: { subject: string; body: string }, client = requireClient()) {
+  const subject = input.subject.trim();
+  const body = input.body.trim();
+
+  if (!subject || subject.length > 120) {
+    throw new Error("Subject must be between 1 and 120 characters.");
+  }
+
+  if (!body || body.length > 2000) {
+    throw new Error("Message must be between 1 and 2000 characters.");
+  }
+
+  const thread = await callRpc(client, "createGeneralTicket", {
+    p_subject: subject,
+    p_body: body,
+    p_requester_id: null
+  });
+
+  return toTicketThread({ ...thread, subject: thread.subject ?? subject });
 }
 
 export async function listNotifications(options: MobileListOptions = {}, client = requireClient()) {
@@ -887,6 +911,7 @@ function toTicketThread(row: TicketThreadRow): MobileTicketThread {
     subjectType: row.subject_type,
     bookingId: row.booking_id,
     defectReportId: row.defect_report_id,
+    subject: row.subject ?? null,
     createdAt: row.created_at
   };
 }
