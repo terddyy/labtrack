@@ -338,5 +338,5 @@ export type ActivityLogRowDto = {
 export type PrintableReportRowDto = {
   report_type: ReportType;
   section: string;
-  payload: Record<string, unknown>;
+  payload: Record<string, unknown> | Record<string, unknown>[];
 };

@@ -63,6 +63,6 @@ export function formatMetricValue(row: UsageAnalyticsRow) {
   return `${value} ${row.unit}`;
 }
 
-export function formatReportPayload(payload: Record<string, unknown>) {
+export function formatReportPayload(payload: unknown) {
   return JSON.stringify(payload, null, 2);
 }

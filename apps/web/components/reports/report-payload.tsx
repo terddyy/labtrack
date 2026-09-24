@@ -1,6 +1,6 @@
 import { formatLabel, formatReportPayload } from "@/lib/admin/format";
 
-export function ReportPayload({ payload }: { payload: Record<string, unknown> }) {
+export function ReportPayload({ payload }: { payload: Record<string, unknown> | Record<string, unknown>[] }) {
   const entries = Object.entries(payload);
   const isFlat = entries.every(([, value]) => value === null || ["string", "number", "boolean"].includes(typeof value));
 

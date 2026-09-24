@@ -536,7 +536,10 @@ export const activityLogRowDtoSchema = z.object({
 export const printableReportRowDtoSchema = z.object({
   report_type: z.enum(reportTypes),
   section: z.string(),
-  payload: z.record(z.string(), z.unknown())
+  payload: z.union([
+    z.record(z.string(), z.unknown()),
+    z.array(z.record(z.string(), z.unknown()))
+  ])
 });
 
 export const profileAccessUpdatesSchema = z.object({

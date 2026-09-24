@@ -19,6 +19,7 @@ import {
   listAdminAssetsInputSchema,
   markNotificationReadInputSchema,
   parseQrPayload,
+  printableReportRowDtoSchema,
   regenerateAssetQrInputSchema,
   resolveAssetByQrCodeInputSchema,
   returnBookingInputSchema,
@@ -86,6 +87,16 @@ test("rejects incomplete asset creation input", () => {
   });
 
   assert.equal(invalid.success, false);
+});
+
+test("accepts printable report analytics arrays", () => {
+  const result = printableReportRowDtoSchema.safeParse({
+    report_type: "asset_management_summary",
+    section: "analytics",
+    payload: [{ metric: "borrowings", value: 2 }]
+  });
+
+  assert.equal(result.success, true);
 });
 
 test("exposes planned backend RPC names", () => {
