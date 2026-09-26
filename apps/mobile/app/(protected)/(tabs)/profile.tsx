@@ -10,9 +10,9 @@ import { useCurrentProfile } from "@/lib/auth";
 import { formatApiError, resetMyActivityData } from "@/lib/labtrack-api";
 
 const shortcuts: Array<{ caption: string; icon: AppIconName; label: string; route: "/borrow" | "/scan" | "/ticket" | "/reports" }> = [
-  { caption: "Reservations and history", icon: "borrow", label: "Borrowing", route: "/borrow" },
+  { caption: "Borrowings and history", icon: "borrow", label: "Borrowing", route: "/borrow" },
   { caption: "Your submitted incidents", icon: "wrench", label: "Defect reports", route: "/reports" },
-  { caption: "Conversations with custodians", icon: "ticket", label: "Support tickets", route: "/ticket" },
+  { caption: "Conversations with custodians", icon: "ticket", label: "Messages", route: "/ticket" },
   { caption: "Open an asset by its label", icon: "scan", label: "Scan a QR code", route: "/scan" }
 ];
 
@@ -32,7 +32,7 @@ export default function ProfileScreen() {
   function confirmReset() {
     Alert.alert(
       "Reset app data?",
-      "This clears your borrowings, defect reports, support tickets, and notifications. Your account stays signed in.",
+      "This clears your borrowings, defect reports, messages, and notifications. Your account stays signed in.",
       [
         { style: "cancel", text: "Cancel" },
         {
@@ -85,8 +85,7 @@ export default function ProfileScreen() {
       )}
     >
       <Card style={styles.groupCard}>
-        <ListRow leading={<IconTile icon="building" size={36} />} subtitle={auth.profile.department ?? "Not assigned"} title="Department" />
-        <ListRow divider leading={<IconTile icon="mail" size={36} />} subtitle={auth.profile.email} title="Email" />
+        <ListRow leading={<IconTile icon="mail" size={36} />} subtitle={auth.profile.email} title="Email" />
       </Card>
 
       <SectionHeader title="Shortcuts" />
@@ -109,7 +108,7 @@ export default function ProfileScreen() {
         <View style={styles.dangerCopy}>
           <Text style={styles.dangerTitle}>Reset app data</Text>
           <Text style={styles.dangerCaption}>
-            Clear your borrowings, defect reports, support tickets, and notifications. Your account stays signed in.
+            Clear your borrowings, defect reports, messages, and notifications. Your account stays signed in.
           </Text>
         </View>
         {resetMessage ? <Notice tone={resetMessage.tone}>{resetMessage.text}</Notice> : null}

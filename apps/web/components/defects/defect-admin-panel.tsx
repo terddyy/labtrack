@@ -36,6 +36,7 @@ export function DefectAdminPanel({
           {visible.map((report) => {
             const asset = assets.find((item) => item.id === report.asset_id);
             const reporter = profiles.find((profile) => profile.id === report.instructor_id);
+            const custodian = profiles.find((profile) => profile.id === report.triaged_by);
             const transitions = getDefectTransitions(report.status);
 
             return (
@@ -47,6 +48,9 @@ export function DefectAdminPanel({
                 <p className="line-clamp-3 text-sm text-muted-foreground">{report.description}</p>
                 {report.resolution_notes ? (
                   <p className="rounded-md bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground">{report.resolution_notes}</p>
+                ) : null}
+                {report.status === "resolved" && report.triaged_by ? (
+                  <p className="text-xs text-muted-foreground">Resolved by <span className="font-medium text-foreground">{custodian?.full_name ?? "Unknown custodian"}</span></p>
                 ) : null}
                 <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1.5">

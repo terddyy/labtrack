@@ -11,7 +11,7 @@ export function getAssetInitials(name: string) {
 }
 
 export function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 export function formatShortDate(value: string) {
@@ -61,8 +61,4 @@ export function formatMetricValue(row: UsageAnalyticsRow) {
   }
 
   return `${value} ${row.unit}`;
-}
-
-export function formatReportPayload(payload: unknown) {
-  return JSON.stringify(payload, null, 2);
 }

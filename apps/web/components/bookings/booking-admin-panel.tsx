@@ -1,7 +1,7 @@
 "use client";
 
 import { bookingStatuses, getBookingWorkflowActions } from "@labtrack/shared";
-import { CalendarClock, ClipboardList, DoorOpen, Laptop } from "lucide-react";
+import { BellRing, CalendarClock, ClipboardList, DoorOpen, Laptop } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState, Initials, StatusBadge } from "@/components/admin/ui";
@@ -19,6 +19,7 @@ export function BookingAdminPanel({
   onCancel,
   onCheckout,
   onReject,
+  onRemind,
   onReturn,
   profiles
 }: {
@@ -30,6 +31,7 @@ export function BookingAdminPanel({
   onCancel: (booking: BookingRow) => void;
   onCheckout: (booking: BookingRow) => void;
   onReject: (booking: BookingRow) => void;
+  onRemind: (booking: BookingRow) => void;
   onReturn: (booking: BookingRow) => void;
   profiles: ProfileRow[];
 }) {
@@ -46,8 +48,14 @@ export function BookingAdminPanel({
         <ul className="divide-y">
           {visible.map((booking) => {
             const borrower = profiles.find((profile) => profile.id === booking.instructor_id);
+            const approver = profiles.find((profile) => profile.id === booking.decided_by);
+            const returnCustodian = profiles.find((profile) => profile.id === booking.returned_by);
             const actions = getBookingWorkflowActions(booking.status);
             const ResourceIcon = booking.resource_type === "room" ? DoorOpen : Laptop;
+            const overdue = booking.status === "checked_out" && new Date(booking.requested_end_at).getTime() < Date.now();
+            const returnedLate = booking.status === "returned" && booking.returned_at
+              ? new Date(booking.returned_at).getTime() > new Date(booking.requested_end_at).getTime()
+              : false;
 
             return (
               <li className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-muted/40 lg:flex-row lg:items-center" key={booking.id}>
@@ -59,6 +67,8 @@ export function BookingAdminPanel({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate font-medium">{formatBookingResource(booking, assets, locations)}</p>
                       <StatusBadge status={booking.status} />
+                      {overdue ? <StatusBadge status="overdue" /> : null}
+                      {returnedLate ? <StatusBadge status="returned_late" /> : null}
                     </div>
                     <p className="line-clamp-1 text-sm text-muted-foreground">{booking.purpose}</p>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -73,6 +83,12 @@ export function BookingAdminPanel({
                     </div>
                     {booking.decision_notes ? (
                       <p className="border-l-2 pl-2 text-xs text-muted-foreground italic">{booking.decision_notes}</p>
+                    ) : null}
+                    {booking.decided_by && ["approved", "checked_out", "returned"].includes(booking.status) ? (
+                      <p className="text-xs text-muted-foreground">Approved by <span className="font-medium text-foreground">{approver?.full_name ?? "Unknown custodian"}</span></p>
+                    ) : null}
+                    {booking.returned_at ? (
+                      <p className="text-xs text-muted-foreground">Returned {formatShortDate(booking.returned_at)}{returnCustodian ? ` · received by ${returnCustodian.full_name}` : ""}</p>
                     ) : null}
                   </div>
                 </div>
@@ -105,6 +121,12 @@ export function BookingAdminPanel({
                       </Button>
                     ) : null}
                   </div>
+                ) : null}
+                {overdue ? (
+                  <Button disabled={disabled} onClick={() => onRemind(booking)} size="sm" type="button" variant="destructive">
+                    <BellRing className="size-3.5" />
+                    {booking.overdue_reminder_sent_at ? "Remind again" : "Send return reminder"}
+                  </Button>
                 ) : null}
               </li>
             );

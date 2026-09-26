@@ -99,7 +99,7 @@ export function BookingSchedulePicker({ compact = false, disabled = false, now, 
       ) : null}
 
       <View style={styles.durationGroup}>
-        <Text style={styles.groupLabel}>Duration</Text>
+        <Text style={styles.groupLabel}>End time</Text>
         <View style={styles.chipRow}>
           {borrowingDurationMinutes.map((durationMinutes) => {
             const selected = durationMinutes === range.durationMinutes;
@@ -120,7 +120,7 @@ export function BookingSchedulePicker({ compact = false, disabled = false, now, 
                 ]}
               >
                 <Text style={[styles.durationChipText, compact ? styles.durationChipTextCompact : null, selected ? styles.durationChipTextSelected : null]}>
-                  {compact ? formatDurationCompact(durationMinutes) : formatDuration(durationMinutes)}
+                  {formatPickerTime(new Date(range.startAt.getTime() + durationMinutes * 60_000))}
                 </Text>
               </Pressable>
             );
@@ -132,7 +132,6 @@ export function BookingSchedulePicker({ compact = false, disabled = false, now, 
         <View style={styles.summary}>
           <SummaryLine label="Start" value={formatBookingDateTime(range.startAt)} />
           <SummaryLine label="End" value={formatBookingDateTime(range.endAt)} />
-          <SummaryLine label="Duration" value={formatDuration(range.durationMinutes)} />
           <SummaryLine label="Timezone" value={timezoneSource} />
         </View>
       ) : null}
@@ -229,30 +228,6 @@ function formatPickerTime(date: Date) {
     hour: "numeric",
     minute: "2-digit"
   });
-}
-
-function formatDuration(durationMinutes: number) {
-  if (durationMinutes === 90) {
-    return "1 hour 30 minutes";
-  }
-
-  if (durationMinutes === 150) {
-    return "2 hours 30 minutes";
-  }
-
-  return `${durationMinutes / 60} hours`;
-}
-
-function formatDurationCompact(durationMinutes: number) {
-  if (durationMinutes === 90) {
-    return "1.5h";
-  }
-
-  if (durationMinutes === 150) {
-    return "2.5h";
-  }
-
-  return `${durationMinutes / 60}h`;
 }
 
 function resolveTimezoneSource() {

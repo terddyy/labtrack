@@ -41,19 +41,22 @@ export function AssetTable({
   selectedAssetId: string | null;
 }) {
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState(ALL);
   const [locationFilter, setLocationFilter] = useState(ALL);
   const [statusFilter, setStatusFilter] = useState(ALL);
   const locationOptions = useMemo(() => countOptions(assets.map((asset) => [asset.locationId, asset.locationName])), [assets]);
+  const categoryOptions = useMemo(() => countOptions(assets.map((asset) => [asset.categoryId, asset.categoryName])), [assets]);
   const statusCounts = useMemo(() => new Map(countOptions(assets.map((asset) => [asset.status, asset.status])).map((option) => [option.value, option.count])), [assets]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return assets.filter((asset) =>
-      (locationFilter === ALL || asset.locationId === locationFilter)
+      (categoryFilter === ALL || asset.categoryId === categoryFilter)
+      && (locationFilter === ALL || asset.locationId === locationFilter)
       && (statusFilter === ALL || asset.status === statusFilter)
       && (!needle || [asset.name, asset.propertyNumber, asset.locationName, asset.categoryName].some((field) => field?.toLowerCase().includes(needle)))
     );
-  }, [assets, locationFilter, query, statusFilter]);
-  const hasFilters = Boolean(query) || locationFilter !== ALL || statusFilter !== ALL;
+  }, [assets, categoryFilter, locationFilter, query, statusFilter]);
+  const hasFilters = Boolean(query) || categoryFilter !== ALL || locationFilter !== ALL || statusFilter !== ALL;
 
   return (
     <section className="overflow-hidden rounded-xl border bg-card">
@@ -81,6 +84,17 @@ export function AssetTable({
       </header>
 
       <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-4 py-2.5">
+        <Select onValueChange={setCategoryFilter} value={categoryFilter}>
+          <SelectTrigger aria-label="Filter by category" className="h-8 w-full bg-background sm:w-52" size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All categories ({assets.length})</SelectItem>
+            {categoryOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label} ({option.count})</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select onValueChange={setLocationFilter} value={locationFilter}>
           <SelectTrigger aria-label="Filter by location" className="h-8 w-full bg-background sm:w-56" size="sm">
             <SelectValue />
@@ -111,6 +125,7 @@ export function AssetTable({
           <Button
             onClick={() => {
               setQuery("");
+              setCategoryFilter(ALL);
               setLocationFilter(ALL);
               setStatusFilter(ALL);
             }}

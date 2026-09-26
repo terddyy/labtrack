@@ -19,7 +19,7 @@ export default function ProtectedLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "LABTRACK" }} />
       <Stack.Screen name="asset/[payload]" options={{ title: "Asset" }} />
       <Stack.Screen name="reports" options={{ title: "Defect Reports" }} />
-      <Stack.Screen name="ticket" options={{ title: "Support" }} />
+      <Stack.Screen name="ticket" options={{ title: "Messages" }} />
       <Stack.Screen name="ticket/[threadId]" options={{ headerTitle: "Conversation", title: "Conversation" }} />
     </Stack>
   );

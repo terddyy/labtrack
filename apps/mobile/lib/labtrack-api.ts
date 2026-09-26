@@ -80,6 +80,8 @@ type NotificationRow = {
   title: string;
   body: string;
   read_at: string | null;
+  related_thread_id: string | null;
+  related_booking_id: string | null;
   created_at: string;
 };
 
@@ -212,6 +214,7 @@ export type MobileTicketThread = {
   defectReportId: string | null;
   subject: string | null;
   createdAt: string;
+  unreadCount: number;
 };
 
 export type MobileTicketMessage = {
@@ -228,6 +231,8 @@ export type MobileNotification = {
   title: string;
   body: string;
   readAt: string | null;
+  relatedThreadId: string | null;
+  relatedBookingId: string | null;
   createdAt: string;
 };
 
@@ -284,7 +289,7 @@ export function createLabtrackMobileApi(client: LabtrackMobileClient) {
     resolveAssetByQrCode: (code: string) => resolveAssetByQrCode(code, client),
     sendTicketMessage: (threadId: string, body: string) => sendTicketMessage(threadId, body, client),
     signInWithPassword: (email: string, password: string) => signInWithPassword(email, password, client),
-    signUpWithPassword: (email: string, password: string, fullName: string) => signUpWithPassword(email, password, fullName, client),
+    signUpWithPassword: (email: string, password: string, fullName: string, requestedRole: "faculty" | "student" = "faculty") => signUpWithPassword(email, password, fullName, requestedRole, client),
     signOut: () => signOut(client),
     uploadDefectPhoto: (reportId: string, uri: string) => uploadDefectPhoto(reportId, uri, client),
     upsertPushToken: (token: string) => upsertPushToken(token, client)
@@ -363,7 +368,7 @@ export async function signInWithPassword(email: string, password: string, client
   }
 }
 
-export async function signUpWithPassword(email: string, password: string, fullName: string, client = requireClient()) {
+export async function signUpWithPassword(email: string, password: string, fullName: string, requestedRole: "faculty" | "student" = "faculty", client = requireClient()) {
   const trimmedFullName = fullName.trim();
 
   if (!trimmedFullName) {
@@ -375,7 +380,8 @@ export async function signUpWithPassword(email: string, password: string, fullNa
     password,
     options: {
       data: {
-        full_name: trimmedFullName
+        full_name: trimmedFullName,
+        requested_role: requestedRole
       }
     }
   });
@@ -687,7 +693,7 @@ export async function listNotifications(options: MobileListOptions = {}, client 
   const { limit, offset } = normalizeListOptions(options);
   const { data, error } = await client
     .from("notifications")
-    .select("id,type,title,body,read_at,created_at")
+    .select("id,type,title,body,read_at,related_thread_id,related_booking_id,created_at")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -912,7 +918,8 @@ function toTicketThread(row: TicketThreadRow): MobileTicketThread {
     bookingId: row.booking_id,
     defectReportId: row.defect_report_id,
     subject: row.subject ?? null,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    unreadCount: 0
   };
 }
 
@@ -933,6 +940,8 @@ function toNotification(row: NotificationRow): MobileNotification {
     title: row.title,
     body: row.body,
     readAt: row.read_at,
+    relatedThreadId: row.related_thread_id,
+    relatedBookingId: row.related_booking_id,
     createdAt: row.created_at
   };
 }

@@ -190,7 +190,54 @@
 }
 
 @media print {
+  @page {
+    margin: 16mm 14mm;
+    size: A4;
+  }
+
+  html,
+  body {
+    background: white !important;
+    color: #18212f !important;
+    font-size: 10.5pt;
+  }
+
   .no-print {
     display: none !important;
+  }
+
+  .printable-report {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  .report-header {
+    background: white !important;
+    padding: 0 0 16pt !important;
+  }
+
+  .report-content {
+    padding: 18pt 0 !important;
+  }
+
+  .report-section {
+    break-inside: avoid;
+  }
+
+  .report-section h3 {
+    color: #18212f !important;
+  }
+
+  .report-period > div,
+  .report-content table {
+    border-color: #d9dee7 !important;
+    background: white !important;
+  }
+
+  .report-footer {
+    padding: 10pt 0 0 !important;
   }
 }

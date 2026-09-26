@@ -23,7 +23,7 @@ export function TicketInbox({
       <header className="flex items-center justify-between gap-3 border-b px-5 py-4">
         <div className="flex items-center gap-2">
           <MessagesSquare className="size-4 text-muted-foreground" />
-          <h2 className="text-[15px] font-semibold tracking-tight">Tickets & messages</h2>
+          <h2 className="text-[15px] font-semibold tracking-tight">Messages</h2>
           <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground tabular">{threads.length}</span>
         </div>
         <Button onClick={onViewAll} size="sm" type="button" variant="ghost">
@@ -43,12 +43,15 @@ export function TicketInbox({
                   onClick={() => onOpenThread(thread.id)}
                   type="button"
                 >
-                  <Initials name={requester?.full_name} />
+                  <span className="relative">
+                    <Initials name={requester?.full_name} />
+                    {thread.unread_count ? <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary ring-2 ring-card" /> : null}
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{requester?.full_name ?? "Unknown user"}</span>
                     <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
                       <Icon className="size-3 shrink-0" />
-                      <span className="capitalize">{formatLabel(thread.subject_type)}</span>
+                      <span className="capitalize">{thread.subject_type === "booking" ? "Borrowing" : formatLabel(thread.subject_type)}</span>
                       {thread.subject_title ? <span className="truncate">· {thread.subject_title}</span> : null}
                     </span>
                   </span>
@@ -60,7 +63,7 @@ export function TicketInbox({
         </ul>
       ) : (
         <div className="p-4">
-          <EmptyState icon={MessagesSquare} label="No ticket threads yet" />
+          <EmptyState icon={MessagesSquare} label="No messages yet" />
         </div>
       )}
     </section>

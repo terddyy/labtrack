@@ -143,7 +143,7 @@ export function TicketAdminPanel({
       <aside className="flex flex-col border-b md:border-r md:border-b-0">
         <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Threads</h2>
+            <h2 className="text-sm font-semibold">Messages</h2>
             <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground tabular">{threads.length}</span>
           </div>
           <NewTicketDialog disabled={disabled} onCreate={onCreateTicket} profiles={profiles.filter((profile) => profile.is_active && profile.id !== currentProfileId)} />
@@ -167,10 +167,13 @@ export function TicketAdminPanel({
                   >
                     <Initials className={cn("mt-0.5", isActive && "ring-2 ring-primary/30")} name={requester?.full_name} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{requester?.full_name ?? "Unknown user"}</span>
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        <span className="truncate">{requester?.full_name ?? "Unknown user"}</span>
+                        {thread.unread_count ? <span className="size-2 shrink-0 rounded-full bg-primary" title={`${thread.unread_count} unread`} /> : null}
+                      </span>
                       <span className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
                         <Icon className="size-3 shrink-0" />
-                        <span className="capitalize">{formatLabel(thread.subject_type)}</span>
+                        <span className="capitalize">{thread.subject_type === "booking" ? "Borrowing" : formatLabel(thread.subject_type)}</span>
                         {thread.subject_title ? <span className="truncate">· {thread.subject_title}</span> : null}
                       </span>
                     </span>

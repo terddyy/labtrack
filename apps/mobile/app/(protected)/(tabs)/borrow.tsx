@@ -96,7 +96,7 @@ export default function BorrowScreen() {
       header={(
         <ConsoleHeader
           caption={`${bookableResources.length} ${typeLabel} free for your time · ${pendingCount} awaiting approval`}
-          eyebrow="Reserve · Equipment & rooms"
+          eyebrow="Borrow · Equipment & rooms"
           right={(
             <HeaderIconButton
               accessibilityLabel="Refresh"
@@ -116,7 +116,7 @@ export default function BorrowScreen() {
         currentStep={step}
         onDismiss={borrowOnboarding.isReady && !borrowOnboarding.hasSeen ? () => void borrowOnboarding.markSeen() : undefined}
         steps={BORROW_STEPS}
-        title="Reservation workflow"
+        title="Borrowing workflow"
       />
 
       {browser.error ? <Notice tone="danger">{browser.error}</Notice> : null}
@@ -386,7 +386,7 @@ function SchedulePreview({ entries }: { entries: MobileResourceScheduleEntry[] }
             <Text numberOfLines={1} style={styles.scheduleTitle}>{entry.purpose}</Text>
             <Text numberOfLines={1} style={styles.scheduleTime}>{formatDate(entry.requestedStartAt)} – {formatDate(entry.requestedEndAt)}</Text>
           </View>
-          <Badge label={entry.availability} tone={availabilityTone(entry.availability)} />
+          <Badge label={formatStatusLabel(entry.availability)} tone={availabilityTone(entry.availability)} />
         </View>
       ))}
     </View>

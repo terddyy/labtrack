@@ -60,7 +60,7 @@ export function CatalogPanel({
         value={categoryName}
       />
       <CatalogList
-        description="Rooms and labs where equipment lives or can be booked."
+        description="Physical places where equipment is stored. Configure room borrowing separately under Room."
         disabled={disabled}
         icon={MapPin}
         inputId="location-name"

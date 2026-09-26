@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatDateTimeRange, formatLabel, formatMetricValue, formatShortDate } from "@/lib/admin/format";
+import { formatDateTime, formatDateTimeRange, formatLabel, formatMetricValue, formatShortDate } from "@/lib/admin/format";
 import type { ActivityLogRow, AssetLifecycleEvent, AssetView, LocationRow, PrintableReportRow, UsageAnalyticsRow } from "@/lib/admin/types";
 import { AssetLifecycleTimeline } from "@/components/reports/asset-lifecycle-timeline";
 import { ReportPayload } from "@/components/reports/report-payload";
@@ -27,7 +27,17 @@ const reportTypeLabels: Record<ReportView, string> = {
   asset_lifecycle: "Equipment Lifecycle"
 };
 
+const reportTypeDescriptions: Record<ReportView, string> = {
+  asset_management_summary: "A quick overview of equipment, borrowing, and utilization.",
+  borrowing_transactions: "A record of borrowing activity during the selected period.",
+  defect_reports: "A summary of equipment issues reported during the selected period.",
+  inventory: "A current snapshot of equipment availability and condition.",
+  equipment_utilization: "A summary of how long equipment was checked out.",
+  asset_lifecycle: "A chronological history of the selected piece of equipment."
+};
+
 const metricIcons = [BarChart3, Activity, Clock, ScrollText];
+const sectionLabels: Record<string, string> = { summary: "Report overview", analytics: "Key figures" };
 
 export function ReportsPanel({
   activityRows,
@@ -63,8 +73,9 @@ export function ReportsPanel({
   const isLifecycle = reportType === ASSET_LIFECYCLE_REPORT;
   const lifecycleAsset = assets.find((asset) => asset.id === filters.assetId) ?? null;
   const canPrint = isLifecycle ? Boolean(lifecycleAsset && lifecycleEvents.length) : printableRows.length > 0;
-  const metrics = usageRows.length
-    ? usageRows.map((row) => ({ label: row.label, value: formatMetricValue(row) }))
+  const visibleUsageRows = reportType === "asset_management_summary" ? usageRows : usageRows.filter((row) => row.report_type === reportType);
+  const metrics = visibleUsageRows.length
+    ? visibleUsageRows.map((row) => ({ label: row.label, value: formatMetricValue(row) }))
     : [
         { label: "Borrowing transactions", value: "0" },
         { label: "Equipment utilization", value: "0%" },
@@ -151,14 +162,19 @@ export function ReportsPanel({
       </section>
 
       <article className="printable-report relative overflow-hidden rounded-xl border bg-card">
-        <header className="flex flex-col gap-1 border-b bg-muted/30 px-6 py-5 sm:flex-row sm:items-end sm:justify-between">
+        <header className="report-header border-b bg-muted/30 px-6 py-6 sm:px-8">
           <div>
-            <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground uppercase">LABTRACK · Report</p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight">{reportTypeLabels[reportType]}</h2>
+            <p className="report-kicker">LABTRACK · PAMPANGA STATE UNIVERSITY</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">{reportTypeLabels[reportType]}</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{reportTypeDescriptions[reportType]}</p>
           </div>
-          <p className="font-mono text-xs text-muted-foreground">{formatDateTimeRange(filters.from, filters.to)}</p>
+          <div className="report-period mt-5 grid gap-2 text-sm sm:mt-6 sm:grid-cols-3">
+            <ReportMeta label="Reporting period" value={formatDateTimeRange(filters.from, filters.to)} />
+            <ReportMeta label="Room / lab" value={locations.find((location) => location.id === filters.locationId)?.name ?? "All rooms and labs"} />
+            <ReportMeta label="Equipment" value={assets.find((asset) => asset.id === filters.assetId)?.name ?? "All equipment"} />
+          </div>
         </header>
-        <div className="p-6">
+        <div className="report-content p-6 sm:p-8">
           {isLifecycle ? (
             disabled ? (
               <Skeleton className="h-40 w-full" />
@@ -172,10 +188,10 @@ export function ReportsPanel({
               <Skeleton className="h-24 w-full" />
             </div>
           ) : printableRows.length ? (
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-8 md:grid-cols-2">
               {printableRows.map((row) => (
-                <section key={`${row.report_type}-${row.section}`}>
-                  <h3 className="mb-2 border-b pb-2 text-sm font-semibold capitalize">{formatLabel(row.section)}</h3>
+                <section className="report-section break-inside-avoid" key={`${row.report_type}-${row.section}`}>
+                  <h3 className="mb-3 border-b pb-2 text-sm font-semibold tracking-tight">{sectionLabels[row.section] ?? formatLabel(row.section)}</h3>
                   <ReportPayload payload={row.payload} />
                 </section>
               ))}
@@ -184,6 +200,7 @@ export function ReportsPanel({
             <EmptyState description="Adjust the filters and run the report again." icon={FileText} label="No report data" />
           )}
         </div>
+        {printableRows.length ? <footer className="report-footer border-t px-6 py-4 text-xs text-muted-foreground sm:px-8">Generated {formatDateTime(new Date().toISOString())} · LABTRACK Equipment Management</footer> : null}
       </article>
 
       <section className="no-print overflow-hidden rounded-xl border bg-card">
@@ -222,6 +239,15 @@ export function ReportsPanel({
           </div>
         ) : null}
       </section>
+    </div>
+  );
+}
+
+function ReportMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-background/70 px-3 py-2">
+      <p className="text-[10px] font-medium tracking-[0.12em] text-muted-foreground uppercase">{label}</p>
+      <p className="mt-1 text-sm font-medium">{value}</p>
     </div>
   );
 }

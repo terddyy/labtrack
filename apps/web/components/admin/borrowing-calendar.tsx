@@ -44,6 +44,7 @@ export type BorrowingCalendarActionTarget = Pick<BorrowingMonitorRow, "id" | "st
 const monitorStatusOptions: BorrowingCalendarStatusFilter[] = ["all", "pending", "approved", "checked_out", "returned", "cancelled", "rejected"];
 
 const eventTone: Record<string, string> = {
+  overdue: "border-destructive bg-destructive/18 text-foreground hover:bg-destructive/25",
   pending: "border-warning bg-warning/12 text-foreground hover:bg-warning/20",
   approved: "border-primary bg-primary/10 text-foreground hover:bg-primary/18",
   checked_out: "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
@@ -231,7 +232,7 @@ export function BorrowingCalendar({
                         aria-pressed={selectedRowId === event.row.id}
                         className={cn(
                           "absolute flex flex-col overflow-hidden rounded-md border-l-[3px] px-1.5 py-1 text-left text-[11px] leading-tight shadow-xs transition-all",
-                          eventTone[event.row.status] ?? eventTone.approved,
+                          eventTone[getCalendarDisplayStatus(event.row)] ?? eventTone.approved,
                           selectedRowId === event.row.id && "ring-2 ring-ring ring-offset-1 ring-offset-card"
                         )}
                         key={`${day.key}-${event.row.id}`}
@@ -270,7 +271,7 @@ export function BorrowingCalendar({
                         <span className="block truncate font-medium">{formatResource(event.row, assets, locations)}</span>
                         <span className="block font-mono text-xs text-muted-foreground">{formatTimeRange(event.row.requested_start_at, event.row.requested_end_at)}</span>
                       </span>
-                      <StatusBadge status={event.row.status} />
+                      <StatusBadge status={getCalendarDisplayStatus(event.row)} />
                     </button>
                   ))}
                 </div>
@@ -283,7 +284,7 @@ export function BorrowingCalendar({
 
         {!rows.length && !disabled ? (
           <div className="border-t p-4">
-            <EmptyState description="Use the arrows to browse other weeks." icon={CalendarDays} label="No bookings this week" />
+            <EmptyState description="Use the arrows to browse other weeks." icon={CalendarDays} label="No borrowings this week" />
           </div>
         ) : null}
       </div>
@@ -301,6 +302,10 @@ export function BorrowingCalendar({
       />
     </section>
   );
+}
+
+function getCalendarDisplayStatus(row: BorrowingMonitorRow) {
+  return row.status === "checked_out" && new Date(row.requested_end_at).getTime() < Date.now() ? "overdue" : row.status;
 }
 
 function BookingDetail({
@@ -331,7 +336,7 @@ function BookingDetail({
           <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <MousePointerClick className="size-4.5" />
           </span>
-          <p className="text-sm font-medium">No booking selected</p>
+          <p className="text-sm font-medium">No borrowing selected</p>
           <p className="max-w-[220px] text-sm text-muted-foreground">Click a block on the calendar to see details and actions.</p>
         </div>
       </aside>

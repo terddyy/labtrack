@@ -1,6 +1,9 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { formatApiError, listNotifications, markNotificationRead, type MobileNotification } from "@/lib/labtrack-api";
+import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
+
+const realtimeTargets = [{ table: "notifications" }] as const;
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<MobileNotification[]>([]);
@@ -43,6 +46,8 @@ export function useNotifications() {
       };
     }, [refresh])
   );
+
+  useRealtimeRefresh("mobile-notifications", realtimeTargets, refresh);
 
   const markRead = useCallback(async (id: string) => {
     setError(null);

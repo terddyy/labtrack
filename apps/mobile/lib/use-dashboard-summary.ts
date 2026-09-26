@@ -1,6 +1,9 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { formatApiError, getDashboardSummary } from "@/lib/labtrack-api";
+import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
+
+const realtimeTargets = [{ table: "assets" }, { table: "bookings" }, { table: "defect_reports" }, { table: "ticket_threads" }, { table: "notifications" }] as const;
 
 export type DashboardSummary = {
   availableAssets: number;
@@ -83,6 +86,8 @@ export function useDashboardSummary(isEnabled: boolean) {
       };
     }, [isEnabled, refresh])
   );
+
+  useRealtimeRefresh("mobile-dashboard", realtimeTargets, refresh, isEnabled);
 
   return { refresh, summary };
 }

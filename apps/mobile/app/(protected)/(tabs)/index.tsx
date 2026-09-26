@@ -30,8 +30,8 @@ import type { MobileBooking } from "@/lib/labtrack-api";
 
 const quickActions: Array<{ caption: string; icon: AppIconName; label: string; route: "/scan" | "/borrow" | "/ticket" }> = [
   { caption: "Open an asset", icon: "scan", label: "Scan QR", route: "/scan" },
-  { caption: "Reserve items", icon: "borrow", label: "Borrow", route: "/borrow" },
-  { caption: "Ask custodians", icon: "ticket", label: "Support", route: "/ticket" }
+  { caption: "Borrow items", icon: "borrow", label: "Borrow", route: "/borrow" },
+  { caption: "Ask custodians", icon: "ticket", label: "Messages", route: "/ticket" }
 ];
 
 export default function HomeScreen() {
@@ -74,7 +74,7 @@ export default function HomeScreen() {
         >
           <ReadoutStrip
             items={[
-              { label: "Tracked assets", value: formatNumber(trackedAssets) },
+              { label: "Total assets", value: formatNumber(trackedAssets) },
               { label: "Pending", tone: summary.pendingBookings ? "warning" : "neutral", value: formatNumber(summary.pendingBookings) },
               { label: "Open defects", tone: summary.openDefects ? "danger" : "success", value: formatNumber(summary.openDefects) }
             ]}
@@ -100,7 +100,7 @@ export default function HomeScreen() {
       <Card style={styles.healthCard}>
         <View style={styles.healthHeader}>
           <View style={styles.healthCopy}>
-            <Text style={styles.cardEyebrow}>INVENTORY HEALTH</Text>
+            <Text style={styles.cardEyebrow}>ASSET AVAILABILITY</Text>
             <Text style={styles.healthCaption}>
               Across {summary.labCount || 5} computer laboratories
             </Text>

@@ -29,14 +29,14 @@ export default function TicketScreen() {
   return (
     <ScreenFlatList
       data={threads}
-      empty={hasLoaded && !isLoading ? <EmptyState body="Start a new message above, or open a borrowing or defect conversation." icon="ticket" title="No ticket threads yet" /> : null}
+      empty={hasLoaded && !isLoading ? <EmptyState body="Start a new message above, or open a borrowing or defect conversation." icon="ticket" title="No messages yet" /> : null}
       header={(
         <ConsoleHeader
           caption="Message custodians anytime, or continue a borrowing or defect conversation."
-          eyebrow={`Support · ${threads.length} threads`}
+          eyebrow={`Messages · ${threads.length} conversations`}
           inset={false}
           right={<HeaderIconButton accessibilityLabel="Refresh threads" icon="refresh" loading={isLoading} onPress={refresh} />}
-          title="Lab support"
+          title="Messages"
         />
       )}
       includeHeaderInset
@@ -76,7 +76,7 @@ export default function TicketScreen() {
               onPress={() => router.push({ pathname: "/ticket/[threadId]", params: { threadId: thread.id } })}
               subtitle="Tap to open the conversation"
               title={display.title}
-              trailing={<AppIcon color={colors.subtle} name="chevron-forward" size={16} />}
+              trailing={thread.unreadCount ? <View style={styles.unreadDot} /> : <AppIcon color={colors.subtle} name="chevron-forward" size={16} />}
             />
           </Card>
         );
@@ -161,5 +161,11 @@ const styles = StyleSheet.create({
   threadCard: {
     gap: 0,
     paddingVertical: 2
+  },
+  unreadDot: {
+    backgroundColor: colors.primary,
+    borderRadius: 5,
+    height: 10,
+    width: 10
   }
 });

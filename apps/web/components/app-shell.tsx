@@ -9,6 +9,7 @@ import {
   LogOut,
   MessagesSquare,
   Package,
+  DoorOpen,
   QrCode,
   RefreshCw,
   ShieldCheck,
@@ -41,7 +42,7 @@ import {
   SidebarTrigger
 } from "@/components/ui/sidebar";
 
-export type AdminSection = "dashboard" | "assets" | "bookings" | "monitor" | "defects" | "tickets" | "reports" | "access" | "catalog";
+export type AdminSection = "dashboard" | "assets" | "rooms" | "bookings" | "monitor" | "defects" | "tickets" | "reports" | "access" | "catalog";
 
 type NavItem = { key: AdminSection; label: string; icon: LucideIcon };
 
@@ -55,7 +56,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { key: "bookings", label: "Borrowing", icon: ClipboardList },
       { key: "defects", label: "Defects", icon: Wrench },
-      { key: "tickets", label: "Tickets", icon: MessagesSquare },
+      { key: "tickets", label: "Messages", icon: MessagesSquare },
       { key: "monitor", label: "Calendar", icon: CalendarDays }
     ]
   },
@@ -63,6 +64,7 @@ const navGroups: Array<{ label: string; items: NavItem[] }> = [
     label: "Asset Management",
     items: [
       { key: "assets", label: "Assets & QR", icon: Package },
+      { key: "rooms", label: "Room", icon: DoorOpen },
       { key: "catalog", label: "Catalog", icon: FolderTree }
     ]
   },

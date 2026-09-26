@@ -33,14 +33,17 @@ import {
   getTicketMessages,
   getUsageAnalytics,
   listActivityLogs,
+  markThreadMessagesRead,
   renameCatalogItem,
   returnBooking,
+  sendBorrowingReturnReminder,
   sendTicketMessage,
   triageDefectReport,
   updateAllowedEmailDomain,
   updateAsset,
   updateProfileAccess,
-  updateRegistrationPolicy
+  updateRegistrationPolicy,
+  updateRoomSettings
 } from "./services";
 import type {
   ActivityLogFilters,
@@ -199,6 +202,20 @@ export async function sendTicketMessageAction(threadId: string, body: string) {
   });
 }
 
+export async function markThreadMessagesReadAction(threadId: string) {
+  return toActionResult(async () => {
+    await markThreadMessagesRead(parseId(threadId));
+    return null;
+  });
+}
+
+export async function sendBorrowingReturnReminderAction(bookingId: string) {
+  return toActionResult(async () => {
+    await sendBorrowingReturnReminder(parseId(bookingId));
+    return null;
+  });
+}
+
 export async function createGeneralTicketAction(requesterId: string, subject: string, body: string) {
   return toActionResult(async () => {
     const trimmedSubject = typeof subject === "string" ? subject.trim() : "";
@@ -226,6 +243,16 @@ export async function createCategoryAction(name: string) {
 export async function createLocationAction(name: string) {
   return toActionResult(async () => {
     await createLocation(name);
+    return null;
+  });
+}
+
+export async function updateRoomSettingsAction(locationId: string, isRoom: boolean, isReservable: boolean) {
+  return toActionResult(async () => {
+    if (typeof isRoom !== "boolean" || typeof isReservable !== "boolean") {
+      throw new Error("Room settings are invalid.");
+    }
+    await updateRoomSettings(parseId(locationId), isRoom, isReservable);
     return null;
   });
 }

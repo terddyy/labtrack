@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AppIcon, type AppIconName } from "@/components/icons";
 import {
@@ -31,6 +32,13 @@ export default function NotificationsScreen() {
     [filter, notifications]
   );
 
+  async function openNotification(notification: MobileNotification) {
+    if (!notification.readAt) await markRead(notification.id);
+    if (notification.type === "ticket_message" && notification.relatedThreadId) {
+      router.push({ pathname: "/ticket/[threadId]", params: { threadId: notification.relatedThreadId } });
+    }
+  }
+
   return (
     <ScreenFlatList
       data={visibleNotifications}
@@ -40,7 +48,7 @@ export default function NotificationsScreen() {
             body={
               filter === "unread"
                 ? "You're caught up. Switch to All to review earlier updates."
-                : "New borrow decisions, defect updates, and ticket replies will appear here."
+                : "New borrowing decisions, defect updates, and message replies will appear here."
             }
             icon={filter === "unread" ? "check" : "bell"}
             title={filter === "unread" ? "No unread notifications" : "No notifications yet"}
@@ -77,7 +85,7 @@ export default function NotificationsScreen() {
         <NotificationCard
           disabled={Boolean(readingId)}
           notification={notification}
-          onMarkRead={() => void markRead(notification.id)}
+          onOpen={() => void openNotification(notification)}
           reading={readingId === notification.id}
         />
       )}
@@ -96,23 +104,23 @@ function getNotificationIcon(notification: MobileNotification): AppIconName {
 function NotificationCard({
   disabled,
   notification,
-  onMarkRead,
+  onOpen,
   reading
 }: {
   disabled: boolean;
   notification: MobileNotification;
-  onMarkRead: () => void;
+  onOpen: () => void;
   reading: boolean;
 }) {
   const isUnread = !notification.readAt;
 
   return (
     <Pressable
-      accessibilityHint={isUnread ? "Marks this notification as read" : undefined}
+      accessibilityHint={notification.type === "ticket_message" && notification.relatedThreadId ? "Opens the conversation" : isUnread ? "Marks this notification as read" : undefined}
       accessibilityRole="button"
-      accessibilityState={{ busy: reading, disabled: !isUnread || disabled }}
-      disabled={!isUnread || disabled}
-      onPress={isUnread ? onMarkRead : undefined}
+      accessibilityState={{ busy: reading, disabled: disabled || (!isUnread && !(notification.type === "ticket_message" && notification.relatedThreadId)) }}
+      disabled={disabled || (!isUnread && !(notification.type === "ticket_message" && notification.relatedThreadId))}
+      onPress={onOpen}
       style={({ pressed }) => [styles.card, isUnread ? styles.cardUnread : null, pressed ? styles.pressed : null]}
     >
       <View style={[styles.icon, isUnread ? styles.iconUnread : null]}>
@@ -129,7 +137,11 @@ function NotificationCard({
           {notification.body}
         </Text>
         {isUnread ? (
-          <Text style={styles.markRead}>{reading ? "Marking as read…" : "Tap to mark as read"}</Text>
+          <Text style={styles.markRead}>
+            {reading
+              ? notification.type === "ticket_message" && notification.relatedThreadId ? "Opening…" : "Marking as read…"
+              : notification.type === "ticket_message" && notification.relatedThreadId ? "Tap to open conversation" : "Tap to mark as read"}
+          </Text>
         ) : null}
       </View>
     </Pressable>

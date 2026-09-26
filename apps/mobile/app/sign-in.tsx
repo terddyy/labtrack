@@ -9,11 +9,16 @@ import { useCurrentProfile } from "@/lib/auth";
 import { formatApiError, hasSupabaseConfig, signInWithPassword, signUpWithPassword } from "@/lib/labtrack-api";
 
 type AuthMode = "sign-in" | "sign-up";
+type BorrowerRole = "faculty" | "student";
 type AuthMessage = { tone: "danger" | "success"; text: string };
 
 const authModes: Array<{ label: string; value: AuthMode }> = [
   { label: "Sign in", value: "sign-in" },
   { label: "Register", value: "sign-up" }
+];
+const borrowerRoles: Array<{ label: string; value: BorrowerRole }> = [
+  { label: "Faculty", value: "faculty" },
+  { label: "Student", value: "student" }
 ];
 
 const isQuickLoginEnabled = process.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN !== "false";
@@ -46,6 +51,7 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
+  const [borrowerRole, setBorrowerRole] = useState<BorrowerRole>("faculty");
   const [message, setMessage] = useState<AuthMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingQuickRole, setPendingQuickRole] = useState<string | null>(null);
@@ -59,7 +65,7 @@ export default function SignInScreen() {
 
     try {
       if (isSignUp) {
-        const result = await signUpWithPassword(email.trim(), password, fullName);
+        const result = await signUpWithPassword(email.trim(), password, fullName, borrowerRole);
 
         if (!result.signedIn) {
           setMessage({ tone: "success", text: "Registration submitted. Check your email to confirm the account before signing in." });
@@ -101,7 +107,7 @@ export default function SignInScreen() {
     <ScreenScrollView
       header={(
         <ConsoleHeader
-          caption="Scan equipment, reserve rooms, and report defects from your pocket."
+          caption="Scan equipment, borrow rooms, and report defects from your pocket."
           eyebrow="Labtrack · Mobile access"
           right={(
             <View style={styles.brandMark}>
@@ -116,7 +122,7 @@ export default function SignInScreen() {
         >
           <View style={styles.highlights}>
             <Highlight icon="scan" label="QR scan" />
-            <Highlight icon="borrow" label="Reserve" />
+            <Highlight icon="borrow" label="Borrow" />
             <Highlight icon="wrench" label="Report" />
           </View>
         </ConsoleHeader>
@@ -140,14 +146,20 @@ export default function SignInScreen() {
           value={authMode}
         />
         {isSignUp ? (
-          <Field
-            autoCapitalize="words"
-            label="Full name"
-            onChangeText={setFullName}
-            placeholder="Juan Dela Cruz"
-            textContentType="name"
-            value={fullName}
-          />
+          <>
+            <Field
+              autoCapitalize="words"
+              label="Full name"
+              onChangeText={setFullName}
+              placeholder="Juan Dela Cruz"
+              textContentType="name"
+              value={fullName}
+            />
+            <View style={styles.roleField}>
+              <Text style={styles.roleLabel}>Account type</Text>
+              <SegmentedControl onChange={setBorrowerRole} options={borrowerRoles} value={borrowerRole} />
+            </View>
+          </>
         ) : null}
         <Field
           autoCapitalize="none"
@@ -296,6 +308,14 @@ const styles = StyleSheet.create({
   quickPending: {
     color: colors.primary,
     fontSize: 12.5,
+    fontWeight: "600"
+  },
+  roleField: {
+    gap: 7
+  },
+  roleLabel: {
+    color: colors.muted,
+    fontSize: 13,
     fontWeight: "600"
   }
 });

@@ -1,6 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { formatApiError, listTicketMessages, sendTicketMessage, type MobileTicketMessage } from "@/lib/labtrack-api";
+import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
 
 export function useTicketThread(threadId?: string) {
   const [messages, setMessages] = useState<MobileTicketMessage[]>([]);
@@ -17,7 +18,7 @@ export function useTicketThread(threadId?: string) {
 
     if (!threadId) {
       setMessages([]);
-      setError("Ticket thread is missing or invalid.");
+      setError("Message conversation is missing or invalid.");
       setHasLoaded(true);
       setIsLoading(false);
       return;
@@ -53,6 +54,9 @@ export function useTicketThread(threadId?: string) {
       };
     }, [refresh])
   );
+
+  const realtimeTargets = threadId ? [{ table: "ticket_messages", filter: `thread_id=eq.${threadId}` }] : [];
+  useRealtimeRefresh(`mobile-message-thread:${threadId ?? "missing"}`, realtimeTargets, refresh, Boolean(threadId));
 
   const send = useCallback(async () => {
     if (!threadId) {

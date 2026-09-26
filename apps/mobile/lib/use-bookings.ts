@@ -1,6 +1,9 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { cancelBooking, formatApiError, listMyBookings, type MobileBooking } from "@/lib/labtrack-api";
+import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
+
+const realtimeTargets = [{ table: "bookings" }] as const;
 
 export function useBookings() {
   const [bookings, setBookings] = useState<MobileBooking[]>([]);
@@ -43,6 +46,8 @@ export function useBookings() {
       };
     }, [refresh])
   );
+
+  useRealtimeRefresh("mobile-borrowings", realtimeTargets, refresh);
 
   const cancel = useCallback(async (id: string) => {
     setError(null);

@@ -23,8 +23,12 @@ const assetImageReadModelsMigration = readFileSync(assetImageReadModelsMigration
 const borrowerQrPickupMigration = readFileSync(borrowerQrPickupMigrationPath, "utf8");
 const resetMyActivityDataMigration = readFileSync(resetMyActivityDataMigrationPath, "utf8");
 const generalTicketMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260916090100_general_ticket_threads.sql", import.meta.url));
+const reportsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609250001_reports_by_type.sql", import.meta.url));
+const feedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609270001_feedback_workflows.sql", import.meta.url));
 const generalTicketMigration = readFileSync(generalTicketMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}`;
+const reportsMigration = readFileSync(reportsMigrationPath, "utf8");
+const feedbackMigration = readFileSync(feedbackMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -147,6 +151,23 @@ test("borrowing availability migration exposes room-aware read models", () => {
   assert.match(borrowingMigration, /p_resource_type public\.borrowing_resource_type/i);
   assert.match(borrowingMigration, /Borrowing duration must be between 90 and 180 minutes/i);
   assert.match(borrowingMigration, /status = 'pending'::public\.booking_status then 'tentative'/i);
+});
+
+test("report data honors the selected report type", () => {
+  assert.match(reportsMigration, /p_report_type = 'asset_management_summary' or a\.report_type = p_report_type/i);
+  assert.match(reportsMigration, /select 'inventory', 'total_assets'/i);
+  assert.match(reportsMigration, /select 'defect_reports', 'reported_defects'/i);
+});
+
+test("feedback workflow migration enforces rooms, unavailable assets, message links, and overdue reminders", () => {
+  assert.match(feedbackMigration, /location_type = 'room'/i);
+  assert.match(feedbackMigration, /a\.status <> 'available'::public\.asset_status then 'unavailable'/i);
+  assert.match(feedbackMigration, /related_thread_id uuid references public\.ticket_threads/i);
+  assert.match(feedbackMigration, /create function public\.send_borrowing_return_reminder/i);
+  assert.match(feedbackMigration, /create or replace function public\.reset_my_activity_data/i);
+  assert.match(feedbackMigration, /delete from public\.ticket_threads[\s\S]*requester_id = v_actor_id/i);
+  assert.match(feedbackMigration, /labtrack-overdue-borrowing-reminders/i);
+  assert.match(feedbackMigration, /requested_role = lower|requested_role text/i);
 });
 
 test("borrower QR pickup migration enforces first reservation priority and pickup grace", () => {

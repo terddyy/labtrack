@@ -15,12 +15,14 @@ import {
 import { getSupabaseServerClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
 import type {
   AdminAccessState,
+  AdminNotificationRow,
   AssetFormState,
   AssetView,
   ActivityLogFilters,
   ActivityLogRow,
   BorrowingMonitorFilters,
   BorrowingMonitorRow,
+  BookingRow,
   CategoryRow,
   DashboardData,
   DefectRow,
@@ -43,6 +45,7 @@ type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof getSupabaseSer
 type RegistrationSettingsRow = {
   restrict_signup_to_allowed_domains: boolean;
 };
+type DashboardBookingRow = Omit<BookingRow, "returned_at" | "returned_by">;
 type SupabaseReadResult<T> = {
   data: T | null;
   error: { message: string } | null;
@@ -52,7 +55,7 @@ type SupabaseCountResult = {
   error: { message: string } | null;
 };
 type EmbeddedOne<T> = T | T[] | null;
-type TicketThreadQueryRow = Omit<TicketThreadRow, "subject_title"> & {
+type TicketThreadQueryRow = Omit<TicketThreadRow, "subject_title" | "unread_count"> & {
   subject: string | null;
   booking: EmbeddedOne<{ instructor_id: string; purpose: string }>;
   defect_report: EmbeddedOne<{ instructor_id: string; title: string }>;
@@ -85,6 +88,7 @@ const emptyDashboardData: DashboardData = {
     allowedDomains: []
   },
   ticketThreads: [],
+  unreadMessageCount: 0,
   counters: getDashboardCounters({ assets: [], bookings: [], defects: [] })
 };
 
@@ -167,6 +171,7 @@ export async function getAdminAccess(): Promise<AdminAccessState> {
 
 export async function getAdminDashboardData(): Promise<DashboardData> {
   const supabase = await requireAuthorizedAdminClient();
+  const currentProfile = await requireAuthorizedAdminProfile();
   const [
     categories,
     locations,
@@ -180,16 +185,18 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     assetCount,
     activeQrCount,
     pendingBookingsCount,
-    openDefectsCount
+    openDefectsCount,
+    bookingEvents,
+    unreadMessageNotifications
   ] = await Promise.all([
     readDashboardQuery<CategoryRow[]>("asset_categories.list", supabase.from("asset_categories").select("id,name").order("name"), []),
-    readDashboardQuery<LocationRow[]>("locations.list", supabase.from("locations").select("id,name").order("name"), []),
+    readDashboardQuery<LocationRow[]>("locations.list", supabase.from("locations").select("id,name,location_type,is_reservable").order("name"), []),
     readDashboardValue<AdminAssetRowDto[]>("rpc.listAdminAssets", () => callRpc(supabase, "listAdminAssets", { p_limit: 500, p_offset: 0 }), []),
-    readDashboardQuery<DashboardData["bookings"]>(
+    readDashboardQuery<DashboardBookingRow[]>(
       "bookings.recent",
       supabase
         .from("bookings")
-        .select("id,resource_type,asset_id,location_id,instructor_id,purpose,status,requested_start_at,requested_end_at,decision_notes")
+        .select("id,resource_type,asset_id,location_id,instructor_id,purpose,status,requested_start_at,requested_end_at,decision_notes,decided_by,overdue_reminder_sent_at")
         .order("created_at", { ascending: false })
         .limit(RECENT_WORKFLOW_LIMIT),
       []
@@ -198,7 +205,7 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
       "defect_reports.recent",
       supabase
         .from("defect_reports")
-        .select("id,asset_id,instructor_id,title,description,status,resolution_notes,created_at")
+        .select("id,asset_id,instructor_id,title,description,status,resolution_notes,created_at,triaged_by,triaged_at")
         .order("created_at", { ascending: false })
         .limit(RECENT_WORKFLOW_LIMIT),
       []
@@ -240,7 +247,17 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     readDashboardCount("assets.count", supabase.from("assets").select("id", { count: "exact", head: true })),
     readDashboardCount("asset_qr_codes.active_count", supabase.from("asset_qr_codes").select("id", { count: "exact", head: true }).eq("is_active", true)),
     readDashboardCount("bookings.pending_count", supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending")),
-    readDashboardCount("defect_reports.open_count", supabase.from("defect_reports").select("id", { count: "exact", head: true }).not("status", "in", "(resolved,rejected)"))
+    readDashboardCount("defect_reports.open_count", supabase.from("defect_reports").select("id", { count: "exact", head: true }).not("status", "in", "(resolved,rejected)")),
+    readDashboardQuery<Array<{ booking_id: string; actor_id: string | null; created_at: string }>>(
+      "booking_events.returned",
+      supabase.from("booking_events").select("booking_id,actor_id,created_at").eq("to_status", "returned").order("created_at", { ascending: false }).limit(RECENT_WORKFLOW_LIMIT),
+      []
+    ),
+    readDashboardQuery<AdminNotificationRow[]>(
+      "notifications.unread_messages",
+      supabase.from("notifications").select("id,type,related_thread_id,read_at").eq("recipient_id", currentProfile.id).eq("type", "ticket_message").is("read_at", null),
+      []
+    )
   ]);
 
   const assets = await readDashboardValue<AssetView[]>(
@@ -248,20 +265,39 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     () => Promise.all(assetRows.map((row) => toAssetView(row, supabase))),
     []
   );
-  const fallbackCounters = getDashboardCounters({ assets, bookings, defects });
+  const returnedByBooking = new Map(bookingEvents.map((event) => [event.booking_id, event]));
+  const enrichedBookings = bookings.map((booking) => {
+    const returnedEvent = returnedByBooking.get(booking.id);
+    return {
+      ...booking,
+      returned_at: returnedEvent?.created_at ?? null,
+      returned_by: returnedEvent?.actor_id ?? null
+    };
+  });
+  const unreadByThread = unreadMessageNotifications.reduce((counts, notification) => {
+    if (notification.related_thread_id) {
+      counts.set(notification.related_thread_id, (counts.get(notification.related_thread_id) ?? 0) + 1);
+    }
+    return counts;
+  }, new Map<string, number>());
+  const fallbackCounters = getDashboardCounters({ assets, bookings: enrichedBookings, defects });
 
   return {
     categories,
     locations,
     assets,
-    bookings,
+    bookings: enrichedBookings,
     defects,
     profiles,
     registrationPolicy: toRegistrationPolicy(
       registrationSettings,
       emailDomains
     ),
-    ticketThreads: ticketThreads.map(toTicketThreadRow),
+    ticketThreads: ticketThreads.map((thread) => ({
+      ...toTicketThreadRow(thread),
+      unread_count: unreadByThread.get(thread.id) ?? 0
+    })),
+    unreadMessageCount: unreadMessageNotifications.length,
     counters: {
       ...fallbackCounters,
       registeredAssets: assetCount ?? fallbackCounters.registeredAssets,
@@ -475,6 +511,29 @@ export async function sendTicketMessage(threadId: string, body: string) {
   });
 }
 
+export async function markThreadMessagesRead(threadId: string) {
+  const supabase = await requireAuthorizedAdminClient();
+  const currentProfile = await requireAuthorizedAdminProfile();
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("id")
+    .eq("recipient_id", currentProfile.id)
+    .eq("type", "ticket_message")
+    .eq("related_thread_id", threadId)
+    .is("read_at", null);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await Promise.all((data ?? []).map((notification) => callRpc(supabase, "markNotificationRead", { p_notification_id: notification.id })));
+}
+
+export async function sendBorrowingReturnReminder(bookingId: string) {
+  const supabase = await requireAuthorizedAdminClient();
+  await callRpc(supabase, "sendBorrowingReturnReminder", { p_borrowing_id: bookingId });
+}
+
 export async function createGeneralTicket(requesterId: string, subject: string, body: string) {
   const supabase = await requireAuthorizedAdminClient();
   const thread = await callRpc(supabase, "createGeneralTicket", {
@@ -613,7 +672,22 @@ export async function createLocation(name: string) {
     throw new Error("Location name is required.");
   }
 
-  const { error } = await supabase.from("locations").insert({ name: trimmedName });
+  const { error } = await supabase.from("locations").insert({ name: trimmedName, location_type: "location", is_reservable: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function updateRoomSettings(locationId: string, isRoom: boolean, isReservable: boolean) {
+  const supabase = await requireAuthorizedAdminClient();
+  const { error } = await supabase
+    .from("locations")
+    .update({
+      location_type: isRoom ? "room" : "location",
+      is_reservable: isRoom && isReservable
+    })
+    .eq("id", locationId);
 
   if (error) {
     throw new Error(error.message);
@@ -878,7 +952,7 @@ function toFriendlyWriteError(error: { message: string; code?: string }, entity:
   return error.message;
 }
 
-function toTicketThreadRow(row: TicketThreadQueryRow): TicketThreadRow {
+function toTicketThreadRow(row: TicketThreadQueryRow): Omit<TicketThreadRow, "unread_count"> {
   const booking = Array.isArray(row.booking) ? row.booking[0] : row.booking;
   const defect = Array.isArray(row.defect_report) ? row.defect_report[0] : row.defect_report;
 

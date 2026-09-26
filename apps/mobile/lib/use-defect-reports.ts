@@ -1,6 +1,9 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { formatApiError, listMyDefectReports, type MobileDefectReport } from "@/lib/labtrack-api";
+import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
+
+const realtimeTargets = [{ table: "defect_reports" }] as const;
 
 export function useDefectReports() {
   const [reports, setReports] = useState<MobileDefectReport[]>([]);
@@ -42,6 +45,8 @@ export function useDefectReports() {
       };
     }, [refresh])
   );
+
+  useRealtimeRefresh("mobile-defects", realtimeTargets, refresh);
 
   return { error, hasLoaded, isLoading, refresh, reports };
 }

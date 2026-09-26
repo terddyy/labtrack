@@ -28,6 +28,7 @@ import { DefectAdminPanel } from "@/components/defects/defect-admin-panel";
 import { TicketAdminPanel } from "@/components/tickets/ticket-admin-panel";
 import { AccessManagementPanel } from "@/components/access/access-management-panel";
 import { CatalogPanel } from "@/components/catalog/catalog-panel";
+import { RoomManagementPanel } from "@/components/rooms/room-management-panel";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toDateTimeLocalInput, toIsoFromDateTimeInput } from "@/lib/admin/format";
@@ -51,14 +52,17 @@ import {
   getTicketMessagesAction,
   getUsageAnalyticsAction,
   listActivityLogsAction,
+  markThreadMessagesReadAction,
   renameCatalogItemAction,
   returnBookingAction,
+  sendBorrowingReturnReminderAction,
   sendTicketMessageAction,
   triageDefectReportAction,
   updateAllowedEmailDomainAction,
   updateAssetAction,
   updateProfileAccessAction,
-  updateRegistrationPolicyAction
+  updateRegistrationPolicyAction,
+  updateRoomSettingsAction
 } from "@/lib/admin/actions";
 import {
   ASSET_LIFECYCLE_REPORT,
@@ -106,6 +110,7 @@ const emptyDashboardData: DashboardData = {
     allowedDomains: []
   },
   ticketThreads: [],
+  unreadMessageCount: 0,
   counters: getDashboardCounters({ assets: [], bookings: [], defects: [] })
 };
 
@@ -113,8 +118,8 @@ type ReportFilterState = { from: string; to: string; locationId: string; assetId
 
 const sectionCopy: Record<AdminSection, { title: string; description: string }> = {
   dashboard: {
-    title: "Hardware asset command center",
-    description: "Manage QR-tagged equipment, faculty and student borrowing, defect reports, and ticket communication."
+    title: "Dashboard",
+    description: "Manage QR-tagged equipment, faculty and student borrowing, defect reports, and messages."
   },
   assets: {
     title: "Assets & QR",
@@ -133,8 +138,12 @@ const sectionCopy: Record<AdminSection, { title: string; description: string }> 
     description: "Review reports and update asset repair status."
   },
   tickets: {
-    title: "Tickets",
-    description: "Respond to borrowing and defect conversation threads."
+    title: "Messages",
+    description: "Respond to faculty and student borrowing, defect, and general conversations."
+  },
+  rooms: {
+    title: "Room",
+    description: "Choose which locations are rooms and whether each room can currently be borrowed."
   },
   reports: {
     title: "Reports",
@@ -280,7 +289,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     const result = await getTicketMessagesAction(threadId);
 
     if (result.error || !result.data) {
-      setDashboardMessage({ text: result.error ?? "Unable to load ticket messages.", tone: "warning" });
+      setDashboardMessage({ text: result.error ?? "Unable to load message history.", tone: "warning" });
       return;
     }
 
@@ -379,6 +388,27 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   useEffect(() => {
     void loadThreadMessages(selectedThreadId);
   }, [loadThreadMessages, selectedThreadId]);
+
+  useEffect(() => {
+    if (access.status !== "authorized" || !supabase) {
+      return;
+    }
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => void loadDashboardData(), 200);
+    };
+    const channel = ["bookings", "defect_reports", "ticket_threads", "ticket_messages", "notifications", "assets", "locations"].reduce(
+      (nextChannel, table) => nextChannel.on("postgres_changes", { event: "*", schema: "public", table }, refresh),
+      supabase.channel(`admin-dashboard:${access.profile.id}`)
+    ).subscribe();
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [access, loadDashboardData, supabase]);
 
   useEffect(() => {
     if (access.status === "authorized" && activeSection === "monitor") {
@@ -635,6 +665,10 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     await runWorkflowMutation(() => cancelBookingAction(booking.id), "Borrowing cancelled.");
   }
 
+  async function handleBorrowingReminder(booking: { id: string }) {
+    await runWorkflowMutation(() => sendBorrowingReturnReminderAction(booking.id), "Return reminder sent.");
+  }
+
   async function handleDefectTriage(report: DefectRow, status: "under_review" | "sent_for_repair" | "resolved" | "rejected") {
     await runWorkflowMutation(
       () => triageDefectReportAction(report.id, status, formatLabel(status)),
@@ -806,6 +840,27 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     setIsMutatingWorkflow(false);
   }
 
+  async function handleRoomSettings(location: DashboardData["locations"][number], isRoom: boolean, isReservable: boolean) {
+    setIsMutatingWorkflow(true);
+    const { error } = await updateRoomSettingsAction(location.id, isRoom, isReservable);
+
+    if (error) {
+      setDashboardMessage({ text: error, tone: "warning" });
+      setIsMutatingWorkflow(false);
+      return;
+    }
+
+    await loadDashboardData();
+    setDashboardMessage({ text: isRoom ? `Room ${isReservable ? "made available" : "made unavailable"}.` : "Location removed from room borrowing.", tone: "success" });
+    setIsMutatingWorkflow(false);
+  }
+
+  async function handleSelectThread(threadId: string) {
+    setSelectedThreadId(threadId);
+    const { error } = await markThreadMessagesReadAction(threadId);
+    if (!error) await loadDashboardData();
+  }
+
   if (access.status !== "authorized") {
     return (
       <AccessShell
@@ -827,7 +882,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     <AppShell
       activeSection={activeSection}
       isLoadingData={isLoadingData}
-      navBadges={{ bookings: counters.pendingBookings, defects: counters.openDefects }}
+      navBadges={{ bookings: counters.pendingBookings, defects: counters.openDefects, tickets: data.unreadMessageCount }}
       onGenerateQr={() => void handleGenerateQr(selectedAsset)}
       onSectionChange={handleSectionChange}
       onSignOut={() => void handleSignOut()}
@@ -960,6 +1015,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           onCancel={(booking) => void handleBookingCancel(booking)}
           onCheckout={(booking) => void handleBookingCheckout(booking)}
           onReject={(booking) => void handleBookingDecision(booking, "rejected")}
+          onRemind={(booking) => void handleBorrowingReminder(booking)}
           onReturn={(booking) => void handleBookingReturn(booking)}
           profiles={data.profiles}
         />
@@ -994,6 +1050,10 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
         />
       ) : null}
 
+      {activeSection === "rooms" ? (
+        <RoomManagementPanel disabled={isMutatingWorkflow} locations={data.locations} onUpdate={(location, isRoom, isReservable) => void handleRoomSettings(location, isRoom, isReservable)} />
+      ) : null}
+
       {activeSection === "tickets" ? (
         <TicketAdminPanel
           currentProfileId={access.profile.id}
@@ -1003,7 +1063,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           onBodyChange={setTicketBody}
           onCreateTicket={handleCreateGeneralTicket}
           onRefresh={() => void loadThreadMessages(selectedThreadId)}
-          onSelectThread={(threadId) => setSelectedThreadId(threadId)}
+          onSelectThread={(threadId) => void handleSelectThread(threadId)}
           onSend={() => void handleSendTicketMessage()}
           selectedThreadId={selectedThreadId}
           ticketBody={ticketBody}

@@ -52,6 +52,8 @@ export type CategoryRow = {
 export type LocationRow = {
   id: string;
   name: string;
+  location_type: "location" | "room";
+  is_reservable: boolean;
 };
 
 export type ActiveQrRow = {
@@ -72,6 +74,10 @@ export type BookingRow = {
   requested_start_at: string;
   requested_end_at: string;
   decision_notes: string | null;
+  decided_by: string | null;
+  returned_at: string | null;
+  returned_by: string | null;
+  overdue_reminder_sent_at: string | null;
 };
 
 export type DefectRow = {
@@ -83,6 +89,8 @@ export type DefectRow = {
   status: DefectStatus;
   resolution_notes: string | null;
   created_at: string;
+  triaged_by: string | null;
+  triaged_at: string | null;
 };
 
 export type TicketThreadRow = {
@@ -93,6 +101,7 @@ export type TicketThreadRow = {
   created_at: string;
   requester_id: string | null;
   subject_title: string | null;
+  unread_count: number;
 };
 
 export type AssetLifecycleEvent = {
@@ -111,6 +120,13 @@ export type TicketMessageRow = {
   sender_id: string;
   body: string;
   created_at: string;
+};
+
+export type AdminNotificationRow = {
+  id: string;
+  type: "booking_update" | "defect_update" | "ticket_message" | "system";
+  related_thread_id: string | null;
+  read_at: string | null;
 };
 
 export type AssetView = {
@@ -138,6 +154,7 @@ export type DashboardData = {
   profiles: ProfileRow[];
   registrationPolicy: RegistrationPolicy;
   ticketThreads: TicketThreadRow[];
+  unreadMessageCount: number;
   counters: ReturnType<typeof getDashboardCounters>;
 };
 
