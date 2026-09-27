@@ -23,8 +23,10 @@ const assetImageReadModelsMigration = readFileSync(assetImageReadModelsMigration
 const borrowerQrPickupMigration = readFileSync(borrowerQrPickupMigrationPath, "utf8");
 const resetMyActivityDataMigration = readFileSync(resetMyActivityDataMigrationPath, "utf8");
 const generalTicketMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260916090100_general_ticket_threads.sql", import.meta.url));
+const reportsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609250001_reports_by_type.sql", import.meta.url));
 const generalTicketMigration = readFileSync(generalTicketMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}`;
+const reportsMigration = readFileSync(reportsMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -147,6 +149,14 @@ test("borrowing availability migration exposes room-aware read models", () => {
   assert.match(borrowingMigration, /p_resource_type public\.borrowing_resource_type/i);
   assert.match(borrowingMigration, /Borrowing duration must be between 90 and 180 minutes/i);
   assert.match(borrowingMigration, /status = 'pending'::public\.booking_status then 'tentative'/i);
+});
+
+test("report data honors the selected report type", () => {
+  assert.match(reportsMigration, /'inventory', 'total_assets', 'Total equipment'/i);
+  assert.match(reportsMigration, /'inventory', 'available_assets', 'Available equipment'/i);
+  assert.match(reportsMigration, /'defect_reports', 'reported_defects', 'Reported issues'/i);
+  assert.match(reportsMigration, /'defect_reports', 'unresolved_defects', 'Issues awaiting resolution'/i);
+  assert.match(reportsMigration, /p_report_type = 'asset_management_summary' or a\.report_type = p_report_type/i);
 });
 
 test("borrower QR pickup migration enforces first reservation priority and pickup grace", () => {

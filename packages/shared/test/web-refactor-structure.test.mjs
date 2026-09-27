@@ -83,3 +83,13 @@ test("web package exposes a typecheck script for the release gate", () => {
   assert.equal(typeof packageJson.scripts.typecheck, "string");
   assert.match(packageJson.scripts.typecheck, /tsc/);
 });
+
+test("reports render analytics as a human-readable table instead of raw JSON", () => {
+  const source = readFileSync(path.join(webRoot, "components", "reports", "report-payload.tsx"), "utf8");
+
+  assert.match(source, />Measure</);
+  assert.match(source, />Result</);
+  assert.match(source, /<AnalyticsTable rows=\{payload\}/);
+  assert.doesNotMatch(source, /<pre/);
+  assert.doesNotMatch(source, /JSON\.stringify|formatReportPayload/);
+});
