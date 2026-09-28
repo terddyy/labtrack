@@ -101,3 +101,13 @@ test("report filters avoid the sidebar-constrained desktop overflow", () => {
   assert.match(reportsSource, /2xl:grid-cols-\[minmax\(0,1\.4fr\)_repeat\(4,minmax\(0,1fr\)\)_auto\]/);
   assert.match(reportsSource, /className="flex min-w-0 flex-col gap-1\.5"/);
 });
+
+test("reports render analytics as a human-readable table instead of raw JSON", () => {
+  const source = readFileSync(path.join(webRoot, "components", "reports", "report-payload.tsx"), "utf8");
+
+  assert.match(source, />Measure</);
+  assert.match(source, />Result</);
+  assert.match(source, /<AnalyticsTable rows=\{payload\}/);
+  assert.doesNotMatch(source, /<pre/);
+  assert.doesNotMatch(source, /JSON\.stringify|formatReportPayload/);
+});

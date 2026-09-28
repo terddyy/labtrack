@@ -159,6 +159,8 @@ test("report data honors the selected report type", () => {
   assert.match(reportsMigration, /p_report_type = 'asset_management_summary' or a\.report_type = p_report_type/i);
   assert.match(reportsMigration, /select 'inventory', 'total_assets'/i);
   assert.match(reportsMigration, /select 'defect_reports', 'reported_defects'/i);
+  assert.match(reportsMigration, /'inventory', 'available_assets', 'Available equipment'/i);
+  assert.match(reportsMigration, /'defect_reports', 'unresolved_defects', 'Issues awaiting resolution'/i);
 });
 
 test("feedback workflow migration enforces rooms, unavailable assets, message links, and overdue reminders", () => {
