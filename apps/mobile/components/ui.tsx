@@ -422,7 +422,7 @@ export function SegmentedControl<T extends string>({
   counts?: Partial<Record<T, number>>;
   onChange: (value: T) => void;
   options: Array<{ label: string; value: T }>;
-  value: T;
+  value: T | null;
 }) {
   return (
     <View accessibilityRole="tablist" style={styles.segmentTrack}>

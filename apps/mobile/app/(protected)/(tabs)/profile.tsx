@@ -7,7 +7,8 @@ import { AppIcon, type AppIconName } from "@/components/icons";
 import { Button, Card, ConsoleHeader, IconTile, ListRow, Notice, ScreenScrollView, SectionHeader, getInitials } from "@/components/ui";
 import { colors, fonts, typography } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
-import { formatApiError, resetMyActivityData } from "@/lib/labtrack-api";
+import { formatApiError } from "@/lib/labtrack-api";
+import { clearLocalAppPreferences } from "@/lib/use-onboarding-flags";
 
 const shortcuts: Array<{ caption: string; icon: AppIconName; label: string; route: "/borrow" | "/scan" | "/ticket" | "/reports" }> = [
   { caption: "Borrowings and history", icon: "borrow", label: "Borrowing", route: "/borrow" },
@@ -31,8 +32,8 @@ export default function ProfileScreen() {
 
   function confirmReset() {
     Alert.alert(
-      "Reset app data?",
-      "This clears your borrowings, defect reports, messages, and notifications. Your account stays signed in.",
+      "Reset this device?",
+      "This clears saved tips and your sign-in session on this device. Borrowings, defect reports, messages, and notifications stay in LABTRACK.",
       [
         { style: "cancel", text: "Cancel" },
         {
@@ -51,11 +52,8 @@ export default function ProfileScreen() {
     setResetMessage(null);
 
     try {
-      const result = await resetMyActivityData();
-      setResetMessage({
-        tone: "success",
-        text: `Cleared ${result.bookings_deleted} borrowings, ${result.defect_reports_deleted} defect reports, ${result.notifications_deleted} notifications.`
-      });
+      await clearLocalAppPreferences();
+      await auth.signOut();
     } catch (error) {
       setResetMessage({ tone: "danger", text: formatApiError(error) });
     } finally {
@@ -106,14 +104,14 @@ export default function ProfileScreen() {
       <SectionHeader title="Data" />
       <Card style={styles.dangerCard}>
         <View style={styles.dangerCopy}>
-          <Text style={styles.dangerTitle}>Reset app data</Text>
+          <Text style={styles.dangerTitle}>Reset this device</Text>
           <Text style={styles.dangerCaption}>
-            Clear your borrowings, defect reports, messages, and notifications. Your account stays signed in.
+            Clear saved tips and sign out on this device. Your LABTRACK records stay unchanged.
           </Text>
         </View>
         {resetMessage ? <Notice tone={resetMessage.tone}>{resetMessage.text}</Notice> : null}
         <Button disabled={isResetting} icon="trash" loading={isResetting} onPress={confirmReset} variant="danger">
-          Reset my data
+          Reset this device
         </Button>
       </Card>
 

@@ -39,17 +39,17 @@ Current production release target: `0.1.1` with Android `versionCode` `2`.
 - Production uses the `production` EAS profile.
 - The production profile pins `environment: "production"` so the internal APK reads EAS production environment variables.
 - Production produces an APK with `android.buildType: "apk"` and `distribution: "internal"`.
-- Quick-login is disabled for production builds by default with `EXPO_PUBLIC_ENABLE_QUICK_LOGIN=false`.
-- The build helper syncs only the required public Supabase variables for production unless quick-login is explicitly enabled.
-- Quick-login password variables are synced to EAS as `sensitive` values for non-production builds.
+- Quick-login is enabled for production builds by default with `EXPO_PUBLIC_ENABLE_QUICK_LOGIN=true`.
+- The build helper syncs the public Supabase variables plus quick-login credentials for every profile, including production.
+- Quick-login password variables are synced to EAS as `sensitive` values.
 
-To intentionally build production with quick-login enabled, set `EXPO_PUBLIC_ENABLE_QUICK_LOGIN=true`, pass the override directly to the mobile helper, and use non-demo quick-login credentials:
+To build production with quick-login disabled instead, set `EXPO_PUBLIC_ENABLE_QUICK_LOGIN=false` before running the helper:
 
 ```powershell
-node apps/mobile/scripts/build-android-apk.mjs --profile production --allow-production-quick-login
+$env:EXPO_PUBLIC_ENABLE_QUICK_LOGIN="false"; node apps/mobile/scripts/build-android-apk.mjs --profile production
 ```
 
-When quick-login is disabled for production, the build helper also deletes stale `EXPO_PUBLIC_QUICK_LOGIN_*` values from the EAS production environment before building.
+When quick-login is disabled, the build helper also deletes stale `EXPO_PUBLIC_QUICK_LOGIN_*` values from the EAS production environment before building.
 
 ## Required Environment
 

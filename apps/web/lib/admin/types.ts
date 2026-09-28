@@ -93,6 +93,13 @@ export type DefectRow = {
   triaged_at: string | null;
 };
 
+export type DefectPhotoView = {
+  id: string;
+  defectReportId: string;
+  signedUrl: string;
+  createdAt: string;
+};
+
 export type TicketThreadRow = {
   id: string;
   subject_type: "booking" | "defect_report" | "general";
@@ -151,6 +158,7 @@ export type DashboardData = {
   assets: AssetView[];
   bookings: BookingRow[];
   defects: DefectRow[];
+  defectPhotos: DefectPhotoView[];
   profiles: ProfileRow[];
   registrationPolicy: RegistrationPolicy;
   ticketThreads: TicketThreadRow[];

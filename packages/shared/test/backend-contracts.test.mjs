@@ -25,10 +25,12 @@ const resetMyActivityDataMigration = readFileSync(resetMyActivityDataMigrationPa
 const generalTicketMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260916090100_general_ticket_threads.sql", import.meta.url));
 const reportsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609250001_reports_by_type.sql", import.meta.url));
 const feedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609270001_feedback_workflows.sql", import.meta.url));
+const finalFeedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609280001_safe_local_reset_and_defect_photos.sql", import.meta.url));
 const generalTicketMigration = readFileSync(generalTicketMigrationPath, "utf8");
 const reportsMigration = readFileSync(reportsMigrationPath, "utf8");
 const feedbackMigration = readFileSync(feedbackMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}`;
+const finalFeedbackMigration = readFileSync(finalFeedbackMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}\n${finalFeedbackMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -168,6 +170,15 @@ test("feedback workflow migration enforces rooms, unavailable assets, message li
   assert.match(feedbackMigration, /delete from public\.ticket_threads[\s\S]*requester_id = v_actor_id/i);
   assert.match(feedbackMigration, /labtrack-overdue-borrowing-reminders/i);
   assert.match(feedbackMigration, /requested_role = lower|requested_role text/i);
+});
+
+test("final feedback migration makes reset local-only and hardens defect photos", () => {
+  assert.match(finalFeedbackMigration, /revoke execute on function public\.reset_my_activity_data\(\) from authenticated/i);
+  assert.match(finalFeedbackMigration, /case when requested_role = 'faculty' then 'faculty'.*else 'student'/is);
+  assert.match(finalFeedbackMigration, /at most 3 photos/i);
+  assert.match(finalFeedbackMigration, /5242880/);
+  assert.match(finalFeedbackMigration, /image\/jpeg.*image\/png.*image\/webp/is);
+  assert.match(finalFeedbackMigration, /alter publication supabase_realtime add table public\.defect_photos/i);
 });
 
 test("borrower QR pickup migration enforces first reservation priority and pickup grace", () => {

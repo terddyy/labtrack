@@ -42,10 +42,10 @@ export default function HomeScreen() {
   const defects = useDefectReports();
   const profile = auth.status === "ready" || auth.status === "inactive" ? auth.profile : null;
   const firstName = profile?.fullName.trim().split(/\s+/)[0] ?? "there";
-  const department = profile?.department ?? "Computing Department";
+  const department = profile?.department?.trim() || null;
   const roleLabel = profile ? getRoleDisplayLabel(profile.role) : "Mobile workspace";
   const trackedAssets = summary.totalAssets || summary.availableAssets + summary.checkedOutAssets + summary.repairAssets;
-  const inventoryHealth = trackedAssets ? Math.round((summary.availableAssets / trackedAssets) * 100) : 0;
+  const inventoryHealth = trackedAssets ? Math.round((summary.availableAssets / trackedAssets) * 100) : null;
 
   useEffect(() => {
     if (auth.status === "ready") {
@@ -60,7 +60,7 @@ export default function HomeScreen() {
       header={(
         <ConsoleHeader
           caption={`${roleLabel} · ${formatToday()}`}
-          eyebrow={`Labtrack · ${department}`}
+          eyebrow={department ? `Labtrack · ${department}` : "Labtrack · Mobile"}
           right={(
             <HeaderIconButton
               accessibilityLabel={isReady ? "Open notifications" : "Notifications unavailable until sign in"}
@@ -88,6 +88,10 @@ export default function HomeScreen() {
         ))}
       </View>
 
+      <Text style={styles.metricExplanation}>
+        Total assets counts active equipment registered in LABTRACK. Asset availability shows how much of that equipment is ready to borrow.
+      </Text>
+
       {auth.status === "missing-config" ? (
         <Notice tone="warning">Supabase mobile configuration is missing. Add the mobile environment keys before scanning.</Notice>
       ) : null}
@@ -102,12 +106,14 @@ export default function HomeScreen() {
           <View style={styles.healthCopy}>
             <Text style={styles.cardEyebrow}>ASSET AVAILABILITY</Text>
             <Text style={styles.healthCaption}>
-              Across {summary.labCount || 5} computer laboratories
+              {trackedAssets
+                ? `${summary.availableAssets} of ${trackedAssets} active assets ready across ${summary.labCount || 5} computer laboratories`
+                : "No active assets are registered yet"}
             </Text>
           </View>
           <View style={styles.healthReadout}>
-            <Text style={styles.healthValue}>{inventoryHealth}</Text>
-            <Text style={styles.healthUnit}>% free</Text>
+            <Text style={styles.healthValue}>{inventoryHealth ?? "—"}</Text>
+            {inventoryHealth == null ? null : <Text style={styles.healthUnit}>% free</Text>}
           </View>
         </View>
         <StackedBar
@@ -373,6 +379,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingLeft: 14,
     ...typography.readout
+  },
+  metricExplanation: {
+    color: colors.muted,
+    fontSize: 12.5,
+    lineHeight: 18,
+    paddingHorizontal: 2
   },
   pressed: {
     opacity: 0.88,

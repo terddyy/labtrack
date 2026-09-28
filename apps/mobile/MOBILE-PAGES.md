@@ -9,7 +9,7 @@ Use this document to describe or generate UI mockups for the LABTRACK mobile app
 **Product:** LABTRACK — a university computer-laboratory asset management mobile app  
 **Platform:** React Native / Expo (iOS & Android)  
 **Audience:** Faculty, instructors, and lab custodians at a computing department  
-**Core jobs:** Scan equipment QR codes, borrow lab assets/rooms, report defects, track notifications, and chat with custodians via support tickets
+**Core jobs:** Scan equipment QR codes, borrow lab assets/rooms, report defects, track notifications, and message custodians
 
 ---
 
@@ -33,7 +33,7 @@ Use this document to describe or generate UI mockups for the LABTRACK mobile app
 | Primary | `#007AFF` | System blue — CTAs, active tab, links |
 | Primary Dark | `#0056B3` | Pressed / emphasis blue |
 | Avatar | `#3A3A3C` | Initials avatar fill |
-| Purple | `#AF52DE` | Tickets / messaging tint |
+| Purple | `#AF52DE` | Messages tint |
 | Warning | `#FF9500` | Pending, unread |
 | Danger | `#FF3B30` | Errors, overdue, critical |
 | Success | `#34C759` | Available, approved, resolved |
@@ -62,8 +62,8 @@ Sign In (unauthenticated)
             └── Stack screens (transparent glass headers)
                   ├── Asset Details  (/asset/[payload])
                   ├── Defect Reports (/reports)
-                  ├── Tickets          (/ticket)
-                  └── Ticket Chat      (/ticket/[threadId])
+                  ├── Messages         (/ticket)
+                  └── Conversation     (/ticket/[threadId])
 ```
 
 ### Bottom tab bar
@@ -128,7 +128,7 @@ Operational command center. Shows lab inventory health, quick actions, borrowing
    - Right: Round notification bell button with red dot if unread
 
 2. **Quick action row** (2×2 grid of small white pill buttons)
-   - Scan | Borrow | Report | Tickets
+   - Scan | Borrow | Report | Messages
    - Each has a small green icon + label
 
 3. **Dashboard hero card** (white, large)
@@ -268,14 +268,14 @@ Full-screen camera QR scanner. Scanning a valid LABTRACK asset QR code navigates
 **Header:** None
 
 ### Purpose
-Inbox for borrow decisions, defect updates, and ticket replies.
+Inbox for borrow decisions, defect updates, and message replies.
 
 ### Layout (top to bottom, scrollable list)
 
 1. **Hero card** (soft blue background `#EAF3FF`)
    - Kicker: "NOTIFICATION CENTER" (blue)
    - Title: *"Updates that need attention."*
-   - Caption about borrow, defect, and ticket updates
+   - Caption about borrow, defect, and message updates
    - Row: unread count pill (e.g. **3** unread) + Refresh button
 
 2. **Notification list**
@@ -302,7 +302,7 @@ Inbox for borrow decisions, defect updates, and ticket replies.
 **Header:** None
 
 ### Purpose
-View account info, access support tickets, and sign out.
+View account info, access messages, and sign out.
 
 ### Layout (top to bottom, scrollable)
 
@@ -323,7 +323,7 @@ View account info, access support tickets, and sign out.
 4. **Support card**
    - Title: "Support"
    - Caption about borrowing and defect conversations
-   - **Open support tickets** secondary button
+   - **Open messages** secondary button
 
 5. **Sign out** secondary button (full width, bottom)
 
@@ -423,15 +423,15 @@ Full list of submitted equipment defect / incident reports with status and resol
 ### Visual notes for AI
 - **Incident / issue tracker list**
 - Yellow-orange hero theme signals "alerts / problems"
-- Each card reads like a support ticket summary
+- Each card reads like a message summary
 - Severity icon on the left is a strong visual anchor
 
 ---
 
-## Page 9 — Tickets (Thread List)
+## Page 9 — Messages (Thread List)
 
 **Route:** `/ticket` (stack screen)  
-**Header:** "Tickets" with back button
+**Header:** "Messages" with back button
 
 ### Purpose
 List of support conversation threads linked to borrowing requests or defect reports.
@@ -450,7 +450,7 @@ List of support conversation threads linked to borrowing requests or defect repo
    - Reference ID + created date
    - **Open thread** primary button
 
-3. **Empty state:** "No ticket threads yet"
+3. **Empty state:** "No messages yet"
 
 ### Visual notes for AI
 - **Messaging inbox** but thread-based, not person-based
@@ -459,10 +459,10 @@ List of support conversation threads linked to borrowing requests or defect repo
 
 ---
 
-## Page 10 — Ticket Chat (Thread Detail)
+## Page 10 — Conversation (Thread Detail)
 
 **Route:** `/ticket/[threadId]` (stack screen)  
-**Header:** "Ticket Chat" with back button
+**Header:** "Conversation" with back button
 
 ### Purpose
 Read and send messages in a support thread between the user and lab custodians.
@@ -508,7 +508,7 @@ Read and send messages in a support thread between the user and lab custodians.
 1. Scan QR → **Asset Details**
 2. Tap **Report defect** → enter title + description → submit
 3. Report appears in **Defect Reports** and **Home** recent incidents
-4. Support **Ticket** thread may be created for follow-up
+4. A **Message** conversation may be created for follow-up
 
 ### Flow C — Browse reservation (without scan)
 1. Open **Borrow** tab → browse/filter/search resources (schedule not required yet)
@@ -551,8 +551,8 @@ Mood: Native iOS system aesthetic, airy depth, professional lab tooling. No stoc
 | 6 | Profile | `/profile` | Tab: Profile | Blue glass |
 | 7 | Asset Details | `/asset/[payload]` | Stack | Blue glass |
 | 8 | Defect Reports | `/reports` | Stack | Orange tint |
-| 9 | Tickets | `/ticket` | Stack | Purple tint |
-| 10 | Ticket Chat | `/ticket/[threadId]` | Stack | Purple tint |
+| 9 | Messages | `/ticket` | Stack | Purple tint |
+| 10 | Conversation | `/ticket/[threadId]` | Stack | Purple tint |
 
 ---
 

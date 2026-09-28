@@ -86,7 +86,7 @@ export function ReportsPanel({
   return (
     <div className="flex flex-col gap-4">
       <section className="no-print rounded-xl border bg-card p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_auto] lg:items-end">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))_auto] 2xl:items-end">
           <Field id="report-type" label="Report">
             <Select onValueChange={(value) => onChangeReportType(value as ReportView)} value={reportType}>
               <SelectTrigger className="w-full" id="report-type">
@@ -254,7 +254,7 @@ function ReportMeta({ label, value }: { label: string; value: string }) {
 
 function Field({ children, id, label }: { children: React.ReactNode; id: string; label: string }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <Label className="text-xs text-muted-foreground" htmlFor={id}>
         {label}
       </Label>

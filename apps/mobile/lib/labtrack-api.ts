@@ -1,9 +1,13 @@
 import {
   bookingRequestSchema,
   callRpc,
+  DEFECT_PHOTO_MAX_BYTES,
   defectReportSchema,
+  getDefectPhotoExtension,
   parseQrPayload,
+  resolveDefectPhotoContentType,
   ticketMessageSchema,
+  validateDefectPhotoCandidates,
   type AssetCondition,
   type AssetStatus,
   type AvailabilityState,
@@ -13,6 +17,7 @@ import {
   type BorrowingRowDto,
   type BookingStatus,
   type DefectStatus,
+  type DefectPhotoCandidate,
   type InstructorAssetLookupDto,
   type NotificationType,
   type Profile,
@@ -54,6 +59,13 @@ type DefectRow = {
   description: string;
   status: DefectStatus;
   resolution_notes: string | null;
+  created_at: string;
+};
+
+type DefectPhotoRow = {
+  id: string;
+  defect_report_id: string;
+  storage_path: string;
   created_at: string;
 };
 
@@ -107,6 +119,8 @@ const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 100;
 const ASSET_IMAGE_BUCKET = "asset-images";
 const ASSET_IMAGE_SIGNED_URL_TTL_SECONDS = 60 * 60;
+const DEFECT_PHOTO_BUCKET = "defect-photos";
+const DEFECT_PHOTO_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 export type MobileAsset = {
   id: string;
@@ -205,6 +219,18 @@ export type MobileDefectReport = {
   status: DefectStatus;
   resolutionNotes: string | null;
   createdAt: string;
+  photos: MobileDefectPhoto[];
+};
+
+export type MobileDefectPhoto = {
+  id: string;
+  url: string;
+  createdAt: string;
+};
+
+export type MobileDefectPhotoDraft = DefectPhotoCandidate & {
+  id: string;
+  uri: string;
 };
 
 export type MobileTicketThread = {
@@ -284,14 +310,13 @@ export function createLabtrackMobileApi(client: LabtrackMobileClient) {
     listTicketMessages: (threadId: string, options?: MobileListOptions) => listTicketMessages(threadId, options, client),
     listTicketThreads: (options?: MobileListOptions) => listTicketThreads(options, client),
     markNotificationRead: (id: string) => markNotificationRead(id, client),
-    resetMyActivityData: () => resetMyActivityData(client),
     resolveAssetByPayload: (payload: string) => resolveAssetByPayload(payload, client),
     resolveAssetByQrCode: (code: string) => resolveAssetByQrCode(code, client),
     sendTicketMessage: (threadId: string, body: string) => sendTicketMessage(threadId, body, client),
     signInWithPassword: (email: string, password: string) => signInWithPassword(email, password, client),
-    signUpWithPassword: (email: string, password: string, fullName: string, requestedRole: "faculty" | "student" = "faculty") => signUpWithPassword(email, password, fullName, requestedRole, client),
+    signUpWithPassword: (email: string, password: string, fullName: string, requestedRole: "faculty" | "student") => signUpWithPassword(email, password, fullName, requestedRole, client),
     signOut: () => signOut(client),
-    uploadDefectPhoto: (reportId: string, uri: string) => uploadDefectPhoto(reportId, uri, client),
+    uploadDefectPhoto: (reportId: string, photo: MobileDefectPhotoDraft) => uploadDefectPhoto(reportId, photo, client),
     upsertPushToken: (token: string) => upsertPushToken(token, client)
   };
 }
@@ -368,7 +393,7 @@ export async function signInWithPassword(email: string, password: string, client
   }
 }
 
-export async function signUpWithPassword(email: string, password: string, fullName: string, requestedRole: "faculty" | "student" = "faculty", client = requireClient()) {
+export async function signUpWithPassword(email: string, password: string, fullName: string, requestedRole: "faculty" | "student", client = requireClient()) {
   const trimmedFullName = fullName.trim();
 
   if (!trimmedFullName) {
@@ -580,7 +605,39 @@ export async function listMyDefectReports(options: MobileListOptions = {}, clien
     throw error;
   }
 
-  return ((data ?? []) as DefectRow[]).map(toDefectReport);
+  const reports = (data ?? []) as DefectRow[];
+
+  if (!reports.length) {
+    return [];
+  }
+
+  const reportIds = reports.map((report) => report.id);
+  const { data: photoData, error: photoError } = await client
+    .from("defect_photos")
+    .select("id,defect_report_id,storage_path,created_at")
+    .in("defect_report_id", reportIds)
+    .order("created_at", { ascending: true });
+
+  if (photoError) {
+    throw photoError;
+  }
+
+  const photos = await Promise.all(((photoData ?? []) as DefectPhotoRow[]).map(async (photo) => ({
+    id: photo.id,
+    defectReportId: photo.defect_report_id,
+    url: await createSignedDefectPhotoUrl(photo.storage_path, client),
+    createdAt: photo.created_at
+  })));
+  const photosByReport = photos.reduce((groups, photo) => {
+    if (photo.url) {
+      const group = groups.get(photo.defectReportId) ?? [];
+      group.push({ id: photo.id, url: photo.url, createdAt: photo.createdAt });
+      groups.set(photo.defectReportId, group);
+    }
+    return groups;
+  }, new Map<string, MobileDefectPhoto[]>());
+
+  return reports.map((report) => toDefectReport(report, photosByReport.get(report.id) ?? []));
 }
 
 export async function createDefectReport(input: { assetId: string; title: string; description: string }, client = requireClient()) {
@@ -597,17 +654,32 @@ export async function createDefectReport(input: { assetId: string; title: string
   });
 }
 
-export async function uploadDefectPhoto(reportId: string, uri: string, client = requireClient()) {
+export async function uploadDefectPhoto(reportId: string, photo: MobileDefectPhotoDraft, client = requireClient()) {
   const userId = await getCurrentUserId(client);
 
   if (!userId) {
     throw new Error("Sign in before uploading defect photos.");
   }
 
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  const fileName = `${reportId}/${Date.now()}.jpg`;
-  const { error: uploadError } = await client.storage.from("defect-photos").upload(fileName, blob, { contentType: "image/jpeg" });
+  const candidateError = validateDefectPhotoCandidates([photo]);
+  if (candidateError) {
+    throw new Error(candidateError);
+  }
+
+  const response = await fetch(photo.uri);
+  const fileData = await response.arrayBuffer();
+  const contentType = resolveDefectPhotoContentType({ fileName: photo.fileName, mimeType: photo.mimeType });
+
+  if (!contentType) {
+    throw new Error("Defect photos must be JPEG, PNG, or WebP images.");
+  }
+  if (fileData.byteLength > DEFECT_PHOTO_MAX_BYTES) {
+    throw new Error("Each defect photo must be 5 MB or smaller.");
+  }
+
+  const extension = getDefectPhotoExtension(contentType);
+  const fileName = `${reportId}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`;
+  const { error: uploadError } = await client.storage.from(DEFECT_PHOTO_BUCKET).upload(fileName, fileData, { contentType });
 
   if (uploadError) {
     throw uploadError;
@@ -620,8 +692,11 @@ export async function uploadDefectPhoto(reportId: string, uri: string, client = 
   });
 
   if (error) {
+    await client.storage.from(DEFECT_PHOTO_BUCKET).remove([fileName]);
     throw error;
   }
+
+  return fileName;
 }
 
 export async function listTicketThreads(options: MobileListOptions = {}, client = requireClient()) {
@@ -708,10 +783,6 @@ export async function markNotificationRead(id: string, client = requireClient())
   await callRpc(client, "markNotificationRead", { p_notification_id: id });
 }
 
-export async function resetMyActivityData(client = requireClient()) {
-  return callRpc(client, "resetMyActivityData", {});
-}
-
 export async function upsertPushToken(token: string, client = requireClient()) {
   const userId = await getCurrentUserId(client);
 
@@ -782,6 +853,19 @@ async function createSignedAssetImageUrl(storagePath: string | null, client: Lab
 
   if (error) {
     console.warn("LABTRACK asset image signed URL failed.", { storagePath, message: error.message });
+    return null;
+  }
+
+  return data.signedUrl;
+}
+
+async function createSignedDefectPhotoUrl(storagePath: string, client: LabtrackMobileClient) {
+  const { data, error } = await client.storage
+    .from(DEFECT_PHOTO_BUCKET)
+    .createSignedUrl(storagePath, DEFECT_PHOTO_SIGNED_URL_TTL_SECONDS);
+
+  if (error) {
+    console.warn("LABTRACK defect photo signed URL failed.", { storagePath, message: error.message });
     return null;
   }
 
@@ -898,7 +982,7 @@ function toBooking(row: BookingRow): MobileBooking {
   };
 }
 
-function toDefectReport(row: DefectRow): MobileDefectReport {
+function toDefectReport(row: DefectRow, photos: MobileDefectPhoto[] = []): MobileDefectReport {
   return {
     id: row.id,
     assetId: row.asset_id,
@@ -907,7 +991,8 @@ function toDefectReport(row: DefectRow): MobileDefectReport {
     description: row.description,
     status: row.status,
     resolutionNotes: row.resolution_notes,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    photos
   };
 }
 

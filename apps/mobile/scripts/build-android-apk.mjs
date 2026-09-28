@@ -23,12 +23,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const mobileRoot = path.resolve(__dirname, "..");
 const profile = getArg("--profile") ?? "preview";
 const shouldSyncEasEnv = !process.argv.includes("--no-sync-eas-env");
-const allowProductionQuickLogin = process.argv.includes("--allow-production-quick-login");
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 const easCli = ["--yes", "eas-cli@latest"];
 
 const baseEnvDefaults = {
-  EXPO_PUBLIC_ENABLE_QUICK_LOGIN: profile === "production" ? "false" : "true",
+  EXPO_PUBLIC_ENABLE_QUICK_LOGIN: "true",
 };
 
 const quickLoginEnvDefaults = {
@@ -348,14 +347,8 @@ function download(url, targetPath) {
 async function main() {
   const appConfig = JSON.parse(readFileSync(path.join(mobileRoot, "app.json"), "utf8")).expo;
   const dotenv = readEnvFile(path.join(mobileRoot, ".env"));
-  const profileDefaults = profile === "production"
-    ? baseEnvDefaults
-    : { ...baseEnvDefaults, ...quickLoginEnvDefaults };
+  const profileDefaults = { ...baseEnvDefaults, ...quickLoginEnvDefaults };
   const buildEnv = { ...profileDefaults, ...dotenv, ...process.env };
-
-  if (profile === "production" && !allowProductionQuickLogin) {
-    buildEnv.EXPO_PUBLIC_ENABLE_QUICK_LOGIN = "false";
-  }
 
   const quickLoginEnabled = isEnabled(buildEnv.EXPO_PUBLIC_ENABLE_QUICK_LOGIN);
   const easEnvKeys = quickLoginEnabled

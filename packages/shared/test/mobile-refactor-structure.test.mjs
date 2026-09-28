@@ -95,6 +95,40 @@ test("mobile asset QR screen separates borrow and defect flows behind transactio
   assert.match(assetSource, /selectedQrTransaction === "defect"/);
 });
 
+test("mobile defect reporting supports safe photo selection, preview, and retry", () => {
+  const assetSource = readFileSync(path.join(protectedRoot, "asset", "[payload].tsx"), "utf8");
+  const workflowSource = readFileSync(path.join(mobileRoot, "lib", "use-asset-workflow.ts"), "utf8");
+  const apiSource = readFileSync(path.join(mobileRoot, "lib", "labtrack-api.ts"), "utf8");
+
+  assert.match(assetSource, /expo-image-picker/);
+  assert.match(assetSource, /launchCameraAsync/);
+  assert.match(assetSource, /launchImageLibraryAsync/);
+  assert.match(assetSource, /DEFECT_PHOTO_MAX_COUNT/);
+  assert.match(assetSource, /Retry photo upload/);
+  assert.match(workflowSource, /pendingDefectPhotoReportId/);
+  assert.match(workflowSource, /uploadSelectedDefectPhotos/);
+  assert.match(apiSource, /storage\.from\(DEFECT_PHOTO_BUCKET\)\.remove\(\[fileName\]\)/);
+});
+
+test("mobile reset stays local and registration requires a borrower role", () => {
+  const profileSource = readFileSync(path.join(protectedRoot, "(tabs)", "profile.tsx"), "utf8");
+  const signInSource = readFileSync(path.join(mobileRoot, "app", "sign-in.tsx"), "utf8");
+
+  assert.match(profileSource, /clearLocalAppPreferences/);
+  assert.match(profileSource, /Your LABTRACK records stay unchanged/);
+  assert.doesNotMatch(profileSource, /resetMyActivityData/);
+  assert.match(signInSource, /useState<BorrowerRole \| null>\(null\)/);
+  assert.match(signInSource, /!borrowerRole/);
+});
+
+test("mobile home explains total assets and handles empty availability", () => {
+  const homeSource = readFileSync(path.join(protectedRoot, "(tabs)", "index.tsx"), "utf8");
+
+  assert.match(homeSource, /Total assets counts active equipment registered in LABTRACK/);
+  assert.match(homeSource, /inventoryHealth \?\? "—"/);
+  assert.match(homeSource, /No active assets are registered yet/);
+});
+
 test("mobile source has no leftover debug ingest telemetry", () => {
   const sourceRoots = ["app", "components", "lib", "constants"].map((folder) => path.join(mobileRoot, folder));
   const files = sourceRoots.flatMap((root) => (existsSync(root) ? listFiles(root) : [])).filter((file) => {

@@ -51,13 +51,13 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  const [borrowerRole, setBorrowerRole] = useState<BorrowerRole>("faculty");
+  const [borrowerRole, setBorrowerRole] = useState<BorrowerRole | null>(null);
   const [message, setMessage] = useState<AuthMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingQuickRole, setPendingQuickRole] = useState<string | null>(null);
   const isConfigured = hasSupabaseConfig();
   const isSignUp = authMode === "sign-up";
-  const isManualAuthDisabled = isSubmitting || !isConfigured || !email.trim() || !password || (isSignUp && !fullName.trim());
+  const isManualAuthDisabled = isSubmitting || !isConfigured || !email.trim() || !password || (isSignUp && (!fullName.trim() || !borrowerRole));
 
   async function handleManualAuth() {
     setIsSubmitting(true);
@@ -65,6 +65,11 @@ export default function SignInScreen() {
 
     try {
       if (isSignUp) {
+        if (!borrowerRole) {
+          setMessage({ tone: "danger", text: "Choose Faculty or Student before creating your account." });
+          return;
+        }
+
         const result = await signUpWithPassword(email.trim(), password, fullName, borrowerRole);
 
         if (!result.signedIn) {
@@ -158,6 +163,7 @@ export default function SignInScreen() {
             <View style={styles.roleField}>
               <Text style={styles.roleLabel}>Account type</Text>
               <SegmentedControl onChange={setBorrowerRole} options={borrowerRoles} value={borrowerRole} />
+              {!borrowerRole ? <Text style={styles.roleHint}>Choose the account type that matches your school role.</Text> : null}
             </View>
           </>
         ) : null}
@@ -312,6 +318,11 @@ const styles = StyleSheet.create({
   },
   roleField: {
     gap: 7
+  },
+  roleHint: {
+    color: colors.subtle,
+    fontSize: 12,
+    lineHeight: 17
   },
   roleLabel: {
     color: colors.muted,

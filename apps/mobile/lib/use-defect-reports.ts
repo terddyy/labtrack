@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import { formatApiError, listMyDefectReports, type MobileDefectReport } from "@/lib/labtrack-api";
 import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
 
-const realtimeTargets = [{ table: "defect_reports" }] as const;
+const realtimeTargets = [{ table: "defect_reports" }, { table: "defect_photos" }] as const;
 
 export function useDefectReports() {
   const [reports, setReports] = useState<MobileDefectReport[]>([]);

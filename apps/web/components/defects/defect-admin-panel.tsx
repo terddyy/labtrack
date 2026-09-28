@@ -7,18 +7,20 @@ import { useState } from "react";
 import { EmptyState, Initials, StatusBadge } from "@/components/admin/ui";
 import { FilterTabs, countStatuses } from "@/components/admin/filter-tabs";
 import { Button } from "@/components/ui/button";
-import type { AssetView, DefectRow, ProfileRow } from "@/lib/admin/types";
+import type { AssetView, DefectPhotoView, DefectRow, ProfileRow } from "@/lib/admin/types";
 
 export function DefectAdminPanel({
   assets,
   disabled,
   onTriage,
+  photos,
   profiles,
   reports
 }: {
   assets: AssetView[];
   disabled: boolean;
   onTriage: (report: DefectRow, status: "under_review" | "sent_for_repair" | "resolved" | "rejected") => void;
+  photos: DefectPhotoView[];
   profiles: ProfileRow[];
   reports: DefectRow[];
 }) {
@@ -37,6 +39,7 @@ export function DefectAdminPanel({
             const asset = assets.find((item) => item.id === report.asset_id);
             const reporter = profiles.find((profile) => profile.id === report.instructor_id);
             const custodian = profiles.find((profile) => profile.id === report.triaged_by);
+            const reportPhotos = photos.filter((photo) => photo.defectReportId === report.id);
             const transitions = getDefectTransitions(report.status);
 
             return (
@@ -46,6 +49,17 @@ export function DefectAdminPanel({
                   <StatusBadge status={report.status} />
                 </div>
                 <p className="line-clamp-3 text-sm text-muted-foreground">{report.description}</p>
+                {reportPhotos.length ? (
+                  <div className="flex flex-wrap gap-2" aria-label={`${reportPhotos.length} attached defect photos`}>
+                    {reportPhotos.map((photo, index) => (
+                      <a href={photo.signedUrl} key={photo.id} rel="noreferrer" target="_blank">
+                        {/* The URL is a short-lived private Supabase signed URL, so Next Image optimization is intentionally bypassed. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img alt={`Defect evidence ${index + 1}`} className="size-20 rounded-lg border object-cover transition-opacity hover:opacity-85" src={photo.signedUrl} />
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
                 {report.resolution_notes ? (
                   <p className="rounded-md bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground">{report.resolution_notes}</p>
                 ) : null}

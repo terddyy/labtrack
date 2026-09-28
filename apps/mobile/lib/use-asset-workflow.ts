@@ -4,7 +4,8 @@ import {
   createDefaultBookingRange,
   defectReportSchema,
   isFutureBookingRange,
-  parseQrPayload
+  parseQrPayload,
+  validateDefectPhotoCandidates
 } from "@labtrack/shared";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -12,7 +13,9 @@ import {
   createDefectReport,
   formatApiError,
   resolveAssetByPayload,
-  type MobileAsset
+  uploadDefectPhoto,
+  type MobileAsset,
+  type MobileDefectPhotoDraft
 } from "@/lib/labtrack-api";
 
 const SAME_DAY_DURATION_MINUTES = 90;
@@ -27,6 +30,9 @@ export function useAssetWorkflow(payload?: string) {
   const [bookingRange, setBookingRange] = useState(() => createDefaultBookingRange());
   const [bookingValidationNow, setBookingValidationNow] = useState(() => new Date());
   const [defectForm, setDefectForm] = useState({ title: "", description: "" });
+  const [defectPhotos, setDefectPhotos] = useState<MobileDefectPhotoDraft[]>([]);
+  const [pendingDefectPhotoReportId, setPendingDefectPhotoReportId] = useState<string | null>(null);
+  const [photoUploadProgress, setPhotoUploadProgress] = useState<string | null>(null);
   const [bookingMessage, setBookingMessage] = useState<string | null>(null);
   const [defectMessage, setDefectMessage] = useState<string | null>(null);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
@@ -183,6 +189,17 @@ export function useAssetWorkflow(payload?: string) {
   }
 
   async function submitDefect() {
+    if (pendingDefectPhotoReportId) {
+      setIsSubmittingDefect(true);
+      setDefectMessage(null);
+      try {
+        await uploadSelectedDefectPhotos(pendingDefectPhotoReportId, defectPhotos, true);
+      } finally {
+        setIsSubmittingDefect(false);
+      }
+      return;
+    }
+
     if (!asset) {
       return;
     }
@@ -203,14 +220,78 @@ export function useAssetWorkflow(payload?: string) {
     setDefectMessage(null);
 
     try {
-      await createDefectReport(validation.data);
-      setDefectForm({ title: "", description: "" });
-      setDefectMessage("Defect report submitted.");
+      const [createdReport] = await createDefectReport(validation.data);
+
+      if (!createdReport) {
+        throw new Error("Defect reporting did not return the new report.");
+      }
+
+      if (defectPhotos.length) {
+        await uploadSelectedDefectPhotos(createdReport.defect_report_id, defectPhotos, false);
+      } else {
+        completeDefectSubmission("Defect report submitted without photos.");
+      }
     } catch (submitError) {
       setDefectMessage(formatApiError(submitError));
     } finally {
       setIsSubmittingDefect(false);
     }
+  }
+
+  function addDefectPhotos(photos: MobileDefectPhotoDraft[]) {
+    const uniquePhotos = photos.filter((photo) => !defectPhotos.some((current) => current.uri === photo.uri));
+    const validationError = validateDefectPhotoCandidates([...defectPhotos, ...uniquePhotos]);
+
+    if (validationError) {
+      setDefectMessage(validationError);
+      return false;
+    }
+
+    setDefectPhotos((current) => [...current, ...uniquePhotos]);
+    setDefectMessage(null);
+    return true;
+  }
+
+  function removeDefectPhoto(photoId: string) {
+    setDefectPhotos((current) => current.filter((photo) => photo.id !== photoId));
+    setDefectMessage(null);
+  }
+
+  async function uploadSelectedDefectPhotos(reportId: string, photos: MobileDefectPhotoDraft[], isRetry: boolean) {
+    const failed: MobileDefectPhotoDraft[] = [];
+
+    for (let index = 0; index < photos.length; index += 1) {
+      const photo = photos[index];
+      if (!photo) continue;
+
+      setPhotoUploadProgress(`Uploading photo ${index + 1} of ${photos.length}…`);
+      try {
+        await uploadDefectPhoto(reportId, photo);
+      } catch {
+        failed.push(photo);
+      }
+    }
+
+    setPhotoUploadProgress(null);
+
+    if (failed.length) {
+      setPendingDefectPhotoReportId(reportId);
+      setDefectPhotos(failed);
+      setDefectMessage(
+        `Defect report submitted, but ${failed.length} ${failed.length === 1 ? "photo" : "photos"} failed to upload. Tap Retry photo upload.`
+      );
+      return;
+    }
+
+    completeDefectSubmission(isRetry ? "Defect photos uploaded successfully." : "Defect report and photos submitted.");
+  }
+
+  function completeDefectSubmission(message: string) {
+    setDefectForm({ title: "", description: "" });
+    setDefectPhotos([]);
+    setPendingDefectPhotoReportId(null);
+    setPhotoUploadProgress(null);
+    setDefectMessage(message);
   }
 
   return {
@@ -221,12 +302,17 @@ export function useAssetWorkflow(payload?: string) {
     bookingValidationNow,
     defectForm,
     defectMessage,
+    defectPhotos,
     error,
     isAvailable: asset?.status === "available",
     isBookingRangeValid: isFutureBookingRange(bookingRange, bookingValidationNow),
     isLoading,
     isSubmittingBooking,
     isSubmittingDefect,
+    hasPendingDefectPhotoUploads: Boolean(pendingDefectPhotoReportId),
+    photoUploadProgress,
+    addDefectPhotos,
+    removeDefectPhoto,
     setBookingPurpose,
     setBookingRange,
     setDefectForm,

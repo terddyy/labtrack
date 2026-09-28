@@ -25,6 +25,7 @@ import type {
   BookingRow,
   CategoryRow,
   DashboardData,
+  DefectPhotoView,
   DefectRow,
   EmailDomainRule,
   LocationRow,
@@ -46,6 +47,12 @@ type RegistrationSettingsRow = {
   restrict_signup_to_allowed_domains: boolean;
 };
 type DashboardBookingRow = Omit<BookingRow, "returned_at" | "returned_by">;
+type DefectPhotoQueryRow = {
+  id: string;
+  defect_report_id: string;
+  storage_path: string;
+  created_at: string;
+};
 type SupabaseReadResult<T> = {
   data: T | null;
   error: { message: string } | null;
@@ -75,6 +82,8 @@ const ASSET_IMAGE_EXTENSIONS: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp"
 };
+const DEFECT_PHOTO_BUCKET = "defect-photos";
+const DEFECT_PHOTO_SIGNED_URL_TTL_SECONDS = 60 * 60;
 
 const emptyDashboardData: DashboardData = {
   categories: [],
@@ -82,6 +91,7 @@ const emptyDashboardData: DashboardData = {
   assets: [],
   bookings: [],
   defects: [],
+  defectPhotos: [],
   profiles: [],
   registrationPolicy: {
     restrictSignupToAllowedDomains: true,
@@ -178,6 +188,7 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     assetRows,
     bookings,
     defects,
+    defectPhotoRows,
     profiles,
     registrationSettings,
     emailDomains,
@@ -208,6 +219,15 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
         .select("id,asset_id,instructor_id,title,description,status,resolution_notes,created_at,triaged_by,triaged_at")
         .order("created_at", { ascending: false })
         .limit(RECENT_WORKFLOW_LIMIT),
+      []
+    ),
+    readDashboardQuery<DefectPhotoQueryRow[]>(
+      "defect_photos.recent",
+      supabase
+        .from("defect_photos")
+        .select("id,defect_report_id,storage_path,created_at")
+        .order("created_at", { ascending: false })
+        .limit(RECENT_WORKFLOW_LIMIT * 3),
       []
     ),
     readDashboardQuery<ProfileRow[]>(
@@ -265,6 +285,26 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     () => Promise.all(assetRows.map((row) => toAssetView(row, supabase))),
     []
   );
+  const defectPhotos = (await readDashboardValue<Array<DefectPhotoView | null>>(
+    "defect_photos.signed_urls",
+    () => Promise.all(defectPhotoRows.map(async (photo) => {
+      const { data, error } = await supabase.storage
+        .from(DEFECT_PHOTO_BUCKET)
+        .createSignedUrl(photo.storage_path, DEFECT_PHOTO_SIGNED_URL_TTL_SECONDS);
+
+      if (error) {
+        throw error;
+      }
+
+      return data.signedUrl ? {
+        id: photo.id,
+        defectReportId: photo.defect_report_id,
+        signedUrl: data.signedUrl,
+        createdAt: photo.created_at
+      } : null;
+    })),
+    []
+  )).filter((photo): photo is DefectPhotoView => photo !== null);
   const returnedByBooking = new Map(bookingEvents.map((event) => [event.booking_id, event]));
   const enrichedBookings = bookings.map((booking) => {
     const returnedEvent = returnedByBooking.get(booking.id);
@@ -288,6 +328,7 @@ export async function getAdminDashboardData(): Promise<DashboardData> {
     assets,
     bookings: enrichedBookings,
     defects,
+    defectPhotos,
     profiles,
     registrationPolicy: toRegistrationPolicy(
       registrationSettings,

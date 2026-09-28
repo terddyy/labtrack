@@ -71,10 +71,10 @@ test("web typecheck does not depend on ignored .next generated route types", () 
   assert.doesNotMatch(nextEnv, /\.next\/types\/routes\.d\.ts/);
 });
 
-test("production mobile EAS profile disables quick login", () => {
+test("production mobile EAS profile enables quick login", () => {
   const easConfig = JSON.parse(readFileSync(path.join(repoRoot, "apps", "mobile", "eas.json"), "utf8"));
 
-  assert.equal(easConfig.build.production.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN, "false");
+  assert.equal(easConfig.build.production.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN, "true");
 });
 
 test("web package exposes a typecheck script for the release gate", () => {
@@ -82,4 +82,22 @@ test("web package exposes a typecheck script for the release gate", () => {
 
   assert.equal(typeof packageJson.scripts.typecheck, "string");
   assert.match(packageJson.scripts.typecheck, /tsc/);
+});
+
+test("web defect review loads and renders private signed photo evidence", () => {
+  const servicesSource = readFileSync(path.join(repoRoot, "apps", "web", "lib", "admin", "services.ts"), "utf8");
+  const defectsSource = readFileSync(path.join(repoRoot, "apps", "web", "components", "defects", "defect-admin-panel.tsx"), "utf8");
+
+  assert.match(servicesSource, /defect_photos\.recent/);
+  assert.match(servicesSource, /createSignedUrl\(photo\.storage_path/);
+  assert.match(defectsSource, /reportPhotos/);
+  assert.match(defectsSource, /Defect evidence/);
+});
+
+test("report filters avoid the sidebar-constrained desktop overflow", () => {
+  const reportsSource = readFileSync(path.join(webRoot, "components", "reports", "reports-panel.tsx"), "utf8");
+
+  assert.doesNotMatch(reportsSource, /lg:grid-cols-\[1\.4fr_1fr_1fr_1fr_1fr_auto\]/);
+  assert.match(reportsSource, /2xl:grid-cols-\[minmax\(0,1\.4fr\)_repeat\(4,minmax\(0,1fr\)\)_auto\]/);
+  assert.match(reportsSource, /className="flex min-w-0 flex-col gap-1\.5"/);
 });

@@ -1,6 +1,6 @@
 import { formatStatusLabel, getDefectStatusTone, isOpenDefectStatus } from "@labtrack/shared";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import {
   Badge,
   Card,
@@ -127,6 +127,19 @@ function ReportCard({ report }: { report: MobileDefectReport }) {
         <Badge label={formatStatusLabel(report.status)} tone={tone} />
       </View>
       <Text numberOfLines={4} style={styles.body}>{report.description}</Text>
+      {report.photos.length ? (
+        <View style={styles.photoGrid}>
+          {report.photos.map((photo, index) => (
+            <Image
+              accessibilityIgnoresInvertColors
+              accessibilityLabel={`Defect photo ${index + 1} of ${report.photos.length}`}
+              key={photo.id}
+              source={{ uri: photo.url }}
+              style={styles.photo}
+            />
+          ))}
+        </View>
+      ) : null}
       {report.resolutionNotes ? (
         <View style={styles.resolution}>
           <Text style={styles.resolutionLabel}>CUSTODIAN NOTE</Text>
@@ -155,6 +168,16 @@ const styles = StyleSheet.create({
     color: colors.subtle,
     fontFamily: fonts.mono,
     fontSize: 10.5
+  },
+  photo: {
+    borderRadius: 10,
+    height: 88,
+    width: 88
+  },
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
   },
   resolution: {
     backgroundColor: colors.surfaceGlass,

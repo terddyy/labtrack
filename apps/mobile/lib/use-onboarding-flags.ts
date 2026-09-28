@@ -12,6 +12,19 @@ const KEYS: Record<OnboardingFlag, string> = {
   borrow: BORROW_FLOW_KEY
 };
 
+export async function clearLocalAppPreferences(): Promise<void> {
+  const keys = Object.values(KEYS);
+
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") {
+      keys.forEach((key) => window.localStorage.removeItem(key));
+    }
+    return;
+  }
+
+  await Promise.all(keys.map((key) => SecureStore.deleteItemAsync(key)));
+}
+
 async function readFlag(key: string): Promise<boolean> {
   try {
     if (Platform.OS === "web") {

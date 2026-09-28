@@ -104,6 +104,7 @@ const emptyDashboardData: DashboardData = {
   assets: [],
   bookings: [],
   defects: [],
+  defectPhotos: [],
   profiles: [],
   registrationPolicy: {
     restrictSignupToAllowedDomains: true,
@@ -399,7 +400,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
       if (refreshTimer) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => void loadDashboardData(), 200);
     };
-    const channel = ["bookings", "defect_reports", "ticket_threads", "ticket_messages", "notifications", "assets", "locations"].reduce(
+    const channel = ["bookings", "defect_reports", "defect_photos", "ticket_threads", "ticket_messages", "notifications", "assets", "locations"].reduce(
       (nextChannel, table) => nextChannel.on("postgres_changes", { event: "*", schema: "public", table }, refresh),
       supabase.channel(`admin-dashboard:${access.profile.id}`)
     ).subscribe();
@@ -1045,6 +1046,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           assets={data.assets}
           disabled={isMutatingWorkflow}
           onTriage={(report, status) => void handleDefectTriage(report, status)}
+          photos={data.defectPhotos}
           profiles={data.profiles}
           reports={data.defects}
         />

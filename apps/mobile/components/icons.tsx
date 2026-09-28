@@ -25,6 +25,7 @@ export type AppIconName =
   | "send"
   | "close"
   | "camera"
+  | "image"
   | "ticket"
   | "settings"
   | "info"
@@ -57,6 +58,7 @@ const iconMap: Record<AppIconName, IoniconName> = {
   send: "arrow-up",
   close: "close",
   camera: "camera-outline",
+  image: "images-outline",
   ticket: "chatbubbles-outline",
   settings: "settings-outline",
   info: "information-circle-outline",

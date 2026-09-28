@@ -1,6 +1,7 @@
 export * from "./backend.js";
 export * from "./backend-client.js";
 export * from "./booking-time.js";
+export * from "./defect-photos.js";
 export * from "./quick-login.js";
 export * from "./qr.js";
 export * from "./schemas.js";

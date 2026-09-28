@@ -36,6 +36,14 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow LABTRACK to take photos for defect reports.",
+          "photosPermission": "Allow LABTRACK to attach photos to defect reports.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#236A91"

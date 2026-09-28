@@ -1,7 +1,8 @@
-import { isCustodianRole } from "@labtrack/shared";
+import { DEFECT_PHOTO_MAX_COUNT, isCustodianRole } from "@labtrack/shared";
+import * as ImagePicker from "expo-image-picker";
 import { Link, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { RegistrationMarks } from "@/components/glass";
 import { AppIcon, type AppIconName } from "@/components/icons";
 import {
@@ -62,13 +63,18 @@ export default function AssetDetailsScreen() {
     asset,
     bookingMessage,
     bookingPurpose,
+    addDefectPhotos,
     defectForm,
     defectMessage,
+    defectPhotos,
     error,
+    hasPendingDefectPhotoUploads,
     isAvailable,
     isLoading,
     isSubmittingBooking,
     isSubmittingDefect,
+    photoUploadProgress,
+    removeDefectPhoto,
     setBookingPurpose,
     setDefectForm,
     submitDefect,
@@ -86,6 +92,7 @@ export default function AssetDetailsScreen() {
   const [isConfirmingPickup, setIsConfirmingPickup] = useState(false);
   const [didAssetImageFail, setDidAssetImageFail] = useState(false);
   const [selectedQrTransaction, setSelectedQrTransaction] = useState<QrTransactionType>(null);
+  const [isPickingPhotos, setIsPickingPhotos] = useState(false);
 
   const borrowerStep = useMemo(() => {
     if (bookingMessage?.includes("submitted") || defectMessage?.includes("submitted")) {
@@ -176,6 +183,59 @@ export default function AssetDetailsScreen() {
     } finally {
       setHandoffMutationId(null);
     }
+  }
+
+  async function chooseDefectPhotos(source: "camera" | "library") {
+    const remaining = DEFECT_PHOTO_MAX_COUNT - defectPhotos.length;
+    if (remaining <= 0 || hasPendingDefectPhotoUploads) {
+      return;
+    }
+
+    setIsPickingPhotos(true);
+    try {
+      const permission = source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        showMediaPermissionAlert(source);
+        return;
+      }
+
+      const result = source === "camera"
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.85 })
+        : await ImagePicker.launchImageLibraryAsync({
+          allowsMultipleSelection: remaining > 1,
+          mediaTypes: ["images"],
+          quality: 0.85,
+          selectionLimit: remaining
+        });
+
+      if (!result.canceled) {
+        addDefectPhotos(result.assets.map((photo, index) => ({
+          id: photo.assetId ?? `${Date.now()}-${index}-${photo.uri}`,
+          uri: photo.uri,
+          fileName: photo.fileName ?? photo.uri.split("/").pop() ?? null,
+          fileSize: photo.fileSize,
+          mimeType: photo.mimeType
+        })));
+      }
+    } catch (pickerError) {
+      Alert.alert("Could not attach photo", formatApiError(pickerError));
+    } finally {
+      setIsPickingPhotos(false);
+    }
+  }
+
+  function showMediaPermissionAlert(source: "camera" | "library") {
+    Alert.alert(
+      `${source === "camera" ? "Camera" : "Photo library"} permission required`,
+      `Allow LABTRACK to use the ${source === "camera" ? "camera" : "photo library"} in Android settings, or submit the defect without a photo.`,
+      [
+        { text: "Not now", style: "cancel" },
+        { text: "Open settings", onPress: () => void Linking.openSettings() }
+      ]
+    );
   }
 
   async function confirmPickup() {
@@ -340,7 +400,7 @@ export default function AssetDetailsScreen() {
         <Card style={styles.formCard} tint="orange">
           <FormHeader eyebrow="DEFECT REPORT" onChange={() => setSelectedQrTransaction(null)} title="Report a defect" />
           <Text style={styles.cardBody}>Use this when the item is damaged, missing parts, or not working as expected.</Text>
-          {defectMessage ? <Notice tone={defectMessage.includes("submitted") ? "success" : "warning"}>{defectMessage}</Notice> : null}
+          {defectMessage ? <Notice tone={defectMessage.includes("failed") ? "warning" : defectMessage.includes("submitted") || defectMessage.includes("successfully") ? "success" : "warning"}>{defectMessage}</Notice> : null}
           <Field
             label="Issue title"
             onChangeText={(title) => setDefectForm((form) => ({ ...form, title }))}
@@ -354,8 +414,59 @@ export default function AssetDetailsScreen() {
             placeholder="Describe the defect, missing part, or failure"
             value={defectForm.description}
           />
+          <View style={styles.photoHeader}>
+            <View>
+              <Text style={styles.cardEyebrow}>PHOTOS (OPTIONAL)</Text>
+              <Text style={styles.photoHelp}>Up to 3 JPEG, PNG, or WebP images · 5 MB each</Text>
+            </View>
+            <Text style={styles.photoCount}>{defectPhotos.length}/{DEFECT_PHOTO_MAX_COUNT}</Text>
+          </View>
+          {defectPhotos.length ? (
+            <View style={styles.photoGrid}>
+              {defectPhotos.map((photo) => (
+                <View key={photo.id} style={styles.photoPreviewWrap}>
+                  <Image accessibilityLabel="Selected defect photo" source={{ uri: photo.uri }} style={styles.photoPreview} />
+                  {!hasPendingDefectPhotoUploads ? (
+                    <Pressable
+                      accessibilityLabel="Remove defect photo"
+                      accessibilityRole="button"
+                      disabled={isSubmittingDefect}
+                      onPress={() => removeDefectPhoto(photo.id)}
+                      style={styles.photoRemove}
+                    >
+                      <AppIcon color="#FFFFFF" name="close" size={15} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {!hasPendingDefectPhotoUploads ? (
+            <View style={styles.photoActions}>
+              <Button
+                disabled={isPickingPhotos || isSubmittingDefect || defectPhotos.length >= DEFECT_PHOTO_MAX_COUNT}
+                fullWidth={false}
+                icon="camera"
+                loading={isPickingPhotos}
+                onPress={() => void chooseDefectPhotos("camera")}
+                variant="secondary"
+              >
+                Take photo
+              </Button>
+              <Button
+                disabled={isPickingPhotos || isSubmittingDefect || defectPhotos.length >= DEFECT_PHOTO_MAX_COUNT}
+                fullWidth={false}
+                icon="image"
+                onPress={() => void chooseDefectPhotos("library")}
+                variant="secondary"
+              >
+                Choose photos
+              </Button>
+            </View>
+          ) : null}
+          {photoUploadProgress ? <Notice tone="neutral">{photoUploadProgress}</Notice> : null}
           <Button disabled={isSubmittingDefect} icon="send" loading={isSubmittingDefect} onPress={submitDefect}>
-            Submit defect report
+            {hasPendingDefectPhotoUploads ? "Retry photo upload" : "Submit defect report"}
           </Button>
         </Card>
       ) : null}
@@ -659,6 +770,52 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.85,
     transform: [{ scale: 0.985 }]
+  },
+  photoActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  photoCount: {
+    color: colors.subtle,
+    fontFamily: fonts.mono,
+    fontSize: 12
+  },
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9
+  },
+  photoHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between"
+  },
+  photoHelp: {
+    color: colors.subtle,
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginTop: 3
+  },
+  photoPreview: {
+    borderRadius: 10,
+    height: 82,
+    width: 82
+  },
+  photoPreviewWrap: {
+    position: "relative"
+  },
+  photoRemove: {
+    alignItems: "center",
+    backgroundColor: colors.danger,
+    borderRadius: 12,
+    height: 24,
+    justifyContent: "center",
+    position: "absolute",
+    right: -5,
+    top: -5,
+    width: 24
   },
   sectionRow: {
     alignItems: "flex-end",
