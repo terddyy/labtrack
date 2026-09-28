@@ -3,7 +3,7 @@
     "name": "LABTRACK",
     "slug": "labtrack",
     "scheme": "labtrack",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "icon": "./assets/brand/labtrack-icon.png",
     "userInterfaceStyle": "light",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "edu.psu.ccs.labtrack",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "CAMERA",
         "POST_NOTIFICATIONS",

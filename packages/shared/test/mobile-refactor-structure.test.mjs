@@ -78,6 +78,14 @@ test("mobile Supabase client follows React Native auth lifecycle requirements", 
   assert.match(packageJson, /react-native-url-polyfill/);
 });
 
+test("mobile realtime subscriptions use unique topics across effect remounts", () => {
+  const realtimeSource = readFileSync(path.join(mobileRoot, "lib", "use-realtime-refresh.ts"), "utf8");
+
+  assert.match(realtimeSource, /channelInstance \+= 1/);
+  assert.match(realtimeSource, /supabase\.channel\(`\$\{channelKey\}:\$\{channelInstance\}`\)/);
+  assert.doesNotMatch(realtimeSource, /supabase\.channel\(channelKey\)/);
+});
+
 test("mobile home surfaces hidden data and push registration failures", () => {
   const homeSource = readFileSync(path.join(protectedRoot, "(tabs)", "index.tsx"), "utf8");
 
