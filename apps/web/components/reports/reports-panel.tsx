@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatDateTime, formatDateTimeRange, formatLabel, formatMetricValue, formatShortDate } from "@/lib/admin/format";
 import type { ActivityLogRow, AssetView, LocationRow, PrintableReportRow, UsageAnalyticsRow } from "@/lib/admin/types";
 import { ReportPayload } from "@/components/reports/report-payload";
+import { cn } from "@/lib/utils";
 
 type ReportFilterState = { from: string; to: string; locationId: string; assetId: string };
 
@@ -182,9 +183,15 @@ export function ReportsPanel({
               <Skeleton className="h-24 w-full" />
             </div>
           ) : printableRows.length ? (
-            <div className={`grid gap-8 ${reportType === "borrowing_transactions" || reportType === "defect_reports" ? "grid-cols-1" : "md:grid-cols-2"}`}>
+            <div className={`report-sections grid gap-8 ${reportType === "borrowing_transactions" || reportType === "defect_reports" ? "grid-cols-1" : "md:grid-cols-2"}`}>
               {printableRows.map((row) => (
-                <section className="report-section break-inside-avoid" key={`${row.report_type}-${row.section}`}>
+                <section
+                  className={cn(
+                    "report-section",
+                    !["transactions", "defects", "equipment"].includes(row.section) && "break-inside-avoid"
+                  )}
+                  key={`${row.report_type}-${row.section}`}
+                >
                   <h3 className="mb-3 border-b pb-2 text-sm font-semibold tracking-tight">{sectionLabels[row.section] ?? formatLabel(row.section)}</h3>
                   <ReportPayload payload={row.payload} reportType={reportType} section={row.section} />
                 </section>

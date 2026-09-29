@@ -28,13 +28,17 @@ const feedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migration
 const finalFeedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609280001_safe_local_reset_and_defect_photos.sql", import.meta.url));
 const assetStatusReportsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260929010206_asset_status_reports.sql", import.meta.url));
 const mobileAssetSummaryMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260929040000_mobile_asset_summary.sql", import.meta.url));
+const stationaryStatusMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609300001_add_stationary_asset_status.sql", import.meta.url));
+const stationaryEnforcementMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609300002_enforce_stationary_asset_status.sql", import.meta.url));
 const generalTicketMigration = readFileSync(generalTicketMigrationPath, "utf8");
 const reportsMigration = readFileSync(reportsMigrationPath, "utf8");
 const feedbackMigration = readFileSync(feedbackMigrationPath, "utf8");
 const finalFeedbackMigration = readFileSync(finalFeedbackMigrationPath, "utf8");
 const assetStatusReportsMigration = readFileSync(assetStatusReportsMigrationPath, "utf8");
 const mobileAssetSummaryMigration = readFileSync(mobileAssetSummaryMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}\n${finalFeedbackMigration}\n${assetStatusReportsMigration}\n${mobileAssetSummaryMigration}`;
+const stationaryStatusMigration = readFileSync(stationaryStatusMigrationPath, "utf8");
+const stationaryEnforcementMigration = readFileSync(stationaryEnforcementMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}\n${finalFeedbackMigration}\n${assetStatusReportsMigration}\n${mobileAssetSummaryMigration}\n${stationaryStatusMigration}\n${stationaryEnforcementMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -167,6 +171,18 @@ test("report data exposes asset, repairing, and retired equipment reports", () =
   assert.match(assetStatusReportsMigration, /a\.status = 'for_repair'.*or a\.condition = 'for_repair'/is);
   assert.match(assetStatusReportsMigration, /a\.status = 'retired'.*or a\.condition = 'retired'/is);
   assert.doesNotMatch(assetStatusReportsMigration, /equipment_utilization|asset_lifecycle/);
+});
+
+test("stationary equipment remains in inventory but is unavailable for borrowing", () => {
+  assert.match(stationaryStatusMigration, /alter type public\.asset_status add value if not exists 'stationary'/i);
+  assert.match(stationaryEnforcementMigration, /v_current_status in \('stationary'::public\.asset_status, 'retired'::public\.asset_status\)/i);
+  assert.match(stationaryEnforcementMigration, /status not in \('stationary'::public\.asset_status, 'retired'::public\.asset_status\)/i);
+  assert.equal(
+    [...stationaryEnforcementMigration.matchAll(/v_asset\.status in \('stationary'::public\.asset_status, 'retired'::public\.asset_status\)/gi)].length,
+    2
+  );
+  assert.match(feedbackMigration, /a\.status = 'available'::public\.asset_status/i);
+  assert.match(feedbackMigration, /a\.status <> 'available'::public\.asset_status then 'unavailable'/i);
 });
 
 test("feedback workflow migration enforces rooms, unavailable assets, message links, and overdue reminders", () => {

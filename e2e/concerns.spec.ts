@@ -35,6 +35,13 @@ test("asset register exposes edit and confirmed delete actions", async ({ page }
   }
 });
 
+test("asset registration exposes Stationary as an unavailable status", async ({ page }) => {
+  await openSection(page, "Assets & QR");
+  await page.getByRole("button", { name: "New asset" }).click();
+  await page.locator("#status").click();
+  await expect(page.getByRole("option", { name: "stationary", exact: true })).toBeVisible();
+});
+
 test("reports contain exactly the requested six choices", async ({ page }) => {
   await openSection(page, "Reports");
   await page.locator("#report-type").click();

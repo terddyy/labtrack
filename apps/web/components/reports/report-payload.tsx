@@ -3,6 +3,35 @@ import { formatDateTime, formatLabel } from "@/lib/admin/format";
 
 type ReportPayloadValue = Record<string, unknown> | Record<string, unknown>[];
 
+const reportDateColumns = new Set([
+  "created_at",
+  "date",
+  "date_borrowed",
+  "date_reported",
+  "expected_return",
+  "updated_at"
+]);
+
+const reportColumnWidths: Partial<Record<ReportType, Record<string, string>>> = {
+  borrowing_transactions: {
+    borrowing_id: "12%",
+    borrower: "13%",
+    asset: "15%",
+    date_borrowed: "15%",
+    expected_return: "15%",
+    status: "11%",
+    purpose: "19%"
+  },
+  defect_reports: {
+    report_id: "12%",
+    asset: "16%",
+    reported_by: "15%",
+    date_reported: "16%",
+    defect_description: "28%",
+    status: "13%"
+  }
+};
+
 export function ReportPayload({ payload, reportType, section }: { payload: ReportPayloadValue; reportType: ReportType; section: string }) {
   if (Array.isArray(payload)) {
     return <AnalyticsTable rows={payload} reportType={reportType} section={section} />;
@@ -38,10 +67,16 @@ function AnalyticsTable({ rows, reportType, section }: { rows: Record<string, un
   const columns = isMetrics
     ? ["label", "value"]
     : expectedColumns ?? Object.keys(rows[0] ?? {}).filter((key) => !["id", "asset_id"].includes(key));
+  const columnWidths = reportColumnWidths[reportType];
 
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <table className="w-full text-sm">
+    <div className="report-table-wrap overflow-x-auto rounded-lg border">
+      <table className="report-table w-full min-w-[760px] table-fixed text-sm">
+        {columnWidths ? (
+          <colgroup>
+            {columns.map((column) => <col key={column} style={{ width: columnWidths[column] }} />)}
+          </colgroup>
+        ) : null}
         <thead className="bg-muted/50 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">
           <tr>
             {columns.map((column) => (
@@ -53,7 +88,7 @@ function AnalyticsTable({ rows, reportType, section }: { rows: Record<string, un
           {rows.map((row, index) => (
             <tr className="break-inside-avoid" key={`${String(row.metric ?? row.label ?? "measure")}-${index}`}>
               {columns.map((column) => (
-                <td className="px-4 py-3" key={column}>
+                <td className="break-words px-4 py-3 align-top" key={column}>
                   {isMetrics && column === "value" ? formatMetricValue(row.value, row.unit) : formatCellValue(column, row[column])}
                 </td>
               ))}
@@ -66,7 +101,7 @@ function AnalyticsTable({ rows, reportType, section }: { rows: Record<string, un
 }
 
 function formatCellValue(key: string, value: unknown) {
-  if ((key.endsWith("_at") || key.endsWith("_date") || key === "date") && typeof value === "string") return formatDateTime(value);
+  if ((key.endsWith("_at") || key.endsWith("_date") || reportDateColumns.has(key)) && typeof value === "string") return formatDateTime(value);
   if (value === null || value === undefined || value === "") return "—";
   return typeof value === "object" ? "—" : formatLabel(String(value));
 }

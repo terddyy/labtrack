@@ -182,7 +182,7 @@ export function AppShell({
       </Sidebar>
 
       <SidebarInset className="min-w-0 bg-background">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur-md sm:px-5">
+        <header className="no-print sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur-md sm:px-5">
           <SidebarTrigger className="text-muted-foreground" />
           <Separator className="mx-1 h-5!" orientation="vertical" />
           <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">

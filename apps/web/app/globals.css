@@ -223,12 +223,47 @@
     padding: 18pt 0 !important;
   }
 
+  .report-sections {
+    display: block !important;
+  }
+
+  .report-section + .report-section {
+    margin-top: 18pt;
+  }
+
   .report-section {
-    break-inside: avoid;
+    break-inside: auto;
   }
 
   .report-section h3 {
+    break-after: avoid;
     color: #18212f !important;
+  }
+
+  .report-table-wrap {
+    overflow: visible !important;
+  }
+
+  .report-table {
+    font-size: 8pt !important;
+    min-width: 0 !important;
+    table-layout: fixed;
+    width: 100% !important;
+  }
+
+  .report-table thead {
+    display: table-header-group;
+  }
+
+  .report-table tr {
+    break-inside: avoid;
+  }
+
+  .report-table th,
+  .report-table td {
+    overflow-wrap: anywhere;
+    padding: 5pt 4pt !important;
+    vertical-align: top;
   }
 
   .report-period > div,

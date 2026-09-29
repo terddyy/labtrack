@@ -105,6 +105,24 @@ test("reports render analytics as a human-readable table instead of raw JSON", (
   assert.doesNotMatch(source, /JSON\.stringify|formatReportPayload/);
 });
 
+test("printable reports format transaction dates and allow long tables to paginate", () => {
+  const payloadSource = readFileSync(path.join(webRoot, "components", "reports", "report-payload.tsx"), "utf8");
+  const reportsSource = readFileSync(path.join(webRoot, "components", "reports", "reports-panel.tsx"), "utf8");
+  const shellSource = readFileSync(path.join(webRoot, "components", "app-shell.tsx"), "utf8");
+  const cssSource = readFileSync(path.join(webRoot, "app", "globals.css"), "utf8");
+
+  assert.match(payloadSource, /"date_borrowed"/);
+  assert.match(payloadSource, /"expected_return"/);
+  assert.match(payloadSource, /report-table-wrap overflow-x-auto/);
+  assert.match(payloadSource, /table-fixed/);
+  assert.match(reportsSource, /!\["transactions", "defects", "equipment"\]\.includes\(row\.section\)/);
+  assert.match(reportsSource, /report-sections grid gap-8/);
+  assert.match(shellSource, /<header className="no-print sticky/);
+  assert.match(cssSource, /\.report-sections\s*\{\s*display: block !important;/);
+  assert.match(cssSource, /\.report-table thead\s*\{\s*display: table-header-group;/);
+  assert.match(cssSource, /\.report-table tr\s*\{\s*break-inside: avoid;/);
+});
+
 test("borrowing requests expose overdue as a derived filter", () => {
   const source = readFileSync(path.join(webRoot, "components", "bookings", "booking-admin-panel.tsx"), "utf8");
 
