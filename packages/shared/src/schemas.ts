@@ -305,6 +305,14 @@ export const markNotificationReadInputSchema = z.object({
 
 export const resetMyActivityDataInputSchema = z.object({});
 
+export const mobileAssetSummaryRpcSchema = z.object({
+  total_assets: z.number().int().nonnegative(),
+  available_assets: z.number().int().nonnegative(),
+  checked_out_assets: z.number().int().nonnegative(),
+  repair_assets: z.number().int().nonnegative(),
+  lab_count: z.number().int().nonnegative()
+});
+
 export const resetMyActivityDataResultSchema = z.object({
   bookings_deleted: z.number().int().nonnegative(),
   defect_reports_deleted: z.number().int().nonnegative(),

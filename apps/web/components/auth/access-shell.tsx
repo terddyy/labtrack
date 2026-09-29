@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CalendarCheck2, LogOut, QrCode, Wrench } from "lucide-react";
+import { ArrowRight, CalendarCheck2, Loader2, LogOut, QrCode, Wrench } from "lucide-react";
 import type { FormEvent } from "react";
 
 import { Notice } from "@/components/admin/ui";

@@ -116,14 +116,6 @@ export type MobileDashboardSummary = {
   unreadNotifications: number;
 };
 
-type MobileAssetSummaryRpc = {
-  total_assets: number;
-  available_assets: number;
-  checked_out_assets: number;
-  repair_assets: number;
-  lab_count: number;
-};
-
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_LIST_LIMIT = 100;
 const ASSET_IMAGE_BUCKET = "asset-images";
@@ -557,33 +549,8 @@ export async function getDashboardSummary(client = requireClient()): Promise<Mob
   };
 }
 
-async function getMobileAssetSummary(client: LabtrackMobileClient): Promise<MobileAssetSummaryRpc> {
-  const { data, error } = await client.rpc("get_mobile_asset_summary");
-
-  if (error) {
-    throw error;
-  }
-
-  if (!data || typeof data !== "object" || Array.isArray(data)) {
-    throw new Error("The mobile asset summary response is invalid.");
-  }
-
-  const summary = data as Record<keyof MobileAssetSummaryRpc, unknown>;
-  return {
-    total_assets: requireNonNegativeCount(summary.total_assets),
-    available_assets: requireNonNegativeCount(summary.available_assets),
-    checked_out_assets: requireNonNegativeCount(summary.checked_out_assets),
-    repair_assets: requireNonNegativeCount(summary.repair_assets),
-    lab_count: requireNonNegativeCount(summary.lab_count)
-  };
-}
-
-function requireNonNegativeCount(value: unknown): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
-    throw new Error("The mobile asset summary response is invalid.");
-  }
-
-  return value;
+async function getMobileAssetSummary(client: LabtrackMobileClient) {
+  return callRpc(client, "getMobileAssetSummary", {});
 }
 
 export async function listMyBookings(options: MobileListOptions = {}, client = requireClient()) {

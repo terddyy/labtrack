@@ -27,25 +27,27 @@ const reportsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations
 const feedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609270001_feedback_workflows.sql", import.meta.url));
 const finalFeedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609280001_safe_local_reset_and_defect_photos.sql", import.meta.url));
 const assetStatusReportsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260929010206_asset_status_reports.sql", import.meta.url));
+const mobileAssetSummaryMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260929040000_mobile_asset_summary.sql", import.meta.url));
 const generalTicketMigration = readFileSync(generalTicketMigrationPath, "utf8");
 const reportsMigration = readFileSync(reportsMigrationPath, "utf8");
 const feedbackMigration = readFileSync(feedbackMigrationPath, "utf8");
 const finalFeedbackMigration = readFileSync(finalFeedbackMigrationPath, "utf8");
 const assetStatusReportsMigration = readFileSync(assetStatusReportsMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}\n${finalFeedbackMigration}\n${assetStatusReportsMigration}`;
+const mobileAssetSummaryMigration = readFileSync(mobileAssetSummaryMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}\n${finalFeedbackMigration}\n${assetStatusReportsMigration}\n${mobileAssetSummaryMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function readFunctionParameters(functionName) {
-  const pattern = new RegExp(`create function public\\.${escapeRegExp(functionName)}\\s*\\((?<parameters>[\\s\\S]*?)\\)\\s*returns`, "gi");
+  const pattern = new RegExp(`create (?:or replace )?function public\\.${escapeRegExp(functionName)}\\s*\\((?<parameters>[\\s\\S]*?)\\)\\s*returns`, "gi");
   const matches = [...backendMigrations.matchAll(pattern)];
   return matches.at(-1)?.groups?.parameters ?? null;
 }
 
 function readTableReturnColumns(functionName) {
-  const pattern = new RegExp(`create function public\\.${escapeRegExp(functionName)}\\s*\\([\\s\\S]*?\\)\\s*returns table\\s*\\((?<columns>[\\s\\S]*?)\\)\\s*language`, "gi");
+  const pattern = new RegExp(`create (?:or replace )?function public\\.${escapeRegExp(functionName)}\\s*\\([\\s\\S]*?\\)\\s*returns table\\s*\\((?<columns>[\\s\\S]*?)\\)\\s*language`, "gi");
   const matches = [...backendMigrations.matchAll(pattern)];
   const match = matches.at(-1);
   return [...(match?.groups?.columns ?? "").matchAll(/^\s*([a-z][a-z0-9_]*)\s+/gim)].map((columnMatch) => columnMatch[1]);
@@ -53,7 +55,7 @@ function readTableReturnColumns(functionName) {
 
 test("backend RPC constants match workflow migration function names and grants", () => {
   for (const functionName of Object.values(backendRpcNames)) {
-    assert.match(backendMigrations, new RegExp(`create function public\\.${escapeRegExp(functionName)}\\s*\\(`, "i"));
+    assert.match(backendMigrations, new RegExp(`create (?:or replace )?function public\\.${escapeRegExp(functionName)}\\s*\\(`, "i"));
     assert.match(backendMigrations, new RegExp(`grant execute on function public\\.${escapeRegExp(functionName)}\\s*\\(`, "i"));
     assert.match(backendMigrations, new RegExp(`revoke all on function public\\.${escapeRegExp(functionName)}\\s*\\(`, "i"));
   }

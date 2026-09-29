@@ -148,3 +148,30 @@ test("callRpc throws Supabase RPC errors as exceptions", async () => {
     /No access/
   );
 });
+
+test("callRpc validates the borrower-safe mobile asset summary response", async () => {
+  const client = {
+    async rpc(name, args) {
+      assert.equal(name, backendRpcNames.getMobileAssetSummary);
+      assert.deepEqual(args, {});
+      return {
+        error: null,
+        data: {
+          total_assets: 3,
+          available_assets: 2,
+          checked_out_assets: 0,
+          repair_assets: 1,
+          lab_count: 11
+        }
+      };
+    }
+  };
+
+  assert.deepEqual(await callRpc(client, "getMobileAssetSummary", {}), {
+    total_assets: 3,
+    available_assets: 2,
+    checked_out_assets: 0,
+    repair_assets: 1,
+    lab_count: 11
+  });
+});
