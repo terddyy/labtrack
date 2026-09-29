@@ -26,7 +26,7 @@ export default async function EmailConfirmedPage({ searchParams }: EmailConfirme
         {!hasError ? (
           <a
             className="mt-8 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            href="labtrack://sign-in"
+            href="labtrack:///email-confirmed"
           >
             Open LABTRACK
           </a>
