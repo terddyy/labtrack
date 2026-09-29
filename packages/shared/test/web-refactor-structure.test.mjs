@@ -54,13 +54,12 @@ test("web dashboard data loading isolates Supabase read failures", () => {
   assert.doesNotMatch(source, /\.find\(Boolean\)/);
 });
 
-test("web quick login and QR actions keep explicit credential and payload controls", () => {
+test("web sign-in and QR actions keep explicit credential and payload controls", () => {
   const services = readFileSync(path.join(webRoot, "lib", "admin", "services.ts"), "utf8");
   const actions = readFileSync(path.join(webRoot, "lib", "admin", "actions.ts"), "utf8");
 
   assert.match(services, /isMissingSessionError\(userError\)[\s\S]*return \{ status: "signed-out" \}/);
-  assert.match(services, /demoLoginFlag === "false"[\s\S]*return \[\]/);
-  assert.match(services, /includeDefaults = nodeEnv !== "production" \|\| demoLoginFlag === "true"/);
+  assert.doesNotMatch(services, /quick.?login|demo.?access/i);
   assert.match(services, /\.from\("assets"\)[\s\S]*\.select\("property_number"\)/);
   assert.doesNotMatch(actions, /propertyNumber/);
 });
@@ -69,12 +68,6 @@ test("web typecheck does not depend on ignored .next generated route types", () 
   const nextEnv = readFileSync(path.join(webRoot, "next-env.d.ts"), "utf8");
 
   assert.doesNotMatch(nextEnv, /\.next\/types\/routes\.d\.ts/);
-});
-
-test("production mobile EAS profile enables quick login", () => {
-  const easConfig = JSON.parse(readFileSync(path.join(repoRoot, "apps", "mobile", "eas.json"), "utf8"));
-
-  assert.equal(easConfig.build.production.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN, "true");
 });
 
 test("web package exposes a typecheck script for the release gate", () => {

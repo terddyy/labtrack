@@ -26,32 +26,9 @@ const shouldSyncEasEnv = !process.argv.includes("--no-sync-eas-env");
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 const easCli = ["--yes", "eas-cli@latest"];
 
-const baseEnvDefaults = {
-  EXPO_PUBLIC_ENABLE_QUICK_LOGIN: "true",
-};
-
-const quickLoginEnvDefaults = {
-  EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL: "superadmin@pampangastateu.edu.ph",
-  EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD: "demo123",
-  EXPO_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL: "custodian@pampangastateu.edu.ph",
-  EXPO_PUBLIC_QUICK_LOGIN_ADMIN_PASSWORD: "demo123",
-  EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_EMAIL: "faculty@pampangastateu.edu.ph",
-  EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_PASSWORD: "demo123",
-};
-
 const baseEasEnvKeys = [
   "EXPO_PUBLIC_SUPABASE_URL",
-  "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-  "EXPO_PUBLIC_ENABLE_QUICK_LOGIN",
-];
-
-const quickLoginEasEnvKeys = [
-  "EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL",
-  "EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD",
-  "EXPO_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL",
-  "EXPO_PUBLIC_QUICK_LOGIN_ADMIN_PASSWORD",
-  "EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_EMAIL",
-  "EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_PASSWORD",
+  "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
 ];
 
 function getArg(name) {
@@ -83,10 +60,6 @@ function readEnvFile(filePath) {
       env[key] = value;
       return env;
     }, {});
-}
-
-function isEnabled(value) {
-  return /^(1|true|yes)$/i.test(String(value ?? "").trim());
 }
 
 function visibilityForEnvKey(key) {
@@ -264,42 +237,6 @@ function sha256(filePath) {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex").toUpperCase();
 }
 
-function isMissingEasEnvError(result) {
-  const text = `${result.stdout}\n${result.stderr}`.toLowerCase();
-  return (
-    text.includes("not found") ||
-    text.includes("does not exist") ||
-    text.includes("no environment variable") ||
-    text.includes("couldn't find") ||
-    text.includes("could not find")
-  );
-}
-
-function deleteEasEnvKey(key, buildEnv) {
-  const result = runEas([
-    "env:delete",
-    profile,
-    "--variable-name",
-    key,
-    "--scope",
-    "project",
-    "--non-interactive",
-  ], { env: buildEnv, allowFailure: true });
-
-  if (result.status === 0) {
-    console.log(`Deleted stale EAS environment variable ${key}.`);
-    return;
-  }
-
-  if (isMissingEasEnvError(result)) {
-    console.log(`No stale EAS environment variable found for ${key}.`);
-    return;
-  }
-
-  const details = result.error?.message || result.stderr.trim() || result.stdout.trim() || "unknown error";
-  throw new Error(`Failed to delete stale EAS environment variable ${key}: ${details}`);
-}
-
 function download(url, targetPath) {
   return new Promise((resolve, reject) => {
     const tempPath = `${targetPath}.download`;
@@ -347,13 +284,8 @@ function download(url, targetPath) {
 async function main() {
   const appConfig = JSON.parse(readFileSync(path.join(mobileRoot, "app.json"), "utf8")).expo;
   const dotenv = readEnvFile(path.join(mobileRoot, ".env"));
-  const profileDefaults = { ...baseEnvDefaults, ...quickLoginEnvDefaults };
-  const buildEnv = { ...profileDefaults, ...dotenv, ...process.env };
-
-  const quickLoginEnabled = isEnabled(buildEnv.EXPO_PUBLIC_ENABLE_QUICK_LOGIN);
-  const easEnvKeys = quickLoginEnabled
-    ? [...baseEasEnvKeys, ...quickLoginEasEnvKeys]
-    : baseEasEnvKeys;
+  const buildEnv = { ...dotenv, ...process.env };
+  const easEnvKeys = baseEasEnvKeys;
   const missing = easEnvKeys.filter((key) => !buildEnv[key]);
 
   if (missing.length > 0) {
@@ -365,15 +297,6 @@ async function main() {
 
   if (shouldSyncEasEnv) {
     console.log(`Syncing ${easEnvKeys.length} EAS environment variables for ${profile}.`);
-    if (!quickLoginEnabled) {
-      console.log("Quick login is disabled for this build profile.");
-      if (profile === "production") {
-        console.log("Removing stale production quick-login EAS variables if they exist.");
-        for (const key of quickLoginEasEnvKeys) {
-          deleteEasEnvKey(key, buildEnv);
-        }
-      }
-    }
     for (const key of easEnvKeys) {
       runEas([
         "env:create",

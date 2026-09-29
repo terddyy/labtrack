@@ -4,7 +4,6 @@ import {
   assetSchema,
   backendRpcArgumentNames,
   backendRpcNames,
-  buildQuickLoginAccounts,
   borrowerQrPickupRowDtoSchema,
   cancelBookingInputSchema,
   checkoutBorrowingByQrInputSchema,
@@ -323,41 +322,4 @@ test("validates borrower QR pickup return states", () => {
     purpose: null,
     message: "Unsupported state."
   }).success, false);
-});
-
-test("builds default quick login accounts for requested roles", () => {
-  assert.deepEqual(buildQuickLoginAccounts({}, { roles: ["super_admin", "admin", "instructor"] }), [
-    {
-      role: "super_admin",
-      label: "Super admin login",
-      email: "superadmin@pampangastateu.edu.ph",
-      password: "demo123"
-    },
-    {
-      role: "admin",
-      label: "Custodian login",
-      email: "custodian@pampangastateu.edu.ph",
-      password: "demo123"
-    },
-    {
-      role: "instructor",
-      label: "Faculty login",
-      email: "faculty@pampangastateu.edu.ph",
-      password: "demo123"
-    }
-  ]);
-});
-
-test("overrides quick login accounts only when email and password are both provided", () => {
-  assert.deepEqual(buildQuickLoginAccounts({
-    admin: { email: "  lab-admin@example.edu  ", password: "  custom-secret  " },
-    instructor: { email: "missing-password@example.edu" }
-  }, { roles: ["admin", "instructor"] }), [
-    {
-      role: "admin",
-      label: "Custodian login",
-      email: "lab-admin@example.edu",
-      password: "custom-secret"
-    }
-  ]);
 });

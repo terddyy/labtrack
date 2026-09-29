@@ -1,8 +1,7 @@
 "use client";
 
-import { ArrowRight, CalendarCheck2, Loader2, LogOut, QrCode, Wrench, Zap } from "lucide-react";
+import { ArrowRight, CalendarCheck2, LogOut, QrCode, Wrench } from "lucide-react";
 import type { FormEvent } from "react";
-import type { QuickLoginAccount } from "@labtrack/shared";
 
 import { Notice } from "@/components/admin/ui";
 import { BrandMark } from "@/components/app-shell";
@@ -22,10 +21,7 @@ export function AccessShell({
   access,
   authMessage,
   credentials,
-  quickLoginAccounts,
-  quickLoginRole,
   onCredentialsChange,
-  onQuickSignIn,
   onRetry,
   onSignIn,
   onSignOut
@@ -33,10 +29,7 @@ export function AccessShell({
   access: AdminAccessState;
   authMessage: string | null;
   credentials: { email: string; password: string };
-  quickLoginAccounts: QuickLoginAccount[];
-  quickLoginRole: string | null;
   onCredentialsChange: (credentials: { email: string; password: string }) => void;
-  onQuickSignIn: (account: QuickLoginAccount) => void;
   onRetry: () => void;
   onSignIn: (event: FormEvent<HTMLFormElement>) => void;
   onSignOut: () => void;
@@ -164,31 +157,8 @@ export function AccessShell({
                 Continue
                 <ArrowRight className="size-4" />
               </Button>
+              <p className="text-center text-xs text-muted-foreground">Sign in with the LABTRACK email and password issued for your account.</p>
 
-              {quickLoginAccounts.length ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
-                    <span className="h-px flex-1 bg-border" />
-                    Demo access
-                    <span className="h-px flex-1 bg-border" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {quickLoginAccounts.map((account) => (
-                      <Button
-                        className="justify-start"
-                        disabled={quickLoginRole !== null}
-                        key={account.role}
-                        onClick={() => onQuickSignIn(account)}
-                        type="button"
-                        variant="outline"
-                      >
-                        {quickLoginRole === account.role ? <Loader2 className="size-3.5 animate-spin" /> : <Zap className="size-3.5 text-primary" />}
-                        <span className="truncate">{account.label}</span>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </form>
           ) : null}
         </div>

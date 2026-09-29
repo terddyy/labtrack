@@ -2,8 +2,7 @@
 
 import {
   createQrPayload,
-  getDashboardCounters,
-  type QuickLoginAccount
+  getDashboardCounters
 } from "@labtrack/shared";
 import { Download, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -158,7 +157,7 @@ const adminSectionKeys = new Set<AdminSection>(navigation.map((item) => item.key
 
 type DashboardNotice = { text: string; tone: NoticeTone };
 
-export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts }: AdminDashboardProps) {
+export function AdminDashboard({ initialAccess, initialData }: AdminDashboardProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -167,7 +166,6 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   const [access, setAccess] = useState<AdminAccessState>(initialAccess);
   const [credentials, setCredentials] = useState({ email: "", password: "" });
   const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [quickLoginRole, setQuickLoginRole] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData>(initialData);
   const [activeSection, setActiveSection] = useState<AdminSection>(() => parseAdminSection(searchParams.get("section")) ?? "dashboard");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
@@ -418,30 +416,6 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
     }
 
     await loadAccess();
-  }
-
-  async function handleQuickSignIn(account: QuickLoginAccount) {
-    if (!supabase) {
-      return;
-    }
-
-    setQuickLoginRole(account.role);
-    setCredentials({ email: account.email, password: account.password });
-    setAuthMessage(null);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: account.email,
-      password: account.password
-    });
-
-    if (error) {
-      setAuthMessage(error.message);
-      setQuickLoginRole(null);
-      return;
-    }
-
-    await loadAccess();
-    setQuickLoginRole(null);
   }
 
   async function handleSignOut() {
@@ -856,10 +830,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
         access={access}
         authMessage={authMessage}
         credentials={credentials}
-        quickLoginAccounts={quickLoginAccounts}
-        quickLoginRole={quickLoginRole}
         onCredentialsChange={setCredentials}
-        onQuickSignIn={handleQuickSignIn}
         onRetry={loadAccess}
         onSignIn={handleSignIn}
         onSignOut={handleSignOut}

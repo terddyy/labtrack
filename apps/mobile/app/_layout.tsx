@@ -26,6 +26,7 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={!isReady}>
         <Stack.Screen name="sign-in" options={{ headerShown: false, title: "Sign In" }} />
+        <Stack.Screen name="email-confirmed" options={{ headerShown: false, title: "Email Confirmed" }} />
       </Stack.Protected>
     </Stack>
   );

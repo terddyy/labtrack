@@ -9,9 +9,6 @@
       "distribution": "internal",
       "credentialsSource": "local",
       "environment": "development",
-      "env": {
-        "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
-      },
       "android": {
         "buildType": "apk"
       }
@@ -20,9 +17,6 @@
       "distribution": "internal",
       "credentialsSource": "local",
       "environment": "preview",
-      "env": {
-        "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
-      },
       "android": {
         "buildType": "apk"
       }
@@ -31,9 +25,6 @@
       "distribution": "internal",
       "autoIncrement": false,
       "environment": "production",
-      "env": {
-        "EXPO_PUBLIC_ENABLE_QUICK_LOGIN": "true"
-      },
       "android": {
         "buildType": "apk"
       }

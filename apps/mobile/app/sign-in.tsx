@@ -1,9 +1,8 @@
-import { buildQuickLoginAccounts, type QuickLoginAccount } from "@labtrack/shared";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { AppIcon } from "@/components/icons";
-import { Button, Card, ConsoleHeader, Field, ListRow, Notice, ScreenScrollView, SegmentedControl } from "@/components/ui";
+import { Button, Card, ConsoleHeader, Field, Notice, ScreenScrollView, SegmentedControl } from "@/components/ui";
 import { colors, typography } from "@/constants/theme";
 import { useCurrentProfile } from "@/lib/auth";
 import { formatApiError, hasSupabaseConfig, signInWithPassword, signUpWithPassword } from "@/lib/labtrack-api";
@@ -21,30 +20,6 @@ const borrowerRoles: Array<{ label: string; value: BorrowerRole }> = [
   { label: "Student", value: "student" }
 ];
 
-const isQuickLoginEnabled = process.env.EXPO_PUBLIC_ENABLE_QUICK_LOGIN !== "false";
-const quickLoginAccounts = isQuickLoginEnabled
-  ? buildQuickLoginAccounts(
-    {
-      super_admin: {
-        email: process.env.EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL,
-        password: process.env.EXPO_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD
-      },
-      admin: {
-        email: process.env.EXPO_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL,
-        password: process.env.EXPO_PUBLIC_QUICK_LOGIN_ADMIN_PASSWORD
-      },
-      instructor: {
-        email: process.env.EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_EMAIL,
-        password: process.env.EXPO_PUBLIC_QUICK_LOGIN_INSTRUCTOR_PASSWORD
-      }
-    },
-    {
-      includeDefaults: true,
-      roles: ["super_admin", "admin", "instructor"] as const
-    }
-  )
-  : [];
-
 export default function SignInScreen() {
   const auth = useCurrentProfile();
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
@@ -54,7 +29,6 @@ export default function SignInScreen() {
   const [borrowerRole, setBorrowerRole] = useState<BorrowerRole>("student");
   const [message, setMessage] = useState<AuthMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pendingQuickRole, setPendingQuickRole] = useState<string | null>(null);
   const isConfigured = hasSupabaseConfig();
   const isSignUp = authMode === "sign-up";
   const isManualAuthDisabled = isSubmitting || !isConfigured || !email.trim() || !password || (isSignUp && !fullName.trim());
@@ -81,25 +55,6 @@ export default function SignInScreen() {
       setMessage({ tone: "danger", text: formatApiError(error) });
     } finally {
       setIsSubmitting(false);
-    }
-  }
-
-  async function handleQuickSignIn(account: QuickLoginAccount) {
-    setEmail(account.email);
-    setPassword(account.password);
-    setIsSubmitting(true);
-    setPendingQuickRole(account.role);
-    setMessage(null);
-
-    try {
-      await signInWithPassword(account.email, account.password);
-      await auth.refresh({ showLoading: true });
-      router.replace("/");
-    } catch (error) {
-      setMessage({ tone: "danger", text: formatApiError(error) });
-    } finally {
-      setIsSubmitting(false);
-      setPendingQuickRole(null);
     }
   }
 
@@ -181,41 +136,12 @@ export default function SignInScreen() {
           textContentType="password"
           value={password}
         />
-        <Button disabled={isManualAuthDisabled} loading={isSubmitting && !pendingQuickRole} onPress={handleManualAuth}>
+        <Button disabled={isManualAuthDisabled} loading={isSubmitting} onPress={handleManualAuth}>
           {isSignUp ? "Create account" : "Continue"}
         </Button>
+        {!isSignUp ? <Text style={styles.formCaption}>Sign in with the LABTRACK email and password issued for your account.</Text> : null}
       </Card>
 
-      {quickLoginAccounts.length ? (
-        <>
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>DEMO ACCESS</Text>
-            <View style={styles.dividerLine} />
-          </View>
-          <Card style={styles.groupCard}>
-            {quickLoginAccounts.map((account, index) => (
-              <ListRow
-                divider={index > 0}
-                key={account.role}
-                leading={(
-                  <View style={styles.quickIcon}>
-                    <AppIcon color={colors.primary} name="flash" size={16} />
-                  </View>
-                )}
-                meta={account.email}
-                onPress={isSubmitting || !isConfigured ? undefined : () => void handleQuickSignIn(account)}
-                title={account.label}
-                trailing={
-                  pendingQuickRole === account.role
-                    ? <Text style={styles.quickPending}>Signing in…</Text>
-                    : <AppIcon color={colors.subtle} name="chevron-forward" size={16} />
-                }
-              />
-            ))}
-          </Card>
-        </>
-      ) : null}
     </ScreenScrollView>
   );
 }

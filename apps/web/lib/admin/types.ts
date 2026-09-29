@@ -8,7 +8,6 @@ import type {
   getDashboardCounters,
   Profile,
   PrintableReportRowDto,
-  QuickLoginAccount,
   ReportType,
   UsageAnalyticsRowDto,
   UserRole
@@ -183,7 +182,6 @@ export type CatalogKind = "category" | "location";
 export type AdminDashboardProps = {
   initialAccess: AdminAccessState;
   initialData: DashboardData;
-  quickLoginAccounts: QuickLoginAccount[];
 };
 
 export type ProfileAccessUpdates = Partial<Pick<ProfileRow, "role" | "is_active">>;

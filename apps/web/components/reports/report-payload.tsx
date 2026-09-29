@@ -1,10 +1,11 @@
+import type { ReportType } from "@labtrack/shared";
 import { formatDateTime, formatLabel } from "@/lib/admin/format";
 
 type ReportPayloadValue = Record<string, unknown> | Record<string, unknown>[];
 
-export function ReportPayload({ payload }: { payload: ReportPayloadValue }) {
+export function ReportPayload({ payload, reportType, section }: { payload: ReportPayloadValue; reportType: ReportType; section: string }) {
   if (Array.isArray(payload)) {
-    return <AnalyticsTable rows={payload} />;
+    return <AnalyticsTable rows={payload} reportType={reportType} section={section} />;
   }
 
   const entries = Object.entries(payload).filter(([, value]) => value !== null && value !== undefined && value !== "");
@@ -23,15 +24,20 @@ export function ReportPayload({ payload }: { payload: ReportPayloadValue }) {
   );
 }
 
-function AnalyticsTable({ rows }: { rows: Record<string, unknown>[] }) {
+function AnalyticsTable({ rows, reportType, section }: { rows: Record<string, unknown>[]; reportType: ReportType; section: string }) {
   if (!rows.length) {
     return <p className="text-sm text-muted-foreground">No matching activity was recorded for this period.</p>;
   }
 
   const isMetrics = rows.every((row) => "metric" in row && "value" in row);
+  const expectedColumns = reportType === "borrowing_transactions" && section === "transactions"
+    ? ["borrowing_id", "borrower", "asset", "date_borrowed", "expected_return", "status", "purpose"]
+    : reportType === "defect_reports" && section === "defects"
+      ? ["report_id", "asset", "reported_by", "date_reported", "defect_description", "status"]
+      : null;
   const columns = isMetrics
     ? ["label", "value"]
-    : Object.keys(rows[0] ?? {}).filter((key) => !["id", "asset_id"].includes(key));
+    : expectedColumns ?? Object.keys(rows[0] ?? {}).filter((key) => !["id", "asset_id"].includes(key));
 
   return (
     <div className="overflow-hidden rounded-lg border">
@@ -60,7 +66,7 @@ function AnalyticsTable({ rows }: { rows: Record<string, unknown>[] }) {
 }
 
 function formatCellValue(key: string, value: unknown) {
-  if ((key.endsWith("_at") || key === "date") && typeof value === "string") return formatDateTime(value);
+  if ((key.endsWith("_at") || key.endsWith("_date") || key === "date") && typeof value === "string") return formatDateTime(value);
   if (value === null || value === undefined || value === "") return "—";
   return typeof value === "object" ? "—" : formatLabel(String(value));
 }

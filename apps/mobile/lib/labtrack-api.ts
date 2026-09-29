@@ -25,6 +25,7 @@ import {
   type ResourceType,
   type TicketSubjectType
 } from "@labtrack/shared";
+import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 import { supabase } from "@/lib/supabase";
 
@@ -113,6 +114,14 @@ export type MobileDashboardSummary = {
   threads: number;
   totalAssets: number;
   unreadNotifications: number;
+};
+
+type MobileAssetSummaryRpc = {
+  total_assets: number;
+  available_assets: number;
+  checked_out_assets: number;
+  repair_assets: number;
+  lab_count: number;
 };
 
 const DEFAULT_LIST_LIMIT = 50;
@@ -404,6 +413,7 @@ export async function signUpWithPassword(email: string, password: string, fullNa
     email: email.trim(),
     password,
     options: {
+      emailRedirectTo: Linking.createURL("email-confirmed", { scheme: "labtrack" }),
       data: {
         full_name: trimmedFullName,
         requested_role: requestedRole
@@ -523,36 +533,57 @@ export async function getDashboardSummary(client = requireClient()): Promise<Mob
     openDefectsCount,
     threadsCount,
     unreadNotificationsCount,
-    totalAssetsCount,
-    availableAssetsCount,
-    checkedOutAssetsCount,
-    repairAssetsCount,
-    labCount
+    assetSummary
   ] = await Promise.all([
     countRows(client.from("bookings").select("id", { count: "exact", head: true })),
     countRows(client.from("bookings").select("id", { count: "exact", head: true }).eq("status", "pending")),
     countRows(client.from("defect_reports").select("id", { count: "exact", head: true }).not("status", "in", "(resolved,rejected)")),
     countRows(client.from("ticket_threads").select("id", { count: "exact", head: true })),
     countRows(client.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null)),
-    countRows(client.from("assets").select("id", { count: "exact", head: true }).neq("status", "retired")),
-    countRows(client.from("assets").select("id", { count: "exact", head: true }).eq("status", "available")),
-    countRows(client.from("assets").select("id", { count: "exact", head: true }).eq("status", "checked_out")),
-    countRows(client.from("assets").select("id", { count: "exact", head: true }).or("status.eq.for_repair,condition.in.(defective,for_repair)")),
-    safeCountRows(client.from("locations").select("id", { count: "exact", head: true }))
+    getMobileAssetSummary(client)
   ]);
 
   return {
-    availableAssets: availableAssetsCount,
+    availableAssets: assetSummary.available_assets,
     bookings: bookingsCount,
-    checkedOutAssets: checkedOutAssetsCount,
-    labCount,
+    checkedOutAssets: assetSummary.checked_out_assets,
+    labCount: assetSummary.lab_count,
     openDefects: openDefectsCount,
     pendingBookings: pendingBookingsCount,
-    repairAssets: repairAssetsCount,
+    repairAssets: assetSummary.repair_assets,
     threads: threadsCount,
-    totalAssets: totalAssetsCount,
+    totalAssets: assetSummary.total_assets,
     unreadNotifications: unreadNotificationsCount
   };
+}
+
+async function getMobileAssetSummary(client: LabtrackMobileClient): Promise<MobileAssetSummaryRpc> {
+  const { data, error } = await client.rpc("get_mobile_asset_summary");
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("The mobile asset summary response is invalid.");
+  }
+
+  const summary = data as Record<keyof MobileAssetSummaryRpc, unknown>;
+  return {
+    total_assets: requireNonNegativeCount(summary.total_assets),
+    available_assets: requireNonNegativeCount(summary.available_assets),
+    checked_out_assets: requireNonNegativeCount(summary.checked_out_assets),
+    repair_assets: requireNonNegativeCount(summary.repair_assets),
+    lab_count: requireNonNegativeCount(summary.lab_count)
+  };
+}
+
+function requireNonNegativeCount(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error("The mobile asset summary response is invalid.");
+  }
+
+  return value;
 }
 
 export async function listMyBookings(options: MobileListOptions = {}, client = requireClient()) {
@@ -821,14 +852,6 @@ async function countRows(query: PromiseLike<{ count: number | null; error: { mes
   }
 
   return count ?? 0;
-}
-
-async function safeCountRows(query: PromiseLike<{ count: number | null; error: { message: string } | null }>) {
-  try {
-    return await countRows(query);
-  } catch {
-    return 0;
-  }
 }
 
 function normalizeListOptions(options: MobileListOptions) {

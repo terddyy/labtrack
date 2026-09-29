@@ -1,6 +1,5 @@
 import {
   assetSchema,
-  buildQuickLoginAccounts,
   callRpc,
   formatStatusLabel,
   getDashboardCounters,
@@ -104,28 +103,6 @@ const emptyDashboardData: DashboardData = {
 
 export function getEmptyDashboardData() {
   return emptyDashboardData;
-}
-
-export function getWebQuickLoginAccounts() {
-  const nodeEnv: string = process.env.NODE_ENV;
-  const demoLoginFlag = process.env.LABTRACK_ENABLE_DEMO_LOGINS ?? process.env.NEXT_PUBLIC_ENABLE_QUICK_LOGIN;
-
-  if (demoLoginFlag === "false") {
-    return [];
-  }
-
-  const includeDefaults = nodeEnv !== "production" || demoLoginFlag === "true";
-
-  return buildQuickLoginAccounts({
-    super_admin: {
-      email: process.env.QUICK_LOGIN_SUPER_ADMIN_EMAIL ?? process.env.NEXT_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_EMAIL,
-      password: process.env.QUICK_LOGIN_SUPER_ADMIN_PASSWORD ?? process.env.NEXT_PUBLIC_QUICK_LOGIN_SUPER_ADMIN_PASSWORD
-    },
-    admin: {
-      email: process.env.QUICK_LOGIN_ADMIN_EMAIL ?? process.env.NEXT_PUBLIC_QUICK_LOGIN_ADMIN_EMAIL,
-      password: process.env.QUICK_LOGIN_ADMIN_PASSWORD ?? process.env.NEXT_PUBLIC_QUICK_LOGIN_ADMIN_PASSWORD
-    }
-  }, { includeDefaults, roles: ["super_admin", "admin"] });
 }
 
 export async function getAdminAccess(): Promise<AdminAccessState> {
