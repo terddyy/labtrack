@@ -118,6 +118,8 @@ test("printable reports format transaction dates and allow long tables to pagina
   assert.match(reportsSource, /!\["transactions", "defects", "equipment"\]\.includes\(row\.section\)/);
   assert.match(reportsSource, /report-sections grid gap-8/);
   assert.match(shellSource, /<header className="no-print sticky/);
+  assert.match(shellSource, /<div className="no-print animate-rise space-y-1\.5"/);
+  assert.match(cssSource, /\[data-slot="sidebar"\]\s*\{\s*display: none !important;/);
   assert.match(cssSource, /\.report-sections\s*\{\s*display: block !important;/);
   assert.match(cssSource, /\.report-table thead\s*\{\s*display: table-header-group;/);
   assert.match(cssSource, /\.report-table tr\s*\{\s*break-inside: avoid;/);

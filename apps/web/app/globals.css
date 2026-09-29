@@ -206,6 +206,15 @@
     display: none !important;
   }
 
+  [data-slot="sidebar"] {
+    display: none !important;
+  }
+
+  [data-slot="sidebar-inset"] > main > div:last-child {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
   .printable-report {
     border: 0 !important;
     border-radius: 0 !important;

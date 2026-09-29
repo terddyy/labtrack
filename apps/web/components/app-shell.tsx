@@ -208,7 +208,7 @@ export function AppShell({
         <main className="relative flex flex-1 flex-col">
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-blueprint [mask-image:linear-gradient(to_bottom,black,transparent)]" />
           <div className="relative mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-6 px-4 pt-7 pb-10 sm:px-8">
-            <div className="animate-rise space-y-1.5" key={activeSection}>
+            <div className="no-print animate-rise space-y-1.5" key={activeSection}>
               <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">{sectionTitle}</h1>
               <p className="max-w-2xl text-sm text-muted-foreground">{sectionDescription}</p>
             </div>
