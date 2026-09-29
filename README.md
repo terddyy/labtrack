@@ -46,7 +46,7 @@ Fill in the Supabase values:
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
-The quick-login values are already included in the example files for local demo use.
+Sign-in uses accounts created in the connected Supabase project. The app does not include demo accounts or one-tap demo login.
 
 ## 3. Prepare the shared package
 
@@ -125,8 +125,8 @@ Run the authenticated, non-mutating browser checks:
 npm run test:e2e
 ```
 
-The suite uses the configured Super Admin quick-login account, or
-`E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD` when quick login is unavailable.
+The suite signs in with the dedicated account configured through
+`E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD`.
 Set `E2E_BASE_URL` to test an already-running deployment instead of starting
 the local web server.
 
@@ -148,22 +148,9 @@ For local Supabase development, see `supabase/README.md`.
 
 For a hosted Supabase project, apply the migrations in `supabase/migrations` in filename order. After applying migrations, create or confirm at least one active `super_admin` profile in `public.profiles`.
 
-## Demo login
+## Account access
 
-The web and mobile sign-in screens expose one-click demo buttons for:
-
-- `superadmin@pampangastateu.edu.ph`
-- `custodian@pampangastateu.edu.ph`
-- `faculty@pampangastateu.edu.ph`
-
-The default password is:
-
-```text
-demo123
-```
-
-Create these users in Supabase Auth and make sure their `public.profiles` rows have matching active roles.
-New mobile registration is restricted to active school email domains by default. A Super Admin can turn that restriction off or manage allowed domains from the web Access section.
+Create accounts through Supabase Auth and assign the intended active role in `public.profiles`. New mobile registration is restricted to active school email domains by default. A Super Admin can manage allowed domains from the web Access section.
 
 ## Useful commands
 

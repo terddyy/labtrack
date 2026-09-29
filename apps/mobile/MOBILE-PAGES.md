@@ -101,9 +101,7 @@ Entry point. Users sign in or register with email/password to access lab workflo
      - Password (masked)
    - Primary CTA: **"Open dashboard"** (sign in) or **"Create account"** (register)
 
-4. **Quick login card** (optional, dev/demo)
-   - Title: "Quick login"
-   - Stacked secondary buttons for role-based one-tap login (Super Admin, Admin, Instructor)
+4. No demo login controls are shown; users sign in with their LABTRACK email and password.
 
 ### Visual notes for AI
 - Centered content on light gray background

@@ -54,6 +54,7 @@
     ],
     "extra": {
       "router": {},
+      "emailConfirmationUrl": "https://labtrack-chi.vercel.app/email-confirmed",
       "eas": {
         "projectId": "9fea1624-1130-4849-b991-9bc1b77eca41"
       }

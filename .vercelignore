@@ -19,5 +19,7 @@ android
 ios
 apps/mobile
 apps/mobile/builds
+/artifacts
+/supabase/.temp
 *.apk
 *.aab

@@ -9,20 +9,14 @@ setup("authenticate as Super Admin", async ({ page }) => {
 
   const dashboardHeading = page.getByRole("heading", { name: "Dashboard", exact: true });
   if (!(await dashboardHeading.isVisible().catch(() => false))) {
-    const quickLogin = page.getByRole("button", { name: "Super admin login", exact: true });
-
-    if (await quickLogin.isVisible().catch(() => false)) {
-      await quickLogin.click();
-    } else {
-      const email = process.env.E2E_ADMIN_EMAIL;
-      const password = process.env.E2E_ADMIN_PASSWORD;
-      if (!email || !password) {
-        throw new Error("Set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD, or configure the Super Admin quick-login account.");
-      }
-      await page.getByLabel("Email").fill(email);
-      await page.getByLabel("Password").fill(password);
-      await page.getByRole("button", { name: "Continue" }).click();
+    const email = process.env.E2E_ADMIN_EMAIL;
+    const password = process.env.E2E_ADMIN_PASSWORD;
+    if (!email || !password) {
+      throw new Error("Set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD for the dedicated Super Admin test account.");
     }
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Continue" }).click();
   }
 
   // Reload once after client-side auth so the App Router server component

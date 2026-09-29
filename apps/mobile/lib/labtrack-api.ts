@@ -405,7 +405,8 @@ export async function signUpWithPassword(email: string, password: string, fullNa
     email: email.trim(),
     password,
     options: {
-      emailRedirectTo: Linking.createURL("email-confirmed", { scheme: "labtrack" }),
+      emailRedirectTo: process.env.EXPO_PUBLIC_EMAIL_CONFIRMATION_URL?.trim()
+        || Linking.createURL("email-confirmed", { scheme: "labtrack" }),
       data: {
         full_name: trimmedFullName,
         requested_role: requestedRole

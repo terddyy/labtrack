@@ -1,6 +1,6 @@
 # LABTRACK Implementation Status
 
-Last updated: 2026-05-22
+Last updated: 2026-09-29
 
 ## Implemented
 
@@ -10,7 +10,7 @@ Last updated: 2026-05-22
 - Participant read RLS now requires an active profile for instructor access to bookings, defects/photos, tickets/messages, notifications, push tokens, and defect-photo storage objects.
 - Web admin dashboard has real section navigation, asset/QR operations, booking decisions, checkout/return/cancel actions, defect triage actions, ticket reading/replies, super-admin access management, and catalog creation.
 - Mobile app has auth/config handling, route-level active-profile gates, live QR asset lookup, booking creation/cancellation, defect report creation, ticket thread/message screens, notification list/read flow, and Expo push token registration helper.
-- Web and mobile sign-in screens expose public quick-login buttons for super admin, admin, and instructor demo accounts.
+- Web and mobile sign-in require email and password; demo accounts and one-tap quick-login controls are not included.
 - CI workflow runs install, shared tests, typecheck, and build.
 - Local ignored env files are configured for the provided Supabase project in `apps/web/.env.local` and `apps/mobile/.env`.
 
