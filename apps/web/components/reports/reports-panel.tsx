@@ -9,31 +9,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateTime, formatDateTimeRange, formatLabel, formatMetricValue, formatShortDate } from "@/lib/admin/format";
-import type { ActivityLogRow, AssetLifecycleEvent, AssetView, LocationRow, PrintableReportRow, UsageAnalyticsRow } from "@/lib/admin/types";
-import { AssetLifecycleTimeline } from "@/components/reports/asset-lifecycle-timeline";
+import type { ActivityLogRow, AssetView, LocationRow, PrintableReportRow, UsageAnalyticsRow } from "@/lib/admin/types";
 import { ReportPayload } from "@/components/reports/report-payload";
 
 type ReportFilterState = { from: string; to: string; locationId: string; assetId: string };
 
-export const ASSET_LIFECYCLE_REPORT = "asset_lifecycle";
-export type ReportView = ReportType | typeof ASSET_LIFECYCLE_REPORT;
+export type ReportView = ReportType;
 
 const reportTypeLabels: Record<ReportView, string> = {
   asset_management_summary: "Asset Management Summary",
-  borrowing_transactions: "Borrowing Transactions",
+  borrowing_transactions: "Borrowing Transaction",
   defect_reports: "Defect Reports",
-  inventory: "Inventory Reports",
-  equipment_utilization: "Equipment Utilization",
-  asset_lifecycle: "Equipment Lifecycle"
+  asset_reports: "Asset Reports",
+  repairing_equipment: "Repairing Equipment",
+  retired_equipment: "Retired Equipment"
 };
 
 const reportTypeDescriptions: Record<ReportView, string> = {
-  asset_management_summary: "A quick overview of equipment, borrowing, and utilization.",
+  asset_management_summary: "A quick overview of equipment, borrowing, defects, repairs, and retirement.",
   borrowing_transactions: "A record of borrowing activity during the selected period.",
   defect_reports: "A summary of equipment issues reported during the selected period.",
-  inventory: "A current snapshot of equipment availability and condition.",
-  equipment_utilization: "A summary of how long equipment was checked out.",
-  asset_lifecycle: "A chronological history of the selected piece of equipment."
+  asset_reports: "A current list of registered equipment and its condition.",
+  repairing_equipment: "A current list of equipment marked for repair.",
+  retired_equipment: "A current list of retired equipment retained for historical reporting."
 };
 
 const metricIcons = [BarChart3, Activity, Clock, ScrollText];
@@ -44,7 +42,6 @@ export function ReportsPanel({
   assets,
   disabled,
   filters,
-  lifecycleEvents,
   locations,
   message,
   onChangeFilters,
@@ -59,7 +56,6 @@ export function ReportsPanel({
   assets: AssetView[];
   disabled: boolean;
   filters: ReportFilterState;
-  lifecycleEvents: AssetLifecycleEvent[];
   locations: LocationRow[];
   message: string | null;
   onChangeFilters: (filters: ReportFilterState) => void;
@@ -70,16 +66,14 @@ export function ReportsPanel({
   reportType: ReportView;
   usageRows: UsageAnalyticsRow[];
 }) {
-  const isLifecycle = reportType === ASSET_LIFECYCLE_REPORT;
-  const lifecycleAsset = assets.find((asset) => asset.id === filters.assetId) ?? null;
-  const canPrint = isLifecycle ? Boolean(lifecycleAsset && lifecycleEvents.length) : printableRows.length > 0;
+  const canPrint = printableRows.length > 0;
   const visibleUsageRows = reportType === "asset_management_summary" ? usageRows : usageRows.filter((row) => row.report_type === reportType);
   const metrics = visibleUsageRows.length
     ? visibleUsageRows.map((row) => ({ label: row.label, value: formatMetricValue(row) }))
     : [
         { label: "Borrowing transactions", value: "0" },
-        { label: "Equipment utilization", value: "0%" },
-        { label: "Reporting hours", value: "08–17" },
+        { label: "Reported defects", value: "0" },
+        { label: "Equipment for repair", value: "0" },
         { label: "Activity logs", value: String(activityRows.length) }
       ];
 
@@ -128,7 +122,7 @@ export function ReportsPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{isLifecycle ? "Select equipment…" : "All equipment"}</SelectItem>
+                <SelectItem value="all">All equipment</SelectItem>
                 {assets.map((asset) => (
                   <SelectItem key={asset.id} value={asset.id}>
                     {asset.name}
@@ -175,13 +169,7 @@ export function ReportsPanel({
           </div>
         </header>
         <div className="report-content p-6 sm:p-8">
-          {isLifecycle ? (
-            disabled ? (
-              <Skeleton className="h-40 w-full" />
-            ) : (
-              <AssetLifecycleTimeline asset={lifecycleAsset} events={lifecycleEvents} />
-            )
-          ) : disabled && !printableRows.length ? (
+          {disabled && !printableRows.length ? (
             <div className="space-y-3">
               <Skeleton className="h-5 w-48" />
               <Skeleton className="h-24 w-full" />

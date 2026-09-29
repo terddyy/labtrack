@@ -111,6 +111,37 @@ Rebuild the development-client APK only when native dependencies, Expo plugins, 
 npm run build:mobile:android:preview
 ```
 
+## Web end-to-end tests
+
+Install the Chromium test browser once:
+
+```bash
+npx playwright install chromium
+```
+
+Run the authenticated, non-mutating browser checks:
+
+```bash
+npm run test:e2e
+```
+
+The suite uses the configured Super Admin quick-login account, or
+`E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD` when quick login is unavailable.
+Set `E2E_BASE_URL` to test an already-running deployment instead of starting
+the local web server.
+
+The asset create/edit/delete scenario is disabled by default. Run it only
+against a dedicated disposable environment by setting all three safeguards:
+
+```text
+E2E_BASE_URL=<dedicated test deployment>
+E2E_ALLOW_MUTATIONS=true
+E2E_TARGET=dedicated-test
+```
+
+Then run `npm run test:e2e:mutations`. Never point the mutation suite at
+production.
+
 ## Supabase setup
 
 For local Supabase development, see `supabase/README.md`.

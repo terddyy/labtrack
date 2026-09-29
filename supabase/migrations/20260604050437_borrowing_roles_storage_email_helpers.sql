@@ -1,0 +1,3 @@
+-- Remote-history compatibility marker.
+-- The deployed SQL for this entry is represented locally by
+-- 202606040001_borrowing_availability_roles_reports.sql.

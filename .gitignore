@@ -5,6 +5,10 @@ node_modules
 dist
 build
 coverage
+playwright/.auth/
+playwright-report/
+test-results/
+blob-report/
 .env
 .env.*
 !.env.example

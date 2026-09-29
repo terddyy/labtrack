@@ -158,6 +158,9 @@ export function AccessManagementPanel({
         <div className="border-b px-4 pt-3">
           <FilterTabs counts={roleCounts} onChange={setRoleFilter} total={profiles.length} value={roleFilter} />
         </div>
+        <p className="border-b bg-muted/20 px-5 py-2.5 text-xs text-muted-foreground">
+          Turn Active off to remove access while preserving borrowing, defect, message, and audit history.
+        </p>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>

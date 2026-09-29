@@ -45,8 +45,9 @@ export type ReportType =
   | "asset_management_summary"
   | "borrowing_transactions"
   | "defect_reports"
-  | "inventory"
-  | "equipment_utilization";
+  | "asset_reports"
+  | "repairing_equipment"
+  | "retired_equipment";
 
 export type BorrowingResource = {
   id: string;

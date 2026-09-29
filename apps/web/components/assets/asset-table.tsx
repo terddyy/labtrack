@@ -1,7 +1,7 @@
 "use client";
 
 import { assetStatuses } from "@labtrack/shared";
-import { Package, Plus, QrCode, Search } from "lucide-react";
+import { Package, Plus, QrCode, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { EmptyState, StatusBadge } from "@/components/admin/ui";
@@ -31,12 +31,14 @@ export function AssetTable({
   assets,
   isLoading,
   onCreate,
+  onDelete,
   onSelect,
   selectedAssetId
 }: {
   assets: AssetView[];
   isLoading: boolean;
   onCreate: () => void;
+  onDelete: (asset: AssetView) => void;
   onSelect: (assetId: string) => void;
   selectedAssetId: string | null;
 }) {
@@ -149,13 +151,14 @@ export function AssetTable({
               <TableHead className="hidden md:table-cell">Property no.</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="pr-4 text-right">QR</TableHead>
+              <TableHead className="w-12 pr-4 text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && !assets.length
               ? Array.from({ length: 4 }).map((_, index) => (
                   <TableRow key={index}>
-                    <TableCell className="pl-4" colSpan={4}>
+                    <TableCell className="pl-4" colSpan={5}>
                       <Skeleton className="h-9 w-full" />
                     </TableCell>
                   </TableRow>
@@ -198,6 +201,21 @@ export function AssetTable({
                           <QrCode className="size-3.5" />
                           {asset.activeQr ? "Issued" : "None"}
                         </span>
+                      </TableCell>
+                      <TableCell className="pr-4 text-right">
+                        <Button
+                          aria-label={`Delete ${asset.name}`}
+                          className="text-destructive hover:text-destructive"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDelete(asset);
+                          }}
+                          size="icon-sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

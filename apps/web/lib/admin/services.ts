@@ -560,7 +560,9 @@ export async function markThreadMessagesRead(threadId: string) {
     .select("id")
     .eq("recipient_id", currentProfile.id)
     .eq("type", "ticket_message")
-    .eq("related_thread_id", threadId)
+    // Notifications created before related_thread_id was introduced cannot be
+    // assigned to a specific conversation, so clear those legacy rows too.
+    .or(`related_thread_id.eq.${threadId},related_thread_id.is.null`)
     .is("read_at", null);
 
   if (error) {
@@ -568,6 +570,7 @@ export async function markThreadMessagesRead(threadId: string) {
   }
 
   await Promise.all((data ?? []).map((notification) => callRpc(supabase, "markNotificationRead", { p_notification_id: notification.id })));
+  return data?.length ?? 0;
 }
 
 export async function sendBorrowingReturnReminder(bookingId: string) {

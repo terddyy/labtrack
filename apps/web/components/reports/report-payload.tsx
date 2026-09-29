@@ -28,26 +28,41 @@ function AnalyticsTable({ rows }: { rows: Record<string, unknown>[] }) {
     return <p className="text-sm text-muted-foreground">No matching activity was recorded for this period.</p>;
   }
 
+  const isMetrics = rows.every((row) => "metric" in row && "value" in row);
+  const columns = isMetrics
+    ? ["label", "value"]
+    : Object.keys(rows[0] ?? {}).filter((key) => !["id", "asset_id"].includes(key));
+
   return (
     <div className="overflow-hidden rounded-lg border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">
           <tr>
-            <th className="px-4 py-3 font-medium">Measure</th>
-            <th className="px-4 py-3 text-right font-medium">Result</th>
+            {columns.map((column) => (
+              <th className="px-4 py-3 font-medium" key={column}>{isMetrics && column === "label" ? "Measure" : isMetrics ? "Result" : formatLabel(column)}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="divide-y">
           {rows.map((row, index) => (
             <tr className="break-inside-avoid" key={`${String(row.metric ?? row.label ?? "measure")}-${index}`}>
-              <td className="px-4 py-3 text-muted-foreground">{String(row.label ?? formatLabel(String(row.metric ?? "Measure")))}</td>
-              <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatMetricValue(row.value, row.unit)}</td>
+              {columns.map((column) => (
+                <td className="px-4 py-3" key={column}>
+                  {isMetrics && column === "value" ? formatMetricValue(row.value, row.unit) : formatCellValue(column, row[column])}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
+}
+
+function formatCellValue(key: string, value: unknown) {
+  if ((key.endsWith("_at") || key === "date") && typeof value === "string") return formatDateTime(value);
+  if (value === null || value === undefined || value === "") return "—";
+  return typeof value === "object" ? "—" : formatLabel(String(value));
 }
 
 function formatReportValue(key: string, value: unknown) {

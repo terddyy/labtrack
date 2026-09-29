@@ -35,8 +35,9 @@ export const reportTypes = [
   "asset_management_summary",
   "borrowing_transactions",
   "defect_reports",
-  "inventory",
-  "equipment_utilization"
+  "asset_reports",
+  "repairing_equipment",
+  "retired_equipment"
 ] as const;
 
 export const profileSchema = z.object({

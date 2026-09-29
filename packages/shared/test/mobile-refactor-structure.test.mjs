@@ -118,15 +118,16 @@ test("mobile defect reporting supports safe photo selection, preview, and retry"
   assert.match(apiSource, /storage\.from\(DEFECT_PHOTO_BUCKET\)\.remove\(\[fileName\]\)/);
 });
 
-test("mobile reset stays local and registration requires a borrower role", () => {
+test("mobile reset stays local and registration defaults to student with a role selector", () => {
   const profileSource = readFileSync(path.join(protectedRoot, "(tabs)", "profile.tsx"), "utf8");
   const signInSource = readFileSync(path.join(mobileRoot, "app", "sign-in.tsx"), "utf8");
 
   assert.match(profileSource, /clearLocalAppPreferences/);
   assert.match(profileSource, /Your LABTRACK records stay unchanged/);
   assert.doesNotMatch(profileSource, /resetMyActivityData/);
-  assert.match(signInSource, /useState<BorrowerRole \| null>\(null\)/);
-  assert.match(signInSource, /!borrowerRole/);
+  assert.match(signInSource, /useState<BorrowerRole>\("student"\)/);
+  assert.match(signInSource, /SegmentedControl onChange=\{setBorrowerRole\}/);
+  assert.match(signInSource, /signUpWithPassword\(email\.trim\(\), password, fullName, borrowerRole\)/);
 });
 
 test("mobile home explains total assets and handles empty availability", () => {

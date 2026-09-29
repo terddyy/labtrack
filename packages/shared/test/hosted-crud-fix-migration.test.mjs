@@ -4,26 +4,26 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const migrationPath = fileURLToPath(
-  new URL("../../../supabase/migrations/20260606144623_fix_borrowing_rpc_and_storage_policies.sql", import.meta.url)
+  new URL("../../../supabase/migrations/20260606150413_fix_borrowing_rpc_and_storage_policies.sql", import.meta.url)
 );
 const migration = readFileSync(migrationPath, "utf8");
 
 const hostedAccessMigrationPath = fileURLToPath(
   new URL(
-    "../../../supabase/migrations/20260606153000_fix_hosted_priority_helper_and_asset_image_access.sql",
+    "../../../supabase/migrations/20260606151132_fix_hosted_priority_helper_and_asset_image_access.sql",
     import.meta.url
   )
 );
 const hostedAccessMigration = readFileSync(hostedAccessMigrationPath, "utf8");
 
 const hostedQrPickupMigrationPath = fileURLToPath(
-  new URL("../../../supabase/migrations/20260606154500_restore_borrower_qr_pickup_rpc.sql", import.meta.url)
+  new URL("../../../supabase/migrations/20260606151658_restore_borrower_qr_pickup_rpc.sql", import.meta.url)
 );
 const hostedQrPickupMigration = readFileSync(hostedQrPickupMigrationPath, "utf8");
 
 const hostedQrHardeningMigrationPath = fileURLToPath(
   new URL(
-    "../../../supabase/migrations/20260606160000_harden_qr_checkout_and_defect_photo_policies.sql",
+    "../../../supabase/migrations/20260606153513_harden_qr_checkout_and_defect_photo_policies.sql",
     import.meta.url
   )
 );
@@ -31,7 +31,7 @@ const hostedQrHardeningMigration = readFileSync(hostedQrHardeningMigrationPath, 
 
 const hostedQrLockOrderMigrationPath = fileURLToPath(
   new URL(
-    "../../../supabase/migrations/20260606161000_order_qr_checkout_locks_and_pickup_scope.sql",
+    "../../../supabase/migrations/20260606154716_order_qr_checkout_locks_and_pickup_scope.sql",
     import.meta.url
   )
 );

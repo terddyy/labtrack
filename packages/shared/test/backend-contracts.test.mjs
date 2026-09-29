@@ -8,9 +8,9 @@ const workflowMigrationPath = fileURLToPath(new URL("../../../supabase/migration
 const adminReadModelsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605280001_admin_read_models.sql", import.meta.url));
 const bookingHardeningMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202605310001_booking_contract_hardening.sql", import.meta.url));
 const borrowingMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606040001_borrowing_availability_roles_reports.sql", import.meta.url));
-const registrationPolicyMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606040002_registration_policy_toggle.sql", import.meta.url));
+const registrationPolicyMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260605075734_registration_policy_toggle.sql", import.meta.url));
 const restoredAdminAssetsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260604144630_restore_list_admin_assets_rpc.sql", import.meta.url));
-const assetImageReadModelsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606050001_asset_image_read_models.sql", import.meta.url));
+const assetImageReadModelsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260605075813_asset_image_read_models.sql", import.meta.url));
 const borrowerQrPickupMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202606050002_borrower_qr_pickup.sql", import.meta.url));
 const resetMyActivityDataMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260721120000_reset_my_activity_data.sql", import.meta.url));
 const workflowMigration = readFileSync(workflowMigrationPath, "utf8");
@@ -26,11 +26,13 @@ const generalTicketMigrationPath = fileURLToPath(new URL("../../../supabase/migr
 const reportsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609250001_reports_by_type.sql", import.meta.url));
 const feedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609270001_feedback_workflows.sql", import.meta.url));
 const finalFeedbackMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/202609280001_safe_local_reset_and_defect_photos.sql", import.meta.url));
+const assetStatusReportsMigrationPath = fileURLToPath(new URL("../../../supabase/migrations/20260929010206_asset_status_reports.sql", import.meta.url));
 const generalTicketMigration = readFileSync(generalTicketMigrationPath, "utf8");
 const reportsMigration = readFileSync(reportsMigrationPath, "utf8");
 const feedbackMigration = readFileSync(feedbackMigrationPath, "utf8");
 const finalFeedbackMigration = readFileSync(finalFeedbackMigrationPath, "utf8");
-const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}\n${finalFeedbackMigration}`;
+const assetStatusReportsMigration = readFileSync(assetStatusReportsMigrationPath, "utf8");
+const backendMigrations = `${workflowMigration}\n${adminReadModelsMigration}\n${bookingHardeningMigration}\n${borrowingMigration}\n${registrationPolicyMigration}\n${restoredAdminAssetsMigration}\n${assetImageReadModelsMigration}\n${borrowerQrPickupMigration}\n${resetMyActivityDataMigration}\n${generalTicketMigration}\n${reportsMigration}\n${feedbackMigration}\n${finalFeedbackMigration}\n${assetStatusReportsMigration}`;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -155,12 +157,14 @@ test("borrowing availability migration exposes room-aware read models", () => {
   assert.match(borrowingMigration, /status = 'pending'::public\.booking_status then 'tentative'/i);
 });
 
-test("report data honors the selected report type", () => {
-  assert.match(reportsMigration, /p_report_type = 'asset_management_summary' or a\.report_type = p_report_type/i);
-  assert.match(reportsMigration, /select 'inventory', 'total_assets'/i);
-  assert.match(reportsMigration, /select 'defect_reports', 'reported_defects'/i);
-  assert.match(reportsMigration, /'inventory', 'available_assets', 'Available equipment'/i);
-  assert.match(reportsMigration, /'defect_reports', 'unresolved_defects', 'Issues awaiting resolution'/i);
+test("report data exposes asset, repairing, and retired equipment reports", () => {
+  assert.match(assetStatusReportsMigration, /p_report_type = 'asset_management_summary' or metric_rows\.report_type = p_report_type/i);
+  assert.match(assetStatusReportsMigration, /select 'asset_reports', 'total_assets'/i);
+  assert.match(assetStatusReportsMigration, /select 'repairing_equipment', 'repairing_assets'/i);
+  assert.match(assetStatusReportsMigration, /select 'retired_equipment', 'retired_assets'/i);
+  assert.match(assetStatusReportsMigration, /a\.status = 'for_repair'.*or a\.condition = 'for_repair'/is);
+  assert.match(assetStatusReportsMigration, /a\.status = 'retired'.*or a\.condition = 'retired'/is);
+  assert.doesNotMatch(assetStatusReportsMigration, /equipment_utilization|asset_lifecycle/);
 });
 
 test("feedback workflow migration enforces rooms, unavailable assets, message links, and overdue reminders", () => {

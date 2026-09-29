@@ -105,9 +105,26 @@ test("report filters avoid the sidebar-constrained desktop overflow", () => {
 test("reports render analytics as a human-readable table instead of raw JSON", () => {
   const source = readFileSync(path.join(webRoot, "components", "reports", "report-payload.tsx"), "utf8");
 
-  assert.match(source, />Measure</);
-  assert.match(source, />Result</);
+  assert.match(source, /column === "label" \? "Measure"/);
+  assert.match(source, /isMetrics \? "Result"/);
   assert.match(source, /<AnalyticsTable rows=\{payload\}/);
   assert.doesNotMatch(source, /<pre/);
   assert.doesNotMatch(source, /JSON\.stringify|formatReportPayload/);
+});
+
+test("borrowing requests expose overdue as a derived filter", () => {
+  const source = readFileSync(path.join(webRoot, "components", "bookings", "booking-admin-panel.tsx"), "utf8");
+
+  assert.match(source, /bookingFilterOptions[\s\S]*"overdue"/);
+  assert.match(source, /isOverdueBooking/);
+  assert.match(source, /filter === "overdue"/);
+});
+
+test("opening a message thread clears linked and legacy unread notifications", () => {
+  const servicesSource = readFileSync(path.join(webRoot, "lib", "admin", "services.ts"), "utf8");
+  const dashboardSource = readFileSync(path.join(webRoot, "components", "admin-dashboard.tsx"), "utf8");
+
+  assert.match(servicesSource, /related_thread_id\.eq\.\$\{threadId\},related_thread_id\.is\.null/);
+  assert.match(dashboardSource, /unreadMessageCount: Math\.max\(0, current\.unreadMessageCount - \(markedCount \?\? 0\)\)/);
+  assert.match(dashboardSource, /unread_count: thread\.id === threadId \? 0/);
 });

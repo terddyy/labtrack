@@ -51,13 +51,13 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  const [borrowerRole, setBorrowerRole] = useState<BorrowerRole | null>(null);
+  const [borrowerRole, setBorrowerRole] = useState<BorrowerRole>("student");
   const [message, setMessage] = useState<AuthMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingQuickRole, setPendingQuickRole] = useState<string | null>(null);
   const isConfigured = hasSupabaseConfig();
   const isSignUp = authMode === "sign-up";
-  const isManualAuthDisabled = isSubmitting || !isConfigured || !email.trim() || !password || (isSignUp && (!fullName.trim() || !borrowerRole));
+  const isManualAuthDisabled = isSubmitting || !isConfigured || !email.trim() || !password || (isSignUp && !fullName.trim());
 
   async function handleManualAuth() {
     setIsSubmitting(true);
@@ -65,11 +65,6 @@ export default function SignInScreen() {
 
     try {
       if (isSignUp) {
-        if (!borrowerRole) {
-          setMessage({ tone: "danger", text: "Choose Faculty or Student before creating your account." });
-          return;
-        }
-
         const result = await signUpWithPassword(email.trim(), password, fullName, borrowerRole);
 
         if (!result.signedIn) {

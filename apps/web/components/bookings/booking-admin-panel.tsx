@@ -10,6 +10,12 @@ import { Button } from "@/components/ui/button";
 import { formatBookingResource, formatShortDate } from "@/lib/admin/format";
 import type { AssetView, BookingRow, LocationRow, ProfileRow } from "@/lib/admin/types";
 
+const bookingFilterOptions = [...bookingStatuses, "overdue"] as const;
+
+function isOverdueBooking(booking: BookingRow, now = Date.now()) {
+  return booking.status === "checked_out" && new Date(booking.requested_end_at).getTime() < now;
+}
+
 export function BookingAdminPanel({
   assets,
   bookings,
@@ -36,12 +42,16 @@ export function BookingAdminPanel({
   profiles: ProfileRow[];
 }) {
   const [filter, setFilter] = useState("all");
-  const visible = filter === "all" ? bookings : bookings.filter((booking) => booking.status === filter);
+  const now = Date.now();
+  const filterStatuses = bookings.map((booking) => isOverdueBooking(booking, now) ? "overdue" : booking.status);
+  const visible = filter === "all"
+    ? bookings
+    : bookings.filter((booking) => filter === "overdue" ? isOverdueBooking(booking, now) : booking.status === filter);
 
   return (
     <section className="overflow-hidden rounded-xl border bg-card">
       <header className="border-b px-4 pt-3">
-        <FilterTabs counts={countStatuses(bookings.map((booking) => booking.status), bookingStatuses)} onChange={setFilter} total={bookings.length} value={filter} />
+        <FilterTabs counts={countStatuses(filterStatuses, bookingFilterOptions)} onChange={setFilter} total={bookings.length} value={filter} />
       </header>
 
       {visible.length ? (
@@ -52,7 +62,7 @@ export function BookingAdminPanel({
             const returnCustodian = profiles.find((profile) => profile.id === booking.returned_by);
             const actions = getBookingWorkflowActions(booking.status);
             const ResourceIcon = booking.resource_type === "room" ? DoorOpen : Laptop;
-            const overdue = booking.status === "checked_out" && new Date(booking.requested_end_at).getTime() < Date.now();
+            const overdue = isOverdueBooking(booking, now);
             const returnedLate = booking.status === "returned" && booking.returned_at
               ? new Date(booking.returned_at).getTime() > new Date(booking.requested_end_at).getTime()
               : false;

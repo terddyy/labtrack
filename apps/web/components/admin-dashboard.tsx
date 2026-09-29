@@ -46,7 +46,6 @@ import {
   deleteAssetAction,
   deleteCatalogItemAction,
   getAdminDashboardDataAction,
-  getAssetLifecycleAction,
   getBorrowingMonitorAction,
   getPrintableReportDataAction,
   getTicketMessagesAction,
@@ -64,15 +63,10 @@ import {
   updateRegistrationPolicyAction,
   updateRoomSettingsAction
 } from "@/lib/admin/actions";
-import {
-  ASSET_LIFECYCLE_REPORT,
-  ReportsPanel,
-  type ReportView
-} from "@/components/reports/reports-panel";
+import { ReportsPanel, type ReportView } from "@/components/reports/reports-panel";
 import type {
   AdminAccessState,
   AssetFormState,
-  AssetLifecycleEvent,
   CatalogKind,
   AssetView,
   ActivityLogRow,
@@ -148,7 +142,7 @@ const sectionCopy: Record<AdminSection, { title: string; description: string }> 
   },
   reports: {
     title: "Reports",
-    description: "Generate summaries for borrowing, inventory, defects, and utilization."
+    description: "Generate summaries for assets, borrowing, defects, repairs, and retirement."
   },
   access: {
     title: "Access",
@@ -187,7 +181,6 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
   const [isAssetFormOpen, setIsAssetFormOpen] = useState(false);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [assetPendingDelete, setAssetPendingDelete] = useState<AssetView | null>(null);
-  const [lifecycleEvents, setLifecycleEvents] = useState<AssetLifecycleEvent[]>([]);
   const hasRequestedReports = useRef(false);
   const [assetForm, setAssetForm] = useState<AssetFormState>(blankAssetForm);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
@@ -337,33 +330,18 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
         assetId: reportFilters.assetId || null
       };
 
-      if (reportType === ASSET_LIFECYCLE_REPORT && !baseFilters.assetId) {
-        setLifecycleEvents([]);
-        setReportsMessage("Select a piece of equipment to generate its lifecycle report.");
-        setIsLoadingReports(false);
-        return;
-      }
-
       // Each section loads independently so one failing RPC does not blank the whole page.
       const [analyticsResult, activityResult, reportResult] = await Promise.all([
         getUsageAnalyticsAction(baseFilters),
         listActivityLogsAction({ from: baseFilters.from, to: baseFilters.to, limit: 80, offset: 0 }),
-        reportType === ASSET_LIFECYCLE_REPORT
-          ? getAssetLifecycleAction(baseFilters.assetId ?? "")
-          : getPrintableReportDataAction({ ...baseFilters, reportType })
+        getPrintableReportDataAction({ ...baseFilters, reportType })
       ]);
       const errors = [analyticsResult.error, activityResult.error, reportResult.error].filter(Boolean);
 
       setUsageRows(analyticsResult.data ?? []);
       setActivityRows(activityResult.data ?? []);
 
-      if (reportType === ASSET_LIFECYCLE_REPORT) {
-        setLifecycleEvents((reportResult.data as AssetLifecycleEvent[] | null) ?? []);
-        setPrintableRows([]);
-      } else {
-        setPrintableRows((reportResult.data as PrintableReportRow[] | null) ?? []);
-        setLifecycleEvents([]);
-      }
+      setPrintableRows((reportResult.data as PrintableReportRow[] | null) ?? []);
 
       if (errors.length) {
         setReportsMessage(errors.join(" "));
@@ -858,8 +836,18 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
 
   async function handleSelectThread(threadId: string) {
     setSelectedThreadId(threadId);
-    const { error } = await markThreadMessagesReadAction(threadId);
-    if (!error) await loadDashboardData();
+    const { data: markedCount, error } = await markThreadMessagesReadAction(threadId);
+    if (!error) {
+      setData((current) => ({
+        ...current,
+        unreadMessageCount: Math.max(0, current.unreadMessageCount - (markedCount ?? 0)),
+        ticketThreads: current.ticketThreads.map((thread) => ({
+          ...thread,
+          unread_count: thread.id === threadId ? 0 : thread.unread_count
+        }))
+      }));
+      await loadDashboardData();
+    }
   }
 
   if (access.status !== "authorized") {
@@ -915,6 +903,7 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
             assets={data.assets}
             isLoading={isLoadingData}
             onCreate={openCreateAssetForm}
+            onDelete={setAssetPendingDelete}
             onSelect={setSelectedAssetId}
             selectedAssetId={selectedAsset?.id ?? null}
           />
@@ -1079,7 +1068,6 @@ export function AdminDashboard({ initialAccess, initialData, quickLoginAccounts 
           assets={data.assets}
           disabled={isLoadingReports}
           filters={reportFilters}
-          lifecycleEvents={lifecycleEvents}
           locations={data.locations}
           message={reportsMessage}
           onChangeFilters={setReportFilters}

@@ -1,0 +1,2 @@
+-- Remote-history compatibility marker.
+-- The deployed cleanup is already incorporated into the local migration chain.
