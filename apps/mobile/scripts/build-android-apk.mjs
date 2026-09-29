@@ -28,8 +28,7 @@ const easCli = ["--yes", "eas-cli@latest"];
 
 const baseEasEnvKeys = [
   "EXPO_PUBLIC_SUPABASE_URL",
-  "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-  "EXPO_PUBLIC_EMAIL_CONFIRMATION_URL"
+  "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
 ];
 
 function getArg(name) {
@@ -287,11 +286,7 @@ async function main() {
   const dotenv = readEnvFile(path.join(mobileRoot, ".env"));
   const buildEnv = {
     ...dotenv,
-    ...process.env,
-    EXPO_PUBLIC_EMAIL_CONFIRMATION_URL:
-      process.env.EXPO_PUBLIC_EMAIL_CONFIRMATION_URL
-      ?? dotenv.EXPO_PUBLIC_EMAIL_CONFIRMATION_URL
-      ?? appConfig.extra?.emailConfirmationUrl
+    ...process.env
   };
   const easEnvKeys = baseEasEnvKeys;
   const missing = easEnvKeys.filter((key) => !buildEnv[key]);

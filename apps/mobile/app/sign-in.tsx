@@ -1,5 +1,6 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import * as Linking from "expo-linking";
+import { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { AppIcon } from "@/components/icons";
 import { Button, Card, ConsoleHeader, Field, Notice, ScreenScrollView, SegmentedControl } from "@/components/ui";
@@ -22,6 +23,7 @@ const borrowerRoles: Array<{ label: string; value: BorrowerRole }> = [
 
 export default function SignInScreen() {
   const auth = useCurrentProfile();
+  const incomingUrl = Linking.useLinkingURL();
   const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -32,6 +34,21 @@ export default function SignInScreen() {
   const isConfigured = hasSupabaseConfig();
   const isSignUp = authMode === "sign-up";
   const isManualAuthDisabled = isSubmitting || !isConfigured || !email.trim() || !password || (isSignUp && !fullName.trim());
+
+  useEffect(() => {
+    if (!incomingUrl?.startsWith("labtrack:")) return;
+
+    const url = new URL(incomingUrl);
+    if (url.pathname !== "/sign-in") return;
+
+    const fragment = new URLSearchParams(url.hash.slice(1));
+    const error = fragment.get("error_description") || fragment.get("error") || url.searchParams.get("error_description") || url.searchParams.get("error");
+    if (error) {
+      setMessage({ tone: "danger", text: error });
+    } else if (fragment.has("access_token") || url.searchParams.has("code")) {
+      setMessage({ tone: "success", text: "Email confirmed. Sign in with your registered email and password." });
+    }
+  }, [incomingUrl]);
 
   async function handleManualAuth() {
     setIsSubmitting(true);

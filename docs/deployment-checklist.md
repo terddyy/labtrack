@@ -7,7 +7,8 @@
 - Apply all migrations in `supabase/migrations` filename order.
 - Verify the workflow RPCs exist and are executable by authenticated users: QR lookup/regeneration, booking create/cancel/decide/checkout/return, defect create/triage, ticket thread/message, and notification read.
 - Verify the Supabase Auth Before User Created hook is configured to call `public.hook_restrict_signup_by_email_domain`.
-- Add `https://labtrack-chi.vercel.app/email-confirmed` to the Supabase Auth redirect URL allow list before releasing the mobile confirmation flow.
+- Set the Supabase Auth Site URL to `https://labtrack-chi.vercel.app/email-confirmed` so links without an accepted redirect never land on the admin login. Allow `labtrack:///sign-in` for new Android confirmation emails and keep `https://labtrack-chi.vercel.app/email-confirmed` for older APKs and emails.
+- Keep the Confirm signup email template link as `{{ .ConfirmationURL }}` and verify a fresh confirmation email opens the Student/Faculty app sign-in screen on Android.
 - Confirm `public.registration_settings` is restricted by default and `public.university_email_domains` includes the allowed school domain.
 - Create or confirm an active `super_admin` row in `public.profiles`.
 - Smoke test with real accounts: instructor QR lookup, booking request, defect report, ticket message, notification read; admin asset/QR, booking, defect, ticket, catalog; super-admin profile management.

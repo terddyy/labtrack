@@ -11,7 +11,7 @@ This app builds Android APK releases with Expo EAS cloud builds. Production APKs
 - If a local generated `apps/mobile/android` folder exists, the version and build helpers sync `android/app/build.gradle` from `app.json` before building. The generated native folder stays ignored unless the project intentionally becomes a bare React Native app.
 - `apps/mobile/package.json` and `package-lock.json` are kept in sync by the version script.
 
-Current production release target: `0.1.2` with Android `versionCode` `3`.
+Current production release target: `0.2.0` with Android `versionCode` `5`.
 
 ## Release Steps
 
@@ -40,7 +40,7 @@ Current production release target: `0.1.2` with Android `versionCode` `3`.
 - The production profile pins `environment: "production"` so the internal APK reads EAS production environment variables.
 - Production produces an APK with `android.buildType: "apk"` and `distribution: "internal"`.
 - Sign-in requires individual email/password accounts; no demo login buttons or shared demo credentials ship in the app.
-- The build helper syncs the Supabase URL, publishable key, and email confirmation URL for the selected EAS profile.
+- The build helper syncs the Supabase URL and publishable key for the selected EAS profile. Confirmation emails redirect into the Android app's `labtrack:///sign-in` route.
 
 ## Required Environment
 
@@ -48,7 +48,6 @@ The build machine or EAS environment must provide:
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `EXPO_PUBLIC_EMAIL_CONFIRMATION_URL` (defaults to the deployed LABTRACK confirmation page)
 
 The helper loads `apps/mobile/.env`, then overlays process environment variables. It syncs the required values to the EAS project before starting the build unless `--no-sync-eas-env` is passed.
 
